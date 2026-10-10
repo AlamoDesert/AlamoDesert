@@ -3,11 +3,12 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
 <style>
-/* Layout: sticky Kopf mit Datum + Schicht-Tabs, darunter eine Zeitleiste aus Phasen (Uhrzeit links, Aufgaben rechts). */
+/* Layout: sticky Kopf (Datum + Ansichten). Übersicht = Kacheln „Jetzt dran", „Immer im Blick", Schichtplan, Übergabe.
+   Schichtansicht = Daueraufgaben-Leiste oben, darunter Phasen als Zeitleiste; erledigte Phasen klappen ein. */
 :root {
   --bg: #eef2f6; --surface: #ffffff; --surface-2: #f6f8fb; --ink: #142130; --muted: #5a6879; --line: #d7dee7;
   --accent: #1d5bb8; --accent-soft: #e2ecfa; --done: #23804f; --done-soft: #e1f2e8;
-  --warn: #c0392b; --warn-soft: #fbe6e3; --na: #8a96a5; --now: #d98a12; --now-soft: #fdf1dc;
+  --warn: #c0392b; --warn-soft: #fbe6e3; --na: #8a96a5; --now: #c27a0e; --now-soft: #fdf1dc;
   --f-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
   --f-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
   --r: 10px;
@@ -22,80 +23,121 @@
   --warn: #f07a6c; --warn-soft: #3d1f1c; --na: #6d7a8a; --now: #f0b04f; --now-soft: #3a2c14; color-scheme: dark }
 
 * { box-sizing: border-box }
-body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.4; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.4 }
 button { font: inherit; color: inherit; cursor: pointer }
-button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
-.wrap { max-width: 760px; margin: 0 auto; padding-inline: 16px; padding-block: 0 48px }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.wrap { max-width: 980px; margin: 0 auto; padding-inline: 16px; padding-block: 0 48px }
+h2, h3 { text-wrap: balance }
 
 header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 12px 10px; border-bottom: 1px solid var(--line) }
 .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap }
 .brand { font-family: var(--f-display); font-weight: 700; font-size: 22px; letter-spacing: .02em; text-transform: uppercase; margin: 0; flex: 1; min-width: 0 }
-.brand small { display: block; font-family: var(--f-body); font-weight: 500; font-size: 12px; letter-spacing: .04em; color: var(--muted); text-transform: none }
+.brand small { display: block; font-family: var(--f-body); font-weight: 500; font-size: 12px; letter-spacing: .02em; color: var(--muted); text-transform: none }
 .datenav { display: flex; align-items: center; gap: 4px }
 .iconbtn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; width: 36px; height: 36px; font-size: 18px; line-height: 1 }
-.datebtn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; height: 36px; padding: 0 12px; font-weight: 600; font-variant-numeric: tabular-nums; position: relative; overflow: hidden }
+.datebtn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; height: 36px; padding: 0 12px; font-weight: 600; font-variant-numeric: tabular-nums; position: relative; overflow: hidden; display: inline-flex; align-items: center }
 .datebtn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100% }
 .todaybtn { border: 0; background: none; color: var(--accent); font-weight: 600; padding: 0 4px; height: 36px }
 
-.tabs { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; margin-top: 10px }
-.tab { border: 1px solid var(--line); background: var(--surface); border-radius: var(--r); padding: 8px 12px; text-align: left; display: grid; gap: 4px }
-.tab b { font-family: var(--f-display); font-size: 17px; letter-spacing: .03em; text-transform: uppercase }
+.tabs { display: flex; gap: 4px; margin-top: 10px; overflow-x: auto }
+.tab { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 12px; display: inline-flex; gap: 8px; align-items: baseline; white-space: nowrap }
+.tab b { font-family: var(--f-display); font-size: 16px; letter-spacing: .03em; text-transform: uppercase }
 .tab .meta { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums }
-.tab[aria-selected="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent) }
-.tab.month { align-content: center; text-align: center }
-.bar { height: 5px; background: var(--line); border-radius: 3px; overflow: hidden }
-.bar i { display: block; height: 100%; background: var(--done); width: 0; transition: width .3s }
-
-.status { font-size: 12px; color: var(--muted); margin-top: 8px; min-height: 16px }
+.tab[aria-selected="true"] { border-color: var(--accent); background: var(--accent-soft) }
+.tab[aria-selected="true"] b { color: var(--accent) }
+.status { font-size: 12px; color: var(--muted); margin-top: 6px; min-height: 16px }
 .status.err { color: var(--warn) }
 
-/* Zeitleiste */
-.timeline { display: grid; gap: 18px; margin-top: 18px }
-.phase { display: grid; grid-template-columns: 64px 1fr; gap: 12px }
-.when { font-family: var(--f-display); font-weight: 700; font-size: 18px; font-variant-numeric: tabular-nums; color: var(--muted); padding-top: 10px; text-align: right; line-height: 1.1 }
-.when small { display: block; font-family: var(--f-body); font-weight: 500; font-size: 11px }
-.phase.is-now .when { color: var(--now) }
-.phase.is-late .when { color: var(--warn) }
-.phase.is-done .when { color: var(--done) }
+/* Allgemein */
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); min-width: 0; overflow: hidden }
-.phase.is-now .card { border-color: var(--now); box-shadow: 0 0 0 1px var(--now) }
-.phead { display: flex; align-items: baseline; gap: 8px; padding: 10px 14px 8px; border-bottom: 1px solid var(--line); background: var(--surface-2); flex-wrap: wrap }
-.phead h2 { margin: 0; font-family: var(--f-display); font-size: 17px; letter-spacing: .04em; text-transform: uppercase; flex: 1; min-width: 0 }
-.phead .hint { font-size: 12px; color: var(--muted) }
-.pill { font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; padding: 2px 8px; border-radius: 99px; background: var(--accent-soft); color: var(--accent) }
+.chead { display: flex; align-items: baseline; gap: 8px; padding: 10px 14px 8px; border-bottom: 1px solid var(--line); background: var(--surface-2); flex-wrap: wrap }
+.chead h2 { margin: 0; font-family: var(--f-display); font-size: 17px; letter-spacing: .04em; text-transform: uppercase; flex: 1; min-width: 0 }
+.chead .hint { font-size: 12px; color: var(--muted) }
+.pill { font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; padding: 2px 8px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); white-space: nowrap }
 .pill.now { background: var(--now-soft); color: var(--now) }
 .pill.late { background: var(--warn-soft); color: var(--warn) }
 .pill.done { background: var(--done-soft); color: var(--done) }
+.pill.later { background: var(--surface-2); color: var(--muted); box-shadow: inset 0 0 0 1px var(--line) }
+.empty { color: var(--muted); padding: 14px }
 
+/* Abhak-Zeilen */
 ul.items { list-style: none; margin: 0; padding: 0 }
 ul.items li { display: flex; align-items: stretch; border-top: 1px solid var(--line) }
 ul.items li:first-child { border-top: 0 }
-.check { flex: 1; min-width: 0; display: flex; gap: 12px; align-items: flex-start; text-align: left; background: none; border: 0; padding: 12px 14px; min-height: 52px }
-.box { flex: none; width: 26px; height: 26px; border-radius: 7px; border: 2px solid var(--line); display: grid; place-items: center; margin-top: -1px; transition: background .15s, border-color .15s }
-.box svg { width: 16px; height: 16px; opacity: 0 }
+.check { flex: 1; min-width: 0; display: flex; gap: 12px; align-items: flex-start; text-align: left; background: none; border: 0; padding: 10px 14px; min-height: 48px }
+.box { flex: none; width: 24px; height: 24px; border-radius: 6px; border: 2px solid var(--line); display: grid; place-items: center; transition: background .15s, border-color .15s }
+.box svg { width: 15px; height: 15px; opacity: 0 }
 .txt { min-width: 0 }
 .txt .label { font-weight: 500 }
-.txt .sub { display: block; font-size: 13px; color: var(--muted); margin-top: 2px }
-.txt .who { display: block; font-size: 12px; color: var(--done); margin-top: 3px; font-variant-numeric: tabular-nums }
+.txt .sub { display: block; font-size: 13px; color: var(--muted); margin-top: 1px }
+.txt .who { display: block; font-size: 12px; color: var(--done); margin-top: 2px; font-variant-numeric: tabular-nums }
+.txt .tag { font-size: 11px; font-weight: 600; color: var(--warn); margin-left: 6px; white-space: nowrap }
 li.important .label { color: var(--warn) }
 li.done .box { background: var(--done); border-color: var(--done) }
 li.done .box svg { opacity: 1 }
 li.done .label { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line) }
 li.na .box { border-style: dashed; border-color: var(--na) }
-li.na .label { color: var(--na) }
-li.na .who { color: var(--na) }
+li.na .label, li.na .who { color: var(--na) }
 .skip { flex: none; border: 0; border-left: 1px solid var(--line); background: none; color: var(--muted); font-size: 12px; font-weight: 600; padding: 0 12px }
 li.na .skip { color: var(--ink); background: var(--surface-2) }
 
-/* Rundgänge */
-.rounds { padding: 12px 14px; display: grid; gap: 8px; border-top: 1px solid var(--line) }
-.rounds .label { font-weight: 500 }
-.rounds .label span { color: var(--warn) }
-.chips { display: flex; flex-wrap: wrap; gap: 6px }
-.chip { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 0; width: 58px; font-weight: 600; font-variant-numeric: tabular-nums; font-size: 14px }
-.chip.done { background: var(--done); border-color: var(--done); color: #fff }
-.chip.now { border-color: var(--now); box-shadow: inset 0 0 0 1px var(--now) }
-.chip.late { border-color: var(--warn); color: var(--warn) }
+/* Daueraufgaben: kein Haken, nur Erinnerung */
+.always { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); margin-top: -1px }
+.always > div { border-top: 1px solid var(--line); padding: 10px 14px; display: flex; gap: 10px; align-items: flex-start; min-width: 0 }
+.always .ic { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center }
+.always .ic svg { width: 14px; height: 14px }
+.always .important .ic { background: var(--warn-soft); color: var(--warn) }
+.always .important .label { color: var(--warn) }
+.always .label { font-weight: 500 }
+.always .sub { display: block; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums }
+.always .sub b { color: var(--now); font-weight: 600 }
+
+/* Übersicht */
+.now-strip { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-top: 18px }
+.clock { font-family: var(--f-display); font-weight: 700; font-size: 40px; line-height: 1; font-variant-numeric: tabular-nums }
+.now-strip .what { font-size: 15px; color: var(--muted); min-width: 0 }
+.now-strip .what b { color: var(--ink) }
+.dash { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 14px; margin-top: 14px; align-items: start }
+.dash > .col { display: grid; gap: 14px; min-width: 0 }
+.sublabel { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 10px 14px 4px; border-top: 1px solid var(--line) }
+.sublabel:first-child { border-top: 0 }
+.sublabel.late { color: var(--warn) }
+
+.plan { list-style: none; margin: 0; padding: 0 }
+.plan li { border-top: 1px solid var(--line) }
+.plan li:first-child { border-top: 0 }
+.plan button { width: 100%; border: 0; background: none; display: grid; grid-template-columns: 48px 1fr auto; gap: 10px; align-items: center; padding: 8px 14px; text-align: left }
+.plan .t { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--muted) }
+.plan .n { min-width: 0 }
+.plan .n small { color: var(--muted); font-variant-numeric: tabular-nums; margin-left: 6px }
+.plan li.cur { background: var(--now-soft) }
+.plan li.cur .t { color: var(--now) }
+.shiftsum { display: flex; align-items: center; gap: 10px; padding: 10px 14px 4px }
+.shiftsum b { font-family: var(--f-display); font-size: 16px; text-transform: uppercase; letter-spacing: .04em }
+.shiftsum span { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; margin-left: auto }
+.bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin: 0 14px 8px }
+.bar i { display: block; height: 100%; background: var(--done); transition: width .3s }
+
+.note { padding: 12px 14px; display: grid; gap: 6px }
+.note label { font-size: 12px; font-weight: 600; color: var(--muted) }
+.note textarea { width: 100%; min-height: 76px; resize: vertical; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); color: var(--ink); font: inherit; padding: 8px 10px }
+.note .read { background: var(--now-soft); border-radius: 8px; padding: 8px 10px; white-space: pre-wrap; overflow-wrap: anywhere }
+.note .read.none { background: var(--surface-2); color: var(--muted) }
+.note .saved { font-size: 11px; color: var(--muted); min-height: 14px }
+
+/* Schichtansicht */
+.timeline { display: grid; gap: 14px; margin-top: 14px }
+.phase { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px }
+.when { font-family: var(--f-display); font-weight: 700; font-size: 18px; font-variant-numeric: tabular-nums; color: var(--muted); padding-top: 9px; text-align: right; line-height: 1.1 }
+.when small { display: block; font-family: var(--f-body); font-weight: 500; font-size: 11px }
+.phase.is-now .when { color: var(--now) }
+.phase.is-late .when { color: var(--warn) }
+.phase.is-done .when { color: var(--done) }
+.phase.is-now .card { border-color: var(--now); box-shadow: 0 0 0 1px var(--now) }
+.chead.toggle { cursor: pointer; border-bottom: 0 }
+.phase.open .chead.toggle { border-bottom: 1px solid var(--line) }
+.chead .chev { color: var(--muted); font-size: 12px }
+.alwayscard { margin-top: 14px }
 
 /* Monat */
 .monthhead { display: flex; align-items: center; gap: 8px; margin-top: 18px }
@@ -109,17 +151,18 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
 .mcell { border: 0; background: none; width: 100%; min-width: 34px; height: 36px; font-size: 12px; font-weight: 600 }
 .mcell.full { background: var(--done-soft); color: var(--done) }
 .mcell.part { background: var(--now-soft); color: var(--now) }
-.mcell.none { color: var(--line) }
+.mcell.none, .mcell.future { color: var(--line) }
 .mcell.sel { box-shadow: inset 0 0 0 2px var(--accent) }
-.mcell.future { color: var(--line) }
 .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 10px }
 .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 4px }
+.legend .lg-full { background: var(--done-soft); box-shadow: inset 0 0 0 1px var(--done) }
+.legend .lg-part { background: var(--now-soft); box-shadow: inset 0 0 0 1px var(--now) }
 
-.empty { color: var(--muted); padding: 20px 0 }
+@media (max-width: 760px) { .dash { grid-template-columns: minmax(0, 1fr) } }
 @media (max-width: 480px) {
-  .phase { grid-template-columns: 1fr; gap: 6px }
+  .phase { grid-template-columns: minmax(0, 1fr); gap: 6px }
   .when { text-align: left; padding-top: 0; display: flex; gap: 8px; align-items: baseline }
-  .tab { padding: 8px 10px }
+  .clock { font-size: 34px }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important } }
 </style>
@@ -136,9 +179,10 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
       </div>
     </div>
     <div class="tabs" role="tablist">
-      <button class="tab" role="tab" id="tab-frueh" data-view="frueh"><b>Frühschicht</b><span class="meta" id="meta-frueh">–</span><span class="bar"><i id="bar-frueh"></i></span></button>
-      <button class="tab" role="tab" id="tab-spaet" data-view="spaet"><b>Spätschicht</b><span class="meta" id="meta-spaet">–</span><span class="bar"><i id="bar-spaet"></i></span></button>
-      <button class="tab month" role="tab" id="tab-monat" data-view="monat"><b>Monat</b></button>
+      <button class="tab" role="tab" data-view="uebersicht"><b>Übersicht</b></button>
+      <button class="tab" role="tab" data-view="frueh"><b>Früh</b><span class="meta" id="meta-frueh"></span></button>
+      <button class="tab" role="tab" data-view="spaet"><b>Spät</b><span class="meta" id="meta-spaet"></span></button>
+      <button class="tab" role="tab" data-view="monat"><b>Monat</b></button>
     </div>
     <div class="status" id="status">Verbinde…</div>
   </header>
@@ -149,12 +193,34 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
 (() => {
   "use strict";
 
-  // ---------- Checkliste (Stand: Aushang „Checkliste neue Rezeption") ----------
-  // Zeiten als "HH:MM". important = rot auf dem Aushang. optional = darf als „entfällt" markiert werden.
+  // ---------- Inhalt (Vorlage: Aushang „Checkliste neue Rezeption") ----------
+  // Einmalige Aufgaben werden abgehakt. Daueraufgaben (ALWAYS) gelten die ganze Schicht und haben keinen Haken.
+  // important = rot auf dem Aushang. optional = darf als „entfällt" markiert werden.
+  // Item-IDs sind Datenbank-Schlüssel: nie umbenennen.
+  const ALWAYS = {
+    frueh: [
+      { id: "rund", t: "Rundgang Halle / draußen", rounds: true },
+      { id: "wasser", t: "Wasserspender regelmäßig wischen", important: true },
+      { id: "spuel", t: "Spülbecken (Lager) sauberhalten", important: true },
+      { id: "checkin", t: "Check-ins erledigen", s: "nicht geschafft? → Übergabe-Notiz" },
+      { id: "whatsapp", t: "WhatsApp-Chats abarbeiten" },
+      { id: "muell", t: "Müll rausbringen, wenn voll" },
+      { id: "fenster", t: "Fenster öffnen/schließen", s: "je nach Wetter" },
+    ],
+    spaet: [
+      { id: "rund", t: "Rundgang Halle / draußen", rounds: true },
+      { id: "wasser", t: "Wasserspender regelmäßig wischen", important: true },
+      { id: "spuel", t: "Spülbecken (Lager) sauberhalten", important: true },
+      { id: "checkin", t: "Check-ins erledigen, wenn noch offen" },
+      { id: "whatsapp", t: "WhatsApp-Chats abarbeiten" },
+      { id: "muell", t: "Müll rausbringen, wenn voll" },
+      { id: "fenster", t: "Fenster öffnen/schließen", s: "je nach Wetter" },
+    ],
+  };
+
   const SHIFTS = {
     frueh: {
-      label: "Frühschicht", start: "07:30", end: "15:00",
-      rounds: [8, 9, 10, 11, 12, 13, 14],
+      label: "Frühschicht", short: "Früh", start: "07:30", end: "15:00",
       phases: [
         { id: "open", title: "Öffnen", from: "07:30", to: "08:00", hint: "direkt bei Schichtbeginn", items: [
           { id: "f_lager", t: "Lager (hinter Rezeption) aufschließen" },
@@ -164,7 +230,6 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
           { id: "f_kaffee", t: "Kaffeemaschine anstellen", s: "rechts hinter dem Display" },
           { id: "f_musik", t: "Musik an über Sonos" },
           { id: "f_tv", t: "Beide Fernseher anmachen" },
-          { id: "f_fenster", t: "Fenster öffnen/schließen je nach Wetter" },
         ]},
         { id: "setup", title: "Rezeption einrichten", from: "08:00", to: "09:00", hint: "vor den ersten Buchungen", items: [
           { id: "f_spint", t: "Schläger/Bälle vom Vorabend aus dem Rückgabespint nehmen", s: "Schläger-Nr. korrekt hinterlegt? Auf Schäden prüfen." },
@@ -172,35 +237,17 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
           { id: "f_rezeption", t: "Rezeption aufbauen", s: "Aufsteller, Kaffeebecher + Extras, Spendenbox, Preisliste, Eisliste, Snickers, Müsliriegel, Griffbänder" },
           { id: "f_kuehl_fuell", t: "Kühlschränke auffüllen" },
         ]},
-        { id: "orga", title: "Orga & Kommunikation", from: "09:00", to: "11:00", hint: "am Vormittag", items: [
+        { id: "orga", title: "Orga", from: "09:00", to: "11:00", hint: "am Vormittag", items: [
           { id: "f_excel", t: "Neuerungen in der Excel (SharePoint) prüfen" },
-          { id: "f_whatsapp", t: "WhatsApp-Chats abarbeiten" },
-          { id: "f_checkin", t: "Check-ins erledigen" },
           { id: "f_bestand", t: "Bestand Schläger + Bälle prüfen → sortieren" },
-        ]},
-        { id: "laufend", title: "Laufend", from: "07:30", to: "15:00", hint: "über die ganze Schicht", running: true, items: [
-          { id: "f_wasser", t: "Wasserspender regelmäßig wischen", important: true },
-          { id: "f_muell", t: "Müll rausbringen, wenn voll", optional: true },
-        ]},
-        { id: "handover", title: "Übergabe", from: "14:30", to: "15:00", hint: "vor Schichtende", items: [
-          { id: "f_spuel", t: "Spülbecken (Lager) sauberhalten", important: true },
-          { id: "f_info", t: "Info an Spätschicht, falls Check-ins nicht geschafft", optional: true },
         ]},
       ],
     },
     spaet: {
-      label: "Spätschicht", start: "15:00", end: "23:00",
-      rounds: [15, 16, 17, 18, 19, 20, 21, 22],
+      label: "Spätschicht", short: "Spät", start: "15:00", end: "23:00",
       phases: [
-        { id: "start", title: "Schichtstart", from: "15:00", to: "15:30", hint: "nach der Übergabe", items: [
+        { id: "start", title: "Schichtstart", from: "15:00", to: "15:30", hint: "Übergabe-Notiz lesen", items: [
           { id: "s_excel", t: "Neuerungen in der Excel (SharePoint) prüfen" },
-          { id: "s_checkin", t: "Check-ins erledigen, wenn noch offen" },
-          { id: "s_whatsapp", t: "WhatsApp-Chats abarbeiten" },
-          { id: "s_fenster", t: "Fenster öffnen/schließen je nach Wetter" },
-        ]},
-        { id: "laufend", title: "Laufend", from: "15:00", to: "23:00", hint: "über die ganze Schicht", running: true, items: [
-          { id: "s_wasser", t: "Wasserspender regelmäßig wischen", important: true },
-          { id: "s_muell", t: "Müll rausbringen, wenn voll", optional: true },
         ]},
         { id: "licht", title: "Licht an", from: "18:30", to: "19:30", hint: "je nach Dunkelheit", items: [
           { id: "s_flutlicht_an", t: "Tennis-Flutlicht anstellen", s: "ab ca. 18:30, je nach Dunkelheit", important: true },
@@ -219,7 +266,6 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
           { id: "s_spinte", t: "Rückgabe-Spinte mit LE füllen", s: "Notiz in der Buchung: Schläger-Nr. + evtl. Bälle", important: true },
           { id: "s_kaffee", t: "Kaffeemaschine reinigen" },
           { id: "s_kuehl", t: "Kühlschränke auffüllen + Licht aus + abschließen" },
-          { id: "s_spuel", t: "Spülbecken (Lager) sauberhalten", important: true },
         ]},
         { id: "close", title: "Abschließen", from: "22:30", to: "23:00", hint: "in dieser Reihenfolge", items: [
           { id: "s_musik", t: "Musik aus über Sonos/Spotify" },
@@ -233,12 +279,12 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
       ],
     },
   };
-  const roundId = (shift, h) => `${shift === "frueh" ? "f" : "s"}_rund_${String(h).padStart(2, "0")}`;
-  const shiftIds = (key) => {
-    const s = SHIFTS[key];
-    return [...s.phases.flatMap(p => p.items.map(i => i.id)), ...s.rounds.map(h => roundId(key, h))];
+  const IDS = {
+    frueh: SHIFTS.frueh.phases.flatMap(p => p.items.map(i => i.id)),
+    spaet: SHIFTS.spaet.phases.flatMap(p => p.items.map(i => i.id)),
   };
-  const IDS = { frueh: shiftIds("frueh"), spaet: shiftIds("spaet") };
+  const ITEM = {};
+  for (const key of ["frueh", "spaet"]) for (const p of SHIFTS[key].phases) for (const i of p.items) ITEM[i.id] = { ...i, shift: key, phase: p };
 
   // ---------- Helfer ----------
   const $ = (id) => document.getElementById(id);
@@ -246,37 +292,45 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
   const pad = (n) => String(n).padStart(2, "0");
   const isoDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const parseIso = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+  const addDays = (iso, n) => { const d = parseIso(iso); d.setDate(d.getDate() + n); return isoDate(d); };
   const toMin = (hhmm) => { const [h, m] = hhmm.split(":").map(Number); return h * 60 + m; };
+  const fmtMin = (m) => `${pad(Math.floor(m / 60) % 24)}:${pad(m % 60)}`;
   const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
   const fmtTime = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
   const WD = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
   const MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
   const CHECK_SVG = '<svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3L13 4.5"/></svg>';
+  const LOOP_SVG = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 5.5A5.5 5.5 0 0 0 3.2 4.6M3 10.5a5.5 5.5 0 0 0 9.8.9"/><path d="M3 1.8v3h3M13 14.2v-3h-3"/></svg>';
+  const isToday = () => state.date === isoDate(new Date());
 
   // ---------- Zustand ----------
   const state = {
     date: isoDate(new Date()),
-    view: nowMin() < toMin(SHIFTS.spaet.start) ? "frueh" : "spaet",
+    view: "uebersicht",
     checks: {},          // id -> {s:"done"|"na", by, at}
+    notes: {},           // { frueh: {text, by, at}, spaet: {...} }
+    prevNotes: {},       // Notizen vom Vortag (für die Frühschicht)
     docExists: false,
-    month: {},           // date -> checks (Monatsübersicht)
+    month: {},           // date -> checks
     names: {},           // userId -> Anzeigename
+    expanded: new Set(), // aufgeklappte, bereits erledigte Phasen
     mode: "loading",     // "shared" | "local" | "loading"
     readOnly: false,
   };
   let db = null, user = null, myId = null, unsubDay = null, unsubMonth = null, monthKey = null;
   let writeChain = Promise.resolve();
+  let renderPending = false;
 
   // ---------- Speicher: geteilte DB, sonst lokal ----------
   const LS = {
-    read(date) { try { return JSON.parse(localStorage.getItem("rz:" + date) || "{}"); } catch { return {}; } },
-    write(date, checks) { try { localStorage.setItem("rz:" + date, JSON.stringify(checks)); return true; } catch { return false; } },
+    read(date) { try { return JSON.parse(localStorage.getItem("rz2:" + date) || "{}"); } catch { return {}; } },
+    write(date, doc) { try { localStorage.setItem("rz2:" + date, JSON.stringify(doc)); return true; } catch { return false; } },
     month(ym) {
       const out = {};
       try {
         for (let i = 0; i < localStorage.length; i++) {
           const k = localStorage.key(i);
-          if (k && k.startsWith("rz:" + ym)) out[k.slice(3)] = JSON.parse(localStorage.getItem(k) || "{}");
+          if (k && k.startsWith("rz2:" + ym)) out[k.slice(4)] = (JSON.parse(localStorage.getItem(k) || "{}").checks) || {};
         }
       } catch { /* Speicher blockiert */ }
       return out;
@@ -284,21 +338,54 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
   };
 
   function setStatus(text, err = false) { const el = $("status"); el.textContent = text; el.classList.toggle("err", err); }
+  function statusLine() {
+    if (state.readOnly) return "Nur Lesezugriff.";
+    if (state.mode === "shared") return "Live geteilt – alle sehen denselben Stand.";
+    if (state.mode === "local") return "Nur auf diesem Gerät gespeichert.";
+    return "Verbinde…";
+  }
+
+  function applyDoc(data) {
+    state.checks = (data && data.checks) || {};
+    state.notes = (data && data.notes) || {};
+  }
+
+  async function loadPrevNotes() {
+    const prev = addDays(state.date, -1), forDate = state.date;
+    let notes = {};
+    if (state.mode === "shared") {
+      try { const s = await db.doc("days/" + prev).get(); notes = (s.exists && s.data().notes) || {}; } catch { notes = {}; }
+    } else {
+      notes = LS.read(prev).notes || {};
+    }
+    if (forDate !== state.date) return;
+    state.prevNotes = notes;
+    collectNames();
+    render();
+  }
 
   function subscribeDay() {
     if (unsubDay) { unsubDay(); unsubDay = null; }
-    if (state.mode !== "shared") { state.checks = LS.read(state.date); state.docExists = true; render(); return; }
-    state.checks = state.month[state.date] || {};
+    state.prevNotes = {};
+    if (state.mode !== "shared") {
+      applyDoc(LS.read(state.date));
+      state.docExists = true;
+      render();
+      loadPrevNotes();
+      return;
+    }
+    applyDoc({ checks: state.month[state.date] });
     state.docExists = !!state.month[state.date];
     render();
+    loadPrevNotes();
     unsubDay = db.doc("days/" + state.date).onSnapshot(
       (snap) => {
         state.docExists = snap.exists;
-        state.checks = (snap.exists && snap.data().checks) || {};
-        resolveNames(state.checks);
+        applyDoc(snap.exists ? snap.data() : null);
+        collectNames();
         render();
       },
-      (e) => setStatus("Verbindung unterbrochen (" + (e && e.code || "Fehler") + "). Seite neu laden.", true),
+      (e) => setStatus("Verbindung unterbrochen (" + ((e && e.code) || "Fehler") + "). Seite neu laden.", true),
     );
   }
 
@@ -314,65 +401,81 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
         const m = {};
         snap.docs.forEach(d => { if (d.exists) m[d.id] = d.data().checks || {}; });
         state.month = m;
-        if (state.view === "monat") render(); else renderTabs();
+        if (state.view === "monat") render();
       },
-      () => { /* Monatsübersicht optional; Tagesansicht bleibt nutzbar */ },
+      () => { /* Monatsübersicht optional */ },
     );
   }
 
-  async function resolveNames(checks) {
-    if (!user || typeof user.profiles !== "function") return;
-    const ids = [...new Set(Object.values(checks).filter(Boolean).map(c => c.by).filter(id => id && !(id in state.names)))];
-    if (!ids.length) return;
-    try {
-      const ps = await user.profiles(ids);
-      ids.forEach(id => { state.names[id] = (ps && ps[id] && ps[id].name) || ""; });
+  function collectNames() {
+    const ids = [
+      ...Object.values(state.checks).filter(Boolean).map(c => c.by),
+      ...Object.values(state.notes).filter(Boolean).map(n => n.by),
+      ...Object.values(state.prevNotes).filter(Boolean).map(n => n.by),
+    ].filter(id => typeof id === "string" && id && !(id in state.names));
+    if (!ids.length || !user || typeof user.profiles !== "function") return;
+    const uniq = [...new Set(ids)];
+    uniq.forEach(id => { state.names[id] = ""; });
+    user.profiles(uniq).then(ps => {
+      uniq.forEach(id => { state.names[id] = (ps && ps[id] && ps[id].name) || ""; });
       render();
-    } catch { /* Namen sind optional */ }
+    }).catch(() => { /* Namen sind optional */ });
+  }
+
+  // Alle Schreibvorgänge laufen nacheinander (max. ein Write pro Dokument gleichzeitig).
+  function persist(date, patch, fullDoc) {
+    if (state.readOnly) { setStatus("Nur Lesezugriff – Änderungen werden nicht gespeichert.", true); return Promise.resolve(false); }
+    if (state.mode !== "shared") {
+      const ok = LS.write(date, fullDoc);
+      if (!ok) setStatus("Browser-Speicher blockiert – Änderungen gehen beim Neuladen verloren.", true);
+      return Promise.resolve(ok);
+    }
+    const job = writeChain.then(async () => {
+      const ref = db.doc("days/" + date);
+      try {
+        if (state.docExists && date === state.date) await ref.update(patch);
+        else {
+          const snap = await ref.get();
+          if (snap.exists) await ref.update(patch);
+          else await ref.set({ month: date.slice(0, 7), ...fullDoc });
+        }
+        setStatus(statusLine());
+        return true;
+      } catch (e) {
+        const code = e && e.code;
+        if (code === "not_granted") { state.readOnly = true; setStatus("Nur Lesezugriff – bitte Bearbeitungsrechte beim Besitzer anfragen.", true); }
+        else setStatus("Speichern fehlgeschlagen (" + (code || "Fehler") + "). Bitte erneut versuchen.", true);
+        return false;
+      }
+    });
+    writeChain = job;
+    return job;
   }
 
   function setCheck(id, value) {
     if (state.readOnly) { setStatus("Nur Lesezugriff – Änderungen werden nicht gespeichert.", true); return; }
-    const date = state.date;
     const next = { ...state.checks, [id]: value };
     if (!value) delete next[id];
     state.checks = next;
-    if (state.mode === "shared") state.month = { ...state.month, [date]: next };
+    state.month = { ...state.month, [state.date]: next };
     render();
-
-    if (state.mode !== "shared") {
-      if (!LS.write(date, next)) setStatus("Browser-Speicher blockiert – Haken gehen beim Neuladen verloren.", true);
-      state.month = { ...state.month, [date]: next };
-      return;
-    }
-    // Pro Dokument immer nur ein Schreibvorgang gleichzeitig.
-    writeChain = writeChain.then(async () => {
-      const ref = db.doc("days/" + date);
-      try {
-        if (state.docExists && date === state.date) {
-          await ref.update({ checks: { [id]: value } });
-        } else {
-          const snap = await ref.get();
-          if (snap.exists) await ref.update({ checks: { [id]: value } });
-          else await ref.set({ month: date.slice(0, 7), checks: next });
-        }
-        setStatus(statusLine());
-      } catch (e) {
-        const code = e && e.code;
-        if (code === "permission_denied" || code === "not_granted") {
-          state.readOnly = true;
-          setStatus("Nur Lesezugriff – bitte Bearbeitungsrechte beim Besitzer anfragen.", true);
-        } else {
-          setStatus("Speichern fehlgeschlagen (" + (code || "Fehler") + "). Bitte erneut abhaken.", true);
-        }
-      }
-    });
+    persist(state.date, { checks: { [id]: value } }, { checks: next, notes: state.notes });
   }
 
-  function statusLine() {
-    if (state.mode === "shared") return "Live geteilt – alle sehen denselben Stand.";
-    if (state.mode === "local") return "Nur auf diesem Gerät gespeichert.";
-    return "Verbinde…";
+  // Notizen: speichern nach kurzer Tipp-Pause.
+  const noteTimers = {};
+  function queueNote(shift, text) {
+    clearTimeout(noteTimers[shift]);
+    const date = state.date;
+    const el = $("saved-" + shift);
+    if (el) el.textContent = "Speichert…";
+    noteTimers[shift] = setTimeout(async () => {
+      const val = { text: text.slice(0, 4000), by: myId || null, at: new Date().toISOString() };
+      if (date === state.date) state.notes = { ...state.notes, [shift]: val };
+      const ok = await persist(date, { notes: { [shift]: val } }, { checks: state.checks, notes: { ...state.notes, [shift]: val } });
+      const el2 = $("saved-" + shift);
+      if (el2) el2.textContent = ok ? "Gespeichert " + fmtTime(val.at) : "Nicht gespeichert";
+    }, 700);
   }
 
   // ---------- Berechnungen ----------
@@ -381,88 +484,174 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
     const done = ids.filter(id => checks[id]).length;
     return { done, total: ids.length, pct: ids.length ? Math.round(done / ids.length * 100) : 0 };
   }
-  // Zeitbezug nur für heute; Vergangenheit = alles fällig, Zukunft = nichts fällig.
   function timeCtx() {
     const today = isoDate(new Date());
     if (state.date < today) return "past";
     if (state.date > today) return "future";
     return nowMin();
   }
-  function phaseState(phase, checks, ctx) {
-    const open = phase.items.filter(i => !checks[i.id]).length;
+  function phaseState(phase, ctx) {
+    const open = phase.items.filter(i => !state.checks[i.id]).length;
     if (!open) return "done";
     if (ctx === "future") return "later";
     if (ctx === "past") return "late";
-    const from = toMin(phase.from), to = toMin(phase.to);
-    if (ctx >= to && !phase.running) return "late";
-    if (ctx >= from && ctx < to) return "now";
+    if (ctx >= toMin(phase.to)) return "late";
+    if (ctx >= toMin(phase.from)) return "now";
     return "later";
   }
-
-  // ---------- Rendering ----------
-  function renderTabs() {
-    const d = parseIso(state.date);
-    $("weekday").textContent = WD[d.getDay()] + (state.date === isoDate(new Date()) ? " · heute" : "");
-    $("datelabel").textContent = `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
-    $("datepick").value = state.date;
-    for (const key of ["frueh", "spaet"]) {
-      const p = progress(key, state.checks);
-      $("meta-" + key).textContent = `${SHIFTS[key].start}–${SHIFTS[key].end} · ${p.done}/${p.total}`;
-      $("bar-" + key).style.width = p.pct + "%";
-    }
-    document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", String(t.dataset.view === state.view)));
+  function activeShift(ctx) {
+    if (typeof ctx !== "number") return null;
+    if (ctx < toMin(SHIFTS.frueh.start) || ctx >= toMin(SHIFTS.spaet.end)) return null;
+    return ctx < toMin(SHIFTS.spaet.start) ? "frueh" : "spaet";
+  }
+  function nextRound(key, ctx) {
+    const s = SHIFTS[key], start = toMin(s.start), end = toMin(s.end);
+    if (typeof ctx !== "number" || ctx >= end) return null;
+    const next = Math.max(start, (Math.floor(ctx / 60) + 1) * 60);
+    return next < end ? next : null;
   }
 
+  // ---------- Bausteine ----------
   function whoLine(c) {
     if (!c) return "";
     const name = (c.by && state.names[c.by]) || (c.by && c.by === myId ? "dir" : "");
     const time = fmtTime(c.at);
-    const verb = c.s === "na" ? "entfällt" : "erledigt";
-    return `${verb}${time ? " " + time : ""}${name ? " · " + esc(name) : ""}`;
+    return `${c.s === "na" ? "entfällt" : "erledigt"}${time ? " " + time : ""}${name ? " · " + esc(name) : ""}`;
   }
 
-  function itemHtml(item) {
+  function itemHtml(item, opts = {}) {
     const c = state.checks[item.id];
     const cls = [item.important ? "important" : "", c ? (c.s === "na" ? "na" : "done") : ""].join(" ");
+    const tag = opts.showPhase ? `<span class="tag">${esc(item.phase.title)} · bis ${item.phase.to}</span>` : "";
     return `<li class="${cls}">
       <button class="check" data-id="${item.id}" aria-pressed="${!!c}">
         <span class="box">${CHECK_SVG}</span>
-        <span class="txt"><span class="label">${esc(item.t)}</span>${item.s ? `<span class="sub">${esc(item.s)}</span>` : ""}${c ? `<span class="who">${whoLine(c)}</span>` : ""}</span>
+        <span class="txt"><span class="label">${esc(item.t)}</span>${tag}${item.s ? `<span class="sub">${esc(item.s)}</span>` : ""}${c ? `<span class="who">${whoLine(c)}</span>` : ""}</span>
       </button>
       ${item.optional ? `<button class="skip" data-skip="${item.id}" aria-pressed="${c && c.s === "na" ? "true" : "false"}">entfällt</button>` : ""}
     </li>`;
   }
 
-  function roundsHtml(key, ctx) {
-    const s = SHIFTS[key];
-    const chips = s.rounds.map(h => {
-      const id = roundId(key, h), c = state.checks[id];
-      let cls = c ? "done" : "";
-      if (!c && typeof ctx === "number") cls = ctx >= (h + 1) * 60 ? "late" : (ctx >= h * 60 ? "now" : "");
-      if (!c && ctx === "past") cls = "late";
-      const title = c ? whoLine(c).replace(/<[^>]+>/g, "") : `Rundgang ${h}:00–${h}:59`;
-      return `<button class="chip ${cls}" data-id="${id}" aria-pressed="${!!c}" title="${esc(title)}">${pad(h)}:00</button>`;
-    }).join("");
-    return `<div class="rounds"><div class="label">Rundgang durch die Halle / <span>draußen</span> – 1× pro Stunde</div><div class="chips">${chips}</div></div>`;
+  function alwaysHtml(key, ctx) {
+    return `<div class="always">${ALWAYS[key].map(a => {
+      let sub = a.s ? esc(a.s) : "";
+      if (a.rounds) {
+        const n = nextRound(key, ctx);
+        sub = n !== null && activeShift(ctx) === key ? `1× pro Stunde · nächster um <b>${fmtMin(n)}</b>` : "1× pro Stunde";
+      }
+      return `<div class="${a.important ? "important" : ""}"><span class="ic" aria-hidden="true">${LOOP_SVG}</span><span><span class="label">${esc(a.t)}</span>${sub ? `<span class="sub">${sub}</span>` : ""}</span></div>`;
+    }).join("")}</div>`;
+  }
+
+  function noteAuthor(n) {
+    if (!n || !n.at) return "";
+    const name = (n.by && state.names[n.by]) || (n.by && n.by === myId ? "dir" : "");
+    return ` · ${fmtTime(n.at)}${name ? " · " + esc(name) : ""}`;
+  }
+  function noteEditor(shift, label) {
+    const n = state.notes[shift];
+    return `<div class="note"><label for="note-${shift}">${esc(label)}</label>
+      <textarea id="note-${shift}" data-note="${shift}" placeholder="z. B. offene Check-ins, defekte Schläger, Rückrufe…" ${state.readOnly ? "readonly" : ""}>${esc((n && n.text) || "")}</textarea>
+      <span class="saved" id="saved-${shift}">${n && n.at ? "Gespeichert" + noteAuthor(n) : ""}</span></div>`;
+  }
+  function noteReader(n, label) {
+    const has = n && n.text && n.text.trim();
+    return `<div class="note"><label>${esc(label)}${has ? noteAuthor(n) : ""}</label>
+      <div class="read${has ? "" : " none"}">${has ? esc(n.text) : "Keine Notiz hinterlassen."}</div></div>`;
+  }
+
+  // ---------- Ansichten ----------
+  function renderOverview() {
+    const ctx = timeCtx(), act = activeShift(ctx);
+    const focus = act || (typeof ctx === "number" && ctx >= toMin(SHIFTS.spaet.end) ? "spaet" : "frueh");
+    const fShift = SHIFTS[focus];
+
+    // Jetzt dran + überfällig (bei vergangenen Tagen: alles Offene)
+    // Nur die Schicht im Fokus; Reste der anderen Schicht zeigt der Schichtplan.
+    const nowItems = [], lateItems = [];
+    for (const p of fShift.phases) {
+      const st = phaseState(p, ctx);
+      const open = p.items.filter(i => !state.checks[i.id]).map(i => ITEM[i.id]);
+      if (st === "now") nowItems.push(...open);
+      if (st === "late") lateItems.push(...open);
+    }
+    const other = focus === "frueh" ? "spaet" : "frueh";
+    const otherOpen = SHIFTS[other].phases.filter(p => phaseState(p, ctx) === "late").reduce((n, p) => n + p.items.filter(i => !state.checks[i.id]).length, 0);
+    const otherHint = otherOpen ? `<div class="empty" style="border-top:1px solid var(--line)">${SHIFTS[other].label}: <b style="color:var(--warn)">${otherOpen} offen geblieben</b> – im Schichtplan antippen.</div>` : "";
+    // Als Nächstes: erste kommende Phase der aktiven Schicht
+    let nextPhase = null;
+    if (typeof ctx === "number") nextPhase = fShift.phases.find(p => toMin(p.from) > ctx && phaseState(p, ctx) !== "done") || null;
+
+    let headline;
+    if (ctx === "past") headline = `<span class="what">Rückblick auf <b>${WD[parseIso(state.date).getDay()]}</b></span>`;
+    else if (ctx === "future") headline = `<span class="what">Vorschau – Haken erst am Tag selbst setzen.</span>`;
+    else headline = act
+      ? `<span class="clock">${fmtMin(ctx)}</span><span class="what"><b>${fShift.label}</b> · bis ${fShift.end} Uhr</span>`
+      : `<span class="clock">${fmtMin(ctx)}</span><span class="what">Gerade keine Schicht.</span>`;
+
+    let nowCard = "";
+    if (nowItems.length || lateItems.length) {
+      nowCard = `<ul class="items">` +
+        (lateItems.length ? `<li class="sublabel late">Überfällig (${lateItems.length})</li>${lateItems.map(i => itemHtml(i, { showPhase: true })).join("")}` : "") +
+        (nowItems.length ? `<li class="sublabel">Jetzt (${nowItems.length})</li>${nowItems.map(i => itemHtml(i, { showPhase: true })).join("")}` : "") +
+        `</ul>` + otherHint;
+    } else {
+      nowCard = `<div class="empty">${nextPhase ? `Gerade nichts offen. Als Nächstes: <b>${esc(nextPhase.title)}</b> ab ${nextPhase.from} Uhr.` : (ctx === "future" ? "Noch nichts fällig." : "Alles erledigt.")}</div>`;
+      nowCard += otherHint;
+    }
+
+    const planCard = ["frueh", "spaet"].map(key => {
+      const s = SHIFTS[key], pr = progress(key, state.checks);
+      const rows = s.phases.map(p => {
+        const st = phaseState(p, ctx);
+        const done = p.items.filter(i => state.checks[i.id]).length;
+        const pill = { now: '<span class="pill now">jetzt</span>', late: '<span class="pill late">offen</span>', done: '<span class="pill done">erledigt</span>', later: '<span class="pill later">später</span>' }[st];
+        return `<li class="${st === "now" ? "cur" : ""}"><button data-goto="${key}" data-phase="${p.id}"><span class="t">${p.from}</span><span class="n">${esc(p.title)}<small>${done}/${p.items.length}</small></span>${pill}</button></li>`;
+      }).join("");
+      return `<div class="shiftsum"><b>${s.label}</b><span>${s.start}–${s.end} · ${pr.done}/${pr.total}</span></div>
+        <div class="bar"><i style="width:${pr.pct}%"></i></div><ul class="plan">${rows}</ul>`;
+    }).join(`<div style="height:6px"></div>`);
+
+    const handover = focus === "frueh"
+      ? noteReader(state.prevNotes.spaet, "Von der Spätschicht (gestern)") + noteEditor("frueh", "Für die Spätschicht")
+      : noteReader(state.notes.frueh, "Von der Frühschicht") + noteEditor("spaet", "Für die Frühschicht morgen");
+
+    return `<div class="now-strip">${headline}</div>
+      <div class="dash">
+        <div class="col">
+          <section class="card"><div class="chead"><h2>Jetzt dran</h2><span class="hint">${fShift.label} · zum Abhaken</span></div>${nowCard}</section>
+          <section class="card"><div class="chead"><h2>Immer im Blick</h2><span class="hint">${fShift.short}schicht · laufend, ohne Haken</span></div>${alwaysHtml(focus, ctx)}</section>
+        </div>
+        <div class="col">
+          <section class="card"><div class="chead"><h2>Schichtplan</h2><span class="hint">antippen zum Öffnen</span></div>${planCard}</section>
+          <section class="card"><div class="chead"><h2>Übergabe</h2></div>${handover}</section>
+        </div>
+      </div>`;
   }
 
   function renderShift(key) {
     const s = SHIFTS[key], ctx = timeCtx();
-    const phases = [...s.phases].sort((a, b) => (a.running === b.running ? toMin(a.from) - toMin(b.from) : a.running ? -1 : 1));
-    // „Laufend" steht oben, weil es die ganze Schicht gilt.
-    return `<div class="timeline">${phases.map(p => {
-      const st = phaseState(p, state.checks, ctx);
+    const phases = s.phases.map(p => {
+      const st = phaseState(p, ctx);
+      const done = p.items.filter(i => state.checks[i.id]).length;
+      const open = st !== "done" || state.expanded.has(p.id);
       const pill = { now: '<span class="pill now">jetzt</span>', late: '<span class="pill late">offen</span>', done: '<span class="pill done">erledigt</span>', later: "" }[st];
-      const when = p.running ? `${s.start}<small>bis ${s.end}</small>` : `${p.from}<small>bis ${p.to}</small>`;
-      return `<section class="phase is-${st}">
-        <div class="when">${when}</div>
-        <div class="card">
-          <div class="phead"><h2>${esc(p.title)}</h2>${p.hint ? `<span class="hint">${esc(p.hint)}</span>` : ""}${pill}</div>
-          <ul class="items">${p.items.map(itemHtml).join("")}</ul>
-          ${p.running ? roundsHtml(key, ctx) : ""}
-        </div>
+      const head = st === "done"
+        ? `<div class="chead toggle" data-toggle="${p.id}" role="button" tabindex="0" aria-expanded="${open}"><h2>${esc(p.title)}</h2><span class="hint">${done}/${p.items.length}</span>${pill}<span class="chev">${open ? "▲" : "▼"}</span></div>`
+        : `<div class="chead"><h2>${esc(p.title)}</h2>${p.hint ? `<span class="hint">${esc(p.hint)}</span>` : ""}<span class="hint">${done}/${p.items.length}</span>${pill}</div>`;
+      return `<section class="phase is-${st}${open ? " open" : ""}" id="phase-${p.id}">
+        <div class="when">${p.from}<small>bis ${p.to}</small></div>
+        <div class="card">${head}${open ? `<ul class="items">${p.items.map(i => itemHtml(ITEM[i.id])).join("")}</ul>` : ""}</div>
       </section>`;
-    }).join("")}</div>`;
+    }).join("");
+    const noteLast = key === "frueh"
+      ? `<section class="phase"><div class="when">${fmtMin(toMin(s.end) - 30)}<small>bis ${s.end}</small></div><div class="card"><div class="chead"><h2>Übergabe</h2><span class="hint">vor Schichtende</span></div>${noteEditor("frueh", "Notiz für die Spätschicht")}</div></section>`
+      : `<section class="phase"><div class="when">${s.end}<small>Schluss</small></div><div class="card"><div class="chead"><h2>Übergabe</h2></div>${noteEditor("spaet", "Notiz für die Frühschicht morgen")}</div></section>`;
+    const noteFirst = key === "frueh"
+      ? noteReader(state.prevNotes.spaet, "Von der Spätschicht (gestern)")
+      : noteReader(state.notes.frueh, "Von der Frühschicht");
+    return `<section class="card alwayscard"><div class="chead"><h2>Immer im Blick</h2><span class="hint">laufend, ohne Haken</span></div>${alwaysHtml(key, ctx)}${noteFirst}</section>
+      <div class="timeline">${phases}${noteLast}</div>`;
   }
 
   function renderMonth() {
@@ -486,36 +675,64 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
         <thead><tr><th class="rowh"></th>${head}</tr></thead>
         <tbody><tr><th class="rowh" scope="row">Früh</th>${row("frueh")}</tr><tr><th class="rowh" scope="row">Spät</th>${row("spaet")}</tr></tbody>
       </table></div>
-      <div class="legend"><span><i style="background:var(--done-soft);box-shadow:inset 0 0 0 1px var(--done)"></i>vollständig</span><span><i style="background:var(--now-soft);box-shadow:inset 0 0 0 1px var(--now)"></i>teilweise</span><span>Tippe auf einen Tag, um ihn zu öffnen.</span></div>`;
+      <div class="legend"><span><i class="lg-full"></i>vollständig</span><span><i class="lg-part"></i>teilweise</span><span>Tippe auf einen Tag, um ihn zu öffnen.</span></div>`;
+  }
+
+  function renderHeader() {
+    const d = parseIso(state.date);
+    $("weekday").textContent = WD[d.getDay()] + (isToday() ? " · heute" : "");
+    $("datelabel").textContent = `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
+    $("datepick").value = state.date;
+    for (const key of ["frueh", "spaet"]) {
+      const p = progress(key, state.checks);
+      $("meta-" + key).textContent = `${p.done}/${p.total}`;
+    }
+    document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", String(t.dataset.view === state.view)));
   }
 
   function render() {
-    renderTabs();
-    $("main").innerHTML = state.view === "monat" ? renderMonth() : renderShift(state.view);
+    // Nicht neu zeichnen, während jemand eine Notiz tippt; nach dem Verlassen des Felds nachholen.
+    const active = document.activeElement;
+    if (active && active.tagName === "TEXTAREA" && $("main").contains(active)) { renderPending = true; renderHeader(); return; }
+    renderPending = false;
+    renderHeader();
+    const v = state.view;
+    $("main").innerHTML = v === "monat" ? renderMonth() : v === "uebersicht" ? renderOverview() : renderShift(v);
   }
 
   // ---------- Interaktion ----------
   function goDate(date) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
     state.date = date;
+    state.expanded.clear();
     subscribeMonth();
     subscribeDay();
   }
-  function shiftDays(n) { const d = parseIso(state.date); d.setDate(d.getDate() + n); goDate(isoDate(d)); }
   function shiftMonths(n) { const d = parseIso(state.date); d.setDate(1); d.setMonth(d.getMonth() + n); goDate(isoDate(d)); }
 
-  $("prev").addEventListener("click", () => shiftDays(-1));
-  $("next").addEventListener("click", () => shiftDays(1));
+  $("prev").addEventListener("click", () => goDate(addDays(state.date, -1)));
+  $("next").addEventListener("click", () => goDate(addDays(state.date, 1)));
   $("today").addEventListener("click", () => goDate(isoDate(new Date())));
   $("datepick").addEventListener("change", (e) => goDate(e.target.value));
-  document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => { state.view = t.dataset.view; render(); }));
+  document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => { state.view = t.dataset.view; render(); window.scrollTo(0, 0); }));
 
-  $("main").addEventListener("click", (e) => {
+  const main = $("main");
+  main.addEventListener("click", (e) => {
+    const tog = e.target.closest("[data-toggle]");
+    if (tog) { const id = tog.dataset.toggle; state.expanded.has(id) ? state.expanded.delete(id) : state.expanded.add(id); render(); return; }
     const t = e.target.closest("button");
     if (!t) return;
     if (t.id === "mprev") return shiftMonths(-1);
     if (t.id === "mnext") return shiftMonths(1);
     if (t.dataset.date) { state.view = t.dataset.shift; goDate(t.dataset.date); return; }
+    if (t.dataset.goto) {
+      state.view = t.dataset.goto;
+      state.expanded.add(t.dataset.phase);
+      render();
+      const el = $("phase-" + t.dataset.phase);
+      if (el) el.scrollIntoView({ block: "center" });
+      return;
+    }
     const stamp = (s) => ({ s, by: myId || null, at: new Date().toISOString() });
     if (t.dataset.id) {
       const c = state.checks[t.dataset.id];
@@ -525,8 +742,14 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
       setCheck(t.dataset.skip, c && c.s === "na" ? null : stamp("na"));
     }
   });
+  main.addEventListener("keydown", (e) => {
+    const tog = e.target.closest && e.target.closest("[data-toggle]");
+    if (tog && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); tog.click(); }
+  });
+  main.addEventListener("input", (e) => { if (e.target.dataset && e.target.dataset.note) queueNote(e.target.dataset.note, e.target.value); });
+  main.addEventListener("focusout", (e) => { if (e.target.tagName === "TEXTAREA") setTimeout(() => { if (renderPending) render(); }, 0); });
 
-  // Zeitbezogene Markierungen jede Minute aktualisieren (nur Anzeige, kein Schreiben).
+  // Uhr und Fälligkeiten jede Minute aktualisieren (nur Anzeige).
   setInterval(() => { if (state.view !== "monat") render(); }, 60000);
 
   // ---------- Start ----------
@@ -542,7 +765,7 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
     if (user && typeof user.can === "function") {
       try { if ((await user.can("data.write")) === false) state.readOnly = true; } catch { /* unbekannt */ }
     }
-    setStatus(state.readOnly ? "Nur Lesezugriff." : statusLine(), state.readOnly);
+    setStatus(statusLine(), state.readOnly);
     subscribeMonth();
     subscribeDay();
   })();
