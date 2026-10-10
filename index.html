@@ -3,12 +3,12 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
 <style>
-/* Layout: sticky Kopf (Datum + Ansichten). Übersicht = Kacheln „Jetzt dran", „Immer im Blick", Schichtplan, Übergabe.
-   Schichtansicht = Daueraufgaben-Leiste oben, darunter Phasen als Zeitleiste; erledigte Phasen klappen ein. */
+/* Layout: Querformat = ein Bildschirm ohne Seiten-Scroll (Kopfzeile + Spalten, die nur intern scrollen).
+   Hochformat/Handy = normale Seite. Ansichten: Übersicht, Früh, Spät (Phasen als Spalten), Monat, Plan (Editor). */
 :root {
   --bg: #eef2f6; --surface: #ffffff; --surface-2: #f6f8fb; --ink: #142130; --muted: #5a6879; --line: #d7dee7;
   --accent: #1d5bb8; --accent-soft: #e2ecfa; --done: #23804f; --done-soft: #e1f2e8;
-  --warn: #c0392b; --warn-soft: #fbe6e3; --na: #8a96a5; --now: #c27a0e; --now-soft: #fdf1dc;
+  --warn: #c0392b; --warn-soft: #fbe6e3; --na: #8a96a5; --now: #b8700a; --now-soft: #fdf1dc;
   --f-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
   --f-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
   --r: 10px;
@@ -23,53 +23,61 @@
   --warn: #f07a6c; --warn-soft: #3d1f1c; --na: #6d7a8a; --now: #f0b04f; --now-soft: #3a2c14; color-scheme: dark }
 
 * { box-sizing: border-box }
-body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.4 }
-button { font: inherit; color: inherit; cursor: pointer }
-button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
-.wrap { max-width: 980px; margin: 0 auto; padding-inline: 16px; padding-block: 0 48px }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.35 }
+button, input, select, textarea { font: inherit; color: inherit }
+button { cursor: pointer }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, [role="button"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.wrap { padding-inline: 16px; padding-block: 0 24px; max-width: 1100px; margin: 0 auto }
 h2, h3 { text-wrap: balance }
 
-header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 12px 10px; border-bottom: 1px solid var(--line) }
-.row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap }
-.brand { font-family: var(--f-display); font-weight: 700; font-size: 22px; letter-spacing: .02em; text-transform: uppercase; margin: 0; flex: 1; min-width: 0 }
+/* Kopfzeile */
+header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 10px 8px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap }
+.brand { font-family: var(--f-display); font-weight: 700; font-size: 20px; letter-spacing: .02em; text-transform: uppercase; margin: 0; line-height: 1.05 }
 .brand small { display: block; font-family: var(--f-body); font-weight: 500; font-size: 12px; letter-spacing: .02em; color: var(--muted); text-transform: none }
-.datenav { display: flex; align-items: center; gap: 4px }
-.iconbtn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; width: 36px; height: 36px; font-size: 18px; line-height: 1 }
-.datebtn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; height: 36px; padding: 0 12px; font-weight: 600; font-variant-numeric: tabular-nums; position: relative; overflow: hidden; display: inline-flex; align-items: center }
-.datebtn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100% }
-.todaybtn { border: 0; background: none; color: var(--accent); font-weight: 600; padding: 0 4px; height: 36px }
-
-.tabs { display: flex; gap: 4px; margin-top: 10px; overflow-x: auto }
-.tab { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 12px; display: inline-flex; gap: 8px; align-items: baseline; white-space: nowrap }
+.clock { font-family: var(--f-display); font-weight: 700; font-size: 34px; line-height: 1; font-variant-numeric: tabular-nums }
+.clock small { font-family: var(--f-body); font-size: 13px; font-weight: 500; color: var(--muted); margin-left: 6px }
+.tabs { display: flex; gap: 4px; overflow-x: auto; max-width: 100% }
+.tab { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 11px; display: inline-flex; gap: 7px; align-items: baseline; white-space: nowrap }
 .tab b { font-family: var(--f-display); font-size: 16px; letter-spacing: .03em; text-transform: uppercase }
 .tab .meta { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums }
 .tab[aria-selected="true"] { border-color: var(--accent); background: var(--accent-soft) }
 .tab[aria-selected="true"] b { color: var(--accent) }
-.status { font-size: 12px; color: var(--muted); margin-top: 6px; min-height: 16px }
+.datenav { display: flex; align-items: center; gap: 4px; margin-left: auto }
+.iconbtn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; width: 34px; height: 34px; font-size: 18px; line-height: 1 }
+.datebtn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; height: 34px; padding: 0 10px; font-weight: 600; font-variant-numeric: tabular-nums; position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: 6px }
+.datebtn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100% }
+.datebtn .src { font-size: 11px; font-weight: 600; color: var(--now) }
+.todaybtn { border: 0; background: none; color: var(--accent); font-weight: 600; padding: 0 4px; height: 34px }
+.status { font-size: 12px; color: var(--muted); width: 100% }
 .status.err { color: var(--warn) }
 
-/* Allgemein */
-.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); min-width: 0; overflow: hidden }
-.chead { display: flex; align-items: baseline; gap: 8px; padding: 10px 14px 8px; border-bottom: 1px solid var(--line); background: var(--surface-2); flex-wrap: wrap }
+/* Karten */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); min-width: 0; overflow: hidden; display: flex; flex-direction: column }
+.chead { display: flex; align-items: baseline; gap: 8px; padding: 9px 12px 7px; border-bottom: 1px solid var(--line); background: var(--surface-2); flex-wrap: wrap; flex: none }
 .chead h2 { margin: 0; font-family: var(--f-display); font-size: 17px; letter-spacing: .04em; text-transform: uppercase; flex: 1; min-width: 0 }
-.chead .hint { font-size: 12px; color: var(--muted) }
+.chead .hint { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums }
+.cbody { min-height: 0 }
 .pill { font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; padding: 2px 8px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); white-space: nowrap }
 .pill.now { background: var(--now-soft); color: var(--now) }
 .pill.late { background: var(--warn-soft); color: var(--warn) }
 .pill.done { background: var(--done-soft); color: var(--done) }
 .pill.later { background: var(--surface-2); color: var(--muted); box-shadow: inset 0 0 0 1px var(--line) }
-.empty { color: var(--muted); padding: 14px }
+.empty { color: var(--muted); padding: 12px }
+.sublabel { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 9px 12px 3px; border-top: 1px solid var(--line); list-style: none }
+.sublabel:first-child { border-top: 0 }
+.sublabel.late { color: var(--warn) }
+.sublabel.now { color: var(--now) }
 
 /* Abhak-Zeilen */
 ul.items { list-style: none; margin: 0; padding: 0 }
 ul.items li { display: flex; align-items: stretch; border-top: 1px solid var(--line) }
 ul.items li:first-child { border-top: 0 }
-.check { flex: 1; min-width: 0; display: flex; gap: 12px; align-items: flex-start; text-align: left; background: none; border: 0; padding: 10px 14px; min-height: 48px }
-.box { flex: none; width: 24px; height: 24px; border-radius: 6px; border: 2px solid var(--line); display: grid; place-items: center; transition: background .15s, border-color .15s }
-.box svg { width: 15px; height: 15px; opacity: 0 }
+.check { flex: 1; min-width: 0; display: flex; gap: 10px; align-items: flex-start; text-align: left; background: none; border: 0; padding: 9px 12px; min-height: 44px }
+.box { flex: none; width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--line); display: grid; place-items: center; transition: background .15s, border-color .15s }
+.box svg { width: 14px; height: 14px; opacity: 0 }
 .txt { min-width: 0 }
 .txt .label { font-weight: 500 }
-.txt .sub { display: block; font-size: 13px; color: var(--muted); margin-top: 1px }
+.txt .sub { display: block; font-size: 12.5px; color: var(--muted); margin-top: 1px }
 .txt .who { display: block; font-size: 12px; color: var(--done); margin-top: 2px; font-variant-numeric: tabular-nums }
 .txt .tag { font-size: 11px; font-weight: 600; color: var(--warn); margin-left: 6px; white-space: nowrap }
 li.important .label { color: var(--warn) }
@@ -78,69 +86,70 @@ li.done .box svg { opacity: 1 }
 li.done .label { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line) }
 li.na .box { border-style: dashed; border-color: var(--na) }
 li.na .label, li.na .who { color: var(--na) }
-.skip { flex: none; border: 0; border-left: 1px solid var(--line); background: none; color: var(--muted); font-size: 12px; font-weight: 600; padding: 0 12px }
+li.upcoming .label { color: var(--muted) }
+.skip { flex: none; border: 0; border-left: 1px solid var(--line); background: none; color: var(--muted); font-size: 12px; font-weight: 600; padding: 0 10px }
 li.na .skip { color: var(--ink); background: var(--surface-2) }
 
-/* Daueraufgaben: kein Haken, nur Erinnerung */
-.always { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); margin-top: -1px }
-.always > div { border-top: 1px solid var(--line); padding: 10px 14px; display: flex; gap: 10px; align-items: flex-start; min-width: 0 }
-.always .ic { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center }
-.always .ic svg { width: 14px; height: 14px }
+/* Daueraufgaben */
+.always { list-style: none; margin: 0; padding: 0 }
+.always li { border-top: 1px solid var(--line); padding: 7px 12px; display: flex; gap: 10px; align-items: flex-start }
+.always li:first-child { border-top: 0 }
+.always .ic { flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center }
+.always .ic svg { width: 13px; height: 13px }
 .always .important .ic { background: var(--warn-soft); color: var(--warn) }
 .always .important .label { color: var(--warn) }
 .always .label { font-weight: 500 }
 .always .sub { display: block; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums }
 .always .sub b { color: var(--now); font-weight: 600 }
 
-/* Übersicht */
-.now-strip { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-top: 18px }
-.clock { font-family: var(--f-display); font-weight: 700; font-size: 40px; line-height: 1; font-variant-numeric: tabular-nums }
-.now-strip .what { font-size: 15px; color: var(--muted); min-width: 0 }
-.now-strip .what b { color: var(--ink) }
-.dash { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 14px; margin-top: 14px; align-items: start }
-.dash > .col { display: grid; gap: 14px; min-width: 0 }
-.sublabel { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 10px 14px 4px; border-top: 1px solid var(--line) }
-.sublabel:first-child { border-top: 0 }
-.sublabel.late { color: var(--warn) }
-
+/* Schichtplan */
 .plan { list-style: none; margin: 0; padding: 0 }
 .plan li { border-top: 1px solid var(--line) }
 .plan li:first-child { border-top: 0 }
-.plan button { width: 100%; border: 0; background: none; display: grid; grid-template-columns: 48px 1fr auto; gap: 10px; align-items: center; padding: 8px 14px; text-align: left }
+.plan button { width: 100%; border: 0; background: none; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 7px 12px; text-align: left }
 .plan .t { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--muted) }
-.plan .n { min-width: 0 }
 .plan .n small { color: var(--muted); font-variant-numeric: tabular-nums; margin-left: 6px }
 .plan li.cur { background: var(--now-soft) }
 .plan li.cur .t { color: var(--now) }
-.shiftsum { display: flex; align-items: center; gap: 10px; padding: 10px 14px 4px }
+.shiftsum { display: flex; align-items: center; gap: 10px; padding: 9px 12px 4px }
 .shiftsum b { font-family: var(--f-display); font-size: 16px; text-transform: uppercase; letter-spacing: .04em }
 .shiftsum span { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; margin-left: auto }
-.bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin: 0 14px 8px }
+.bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin: 0 12px 8px }
 .bar i { display: block; height: 100%; background: var(--done); transition: width .3s }
+.othersum { border-top: 1px solid var(--line); padding: 9px 12px; font-size: 13px; color: var(--muted); background: none; border-left: 0; border-right: 0; border-bottom: 0; width: 100%; text-align: left }
+.othersum b { color: var(--warn) }
 
-.note { padding: 12px 14px; display: grid; gap: 6px }
+/* Übergabe */
+.note { padding: 9px 12px; display: grid; gap: 5px }
+.note + .note { border-top: 1px solid var(--line) }
 .note label { font-size: 12px; font-weight: 600; color: var(--muted) }
-.note textarea { width: 100%; min-height: 76px; resize: vertical; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); color: var(--ink); font: inherit; padding: 8px 10px }
-.note .read { background: var(--now-soft); border-radius: 8px; padding: 8px 10px; white-space: pre-wrap; overflow-wrap: anywhere }
+.note textarea { width: 100%; min-height: 60px; resize: vertical; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); padding: 7px 9px }
+.note .read { background: var(--now-soft); border-radius: 8px; padding: 7px 9px; white-space: pre-wrap; overflow-wrap: anywhere }
 .note .read.none { background: var(--surface-2); color: var(--muted) }
 .note .saved { font-size: 11px; color: var(--muted); min-height: 14px }
 
-/* Schichtansicht */
-.timeline { display: grid; gap: 14px; margin-top: 14px }
-.phase { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px }
-.when { font-family: var(--f-display); font-weight: 700; font-size: 18px; font-variant-numeric: tabular-nums; color: var(--muted); padding-top: 9px; text-align: right; line-height: 1.1 }
-.when small { display: block; font-family: var(--f-body); font-weight: 500; font-size: 11px }
-.phase.is-now .when { color: var(--now) }
-.phase.is-late .when { color: var(--warn) }
-.phase.is-done .when { color: var(--done) }
-.phase.is-now .card { border-color: var(--now); box-shadow: 0 0 0 1px var(--now) }
-.chead.toggle { cursor: pointer; border-bottom: 0 }
-.phase.open .chead.toggle { border-bottom: 1px solid var(--line) }
-.chead .chev { color: var(--muted); font-size: 12px }
-.alwayscard { margin-top: 14px }
+/* Übersicht */
+.dash { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-top: 12px }
+.dash > .col { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0 }
+
+/* Schichtansicht: Phasen als Spalten */
+.shiftview { display: grid; grid-template-columns: minmax(200px, 230px) minmax(0, 1fr); gap: 12px; margin-top: 12px }
+.side { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0 }
+.lanes { display: grid; grid-template-columns: var(--cols); gap: 10px; min-width: 0; overflow-x: auto }
+.lane.is-now { border-color: var(--now); box-shadow: 0 0 0 1px var(--now) }
+.lane .chead { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 6px }
+.lane .chead .time { font-family: var(--f-display); font-weight: 700; font-size: 16px; font-variant-numeric: tabular-nums; color: var(--muted) }
+.lane.is-now .chead .time { color: var(--now) }
+.lane.is-late .chead .time { color: var(--warn) }
+.lane.is-done .chead .time { color: var(--done) }
+.lane .chead h2 { grid-column: 1 / -1 }
+.lane.collapsed .cbody { display: none }
+.lane .chead .time { white-space: nowrap; font-size: 15px }
+.lane .skip { padding: 0 6px; font-size: 11px }
+.lane .toggle { border: 0; background: none; color: var(--accent); font-size: 12px; font-weight: 600; padding: 8px 12px; text-align: left }
 
 /* Monat */
-.monthhead { display: flex; align-items: center; gap: 8px; margin-top: 18px }
+.monthhead { display: flex; align-items: center; gap: 8px; margin-top: 14px }
 .monthhead h2 { margin: 0; font-family: var(--f-display); font-size: 22px; text-transform: uppercase; letter-spacing: .03em; flex: 1 }
 .mscroll { overflow-x: auto; margin-top: 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface) }
 table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 13px; width: 100% }
@@ -158,31 +167,79 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
 .legend .lg-full { background: var(--done-soft); box-shadow: inset 0 0 0 1px var(--done) }
 .legend .lg-part { background: var(--now-soft); box-shadow: inset 0 0 0 1px var(--now) }
 
-@media (max-width: 760px) { .dash { grid-template-columns: minmax(0, 1fr) } }
-@media (max-width: 480px) {
-  .phase { grid-template-columns: minmax(0, 1fr); gap: 6px }
-  .when { text-align: left; padding-top: 0; display: flex; gap: 8px; align-items: baseline }
-  .clock { font-size: 34px }
+/* Plan-Editor */
+.edbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 12px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r) }
+.edbar .info { flex: 1; min-width: 220px; font-size: 13px; color: var(--muted) }
+.edbar .info b { color: var(--ink) }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 7px 12px; font-weight: 600; font-size: 14px; white-space: nowrap }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff }
+.btn.ghost { border-color: transparent; background: none; color: var(--accent) }
+.btn.danger { color: var(--warn) }
+.btn:disabled { opacity: .5; cursor: default }
+.editor { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px }
+.edshift { display: grid; gap: 10px; align-content: start; min-width: 0 }
+.edshift > h2 { margin: 0; font-family: var(--f-display); font-size: 20px; text-transform: uppercase; letter-spacing: .03em; display: flex; gap: 10px; align-items: center; flex-wrap: wrap }
+.edshift > h2 label { font-family: var(--f-body); font-size: 13px; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--muted); display: inline-flex; gap: 6px; align-items: center }
+.ed-phase .chead { gap: 6px; align-items: center }
+.in { border: 1px solid var(--line); background: var(--surface-2); border-radius: 6px; padding: 5px 8px; min-width: 0 }
+.in.title { font-weight: 600; flex: 1 1 140px }
+.in.time { width: 64px; text-align: center; font-variant-numeric: tabular-nums }
+.ed-items { list-style: none; margin: 0; padding: 0 }
+.ed-items li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px 8px; padding: 7px 10px; border-top: 1px solid var(--line); align-items: start }
+.ed-items li:first-child { border-top: 0 }
+.ed-items .fields { display: grid; gap: 4px; min-width: 0 }
+.ed-items .fields .in.sub { font-size: 13px }
+.ed-items .opts { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--muted); align-items: center }
+.ed-items .opts label { display: inline-flex; gap: 4px; align-items: center }
+.ed-items .opts select { font-size: 12px; padding: 2px 4px }
+.order { display: grid; gap: 2px }
+.mini { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; width: 28px; height: 24px; font-size: 12px; line-height: 1; padding: 0 }
+.mini:disabled { opacity: .35; cursor: default }
+.mini.del { color: var(--warn) }
+.mini.del.confirm { width: auto; padding: 0 6px; background: var(--warn); color: #fff; border-color: var(--warn) }
+.addrow { border: 0; border-top: 1px dashed var(--line); background: none; color: var(--accent); font-weight: 600; font-size: 13px; padding: 8px 12px; text-align: left; width: 100% }
+
+/* Querformat: alles auf einen Bildschirm */
+@media (orientation: landscape) and (min-width: 900px) {
+  html, body { height: 100% }
+  .wrap { max-width: none; height: 100%; display: flex; flex-direction: column; padding-block: 0 12px }
+  header.top { position: static }
+  .status { width: auto; max-width: 220px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+  main { flex: 1; min-height: 0; display: flex; flex-direction: column }
+  main.scroll { overflow: auto }
+  .dash, .shiftview { flex: 1; min-height: 0; grid-template-rows: minmax(0, 1fr) }
+  .dash > .col > .card, .side > .card { min-height: 0 }
+  .dash > .col > .card.grow, .side > .card.grow { flex: 1 }
+  .card .cbody { overflow-y: auto; flex: 1 }
+  .lanes { min-height: 0; grid-template-rows: minmax(0, 1fr) }
+  .lane { min-height: 0 }
 }
+@media (orientation: portrait), (max-width: 899px) {
+  .dash { grid-template-columns: minmax(0, 1fr) }
+  .shiftview { grid-template-columns: minmax(0, 1fr) }
+  .lanes { grid-template-columns: minmax(0, 1fr) !important }
+  .clock { font-size: 28px }
+}
+@media (max-width: 760px) { .editor { grid-template-columns: minmax(0, 1fr) } .datenav { margin-left: 0 } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important } }
 </style>
 
 <div class="wrap">
   <header class="top">
-    <div class="row">
-      <h1 class="brand">Checkliste Rezeption<small id="weekday">–</small></h1>
-      <div class="datenav">
-        <button class="iconbtn" id="prev" aria-label="Vorheriger Tag">‹</button>
-        <label class="datebtn"><span id="datelabel">–</span><input type="date" id="datepick" aria-label="Datum wählen"></label>
-        <button class="iconbtn" id="next" aria-label="Nächster Tag">›</button>
-        <button class="todaybtn" id="today">Heute</button>
-      </div>
-    </div>
+    <h1 class="brand">Rezeption<small id="weekday">–</small></h1>
+    <div class="clock" id="clock">--:--</div>
     <div class="tabs" role="tablist">
       <button class="tab" role="tab" data-view="uebersicht"><b>Übersicht</b></button>
       <button class="tab" role="tab" data-view="frueh"><b>Früh</b><span class="meta" id="meta-frueh"></span></button>
       <button class="tab" role="tab" data-view="spaet"><b>Spät</b><span class="meta" id="meta-spaet"></span></button>
       <button class="tab" role="tab" data-view="monat"><b>Monat</b></button>
+      <button class="tab" role="tab" data-view="plan"><b>Plan anpassen</b></button>
+    </div>
+    <div class="datenav">
+      <button class="iconbtn" id="prev" aria-label="Vorheriger Tag">‹</button>
+      <label class="datebtn"><span id="datelabel">–</span><span class="src" id="datesrc"></span><input type="date" id="datepick" aria-label="Datum wählen"></label>
+      <button class="iconbtn" id="next" aria-label="Nächster Tag">›</button>
+      <button class="todaybtn" id="today">Heute</button>
     </div>
     <div class="status" id="status">Verbinde…</div>
   </header>
@@ -193,34 +250,12 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
 (() => {
   "use strict";
 
-  // ---------- Inhalt (Vorlage: Aushang „Checkliste neue Rezeption") ----------
-  // Einmalige Aufgaben werden abgehakt. Daueraufgaben (ALWAYS) gelten die ganze Schicht und haben keinen Haken.
-  // important = rot auf dem Aushang. optional = darf als „entfällt" markiert werden.
+  // ---------- Standardplan (Vorlage: Aushang „Checkliste neue Rezeption") ----------
+  // Pro Tag gilt: Tagesanpassung > Wochentag-Vorlage > gespeicherter Standard > DEFAULT_PLAN.
   // Item-IDs sind Datenbank-Schlüssel: nie umbenennen.
-  const ALWAYS = {
-    frueh: [
-      { id: "rund", t: "Rundgang Halle / draußen", rounds: true },
-      { id: "wasser", t: "Wasserspender regelmäßig wischen", important: true },
-      { id: "spuel", t: "Spülbecken (Lager) sauberhalten", important: true },
-      { id: "checkin", t: "Check-ins erledigen", s: "nicht geschafft? → Übergabe-Notiz" },
-      { id: "whatsapp", t: "WhatsApp-Chats abarbeiten" },
-      { id: "muell", t: "Müll rausbringen, wenn voll" },
-      { id: "fenster", t: "Fenster öffnen/schließen", s: "je nach Wetter" },
-    ],
-    spaet: [
-      { id: "rund", t: "Rundgang Halle / draußen", rounds: true },
-      { id: "wasser", t: "Wasserspender regelmäßig wischen", important: true },
-      { id: "spuel", t: "Spülbecken (Lager) sauberhalten", important: true },
-      { id: "checkin", t: "Check-ins erledigen, wenn noch offen" },
-      { id: "whatsapp", t: "WhatsApp-Chats abarbeiten" },
-      { id: "muell", t: "Müll rausbringen, wenn voll" },
-      { id: "fenster", t: "Fenster öffnen/schließen", s: "je nach Wetter" },
-    ],
-  };
-
-  const SHIFTS = {
+  const DEFAULT_PLAN = {
     frueh: {
-      label: "Frühschicht", short: "Früh", start: "07:30", end: "15:00",
+      start: "07:30", end: "15:00",
       phases: [
         { id: "open", title: "Öffnen", from: "07:30", to: "08:00", hint: "direkt bei Schichtbeginn", items: [
           { id: "f_lager", t: "Lager (hinter Rezeption) aufschließen" },
@@ -244,7 +279,7 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
       ],
     },
     spaet: {
-      label: "Spätschicht", short: "Spät", start: "15:00", end: "23:00",
+      start: "15:00", end: "23:00",
       phases: [
         { id: "start", title: "Schichtstart", from: "15:00", to: "15:30", hint: "Übergabe-Notiz lesen", items: [
           { id: "s_excel", t: "Neuerungen in der Excel (SharePoint) prüfen" },
@@ -278,13 +313,32 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
         ]},
       ],
     },
+    always: {
+      frueh: [
+        { id: "rund", t: "Rundgang Halle / draußen", rounds: true },
+        { id: "wasser", t: "Wasserspender regelmäßig wischen", important: true },
+        { id: "spuel", t: "Spülbecken (Lager) sauberhalten", important: true },
+        { id: "checkin", t: "Check-ins erledigen", s: "nicht geschafft? → Übergabe-Notiz" },
+        { id: "whatsapp", t: "WhatsApp-Chats abarbeiten" },
+        { id: "muell", t: "Müll rausbringen, wenn voll" },
+        { id: "fenster", t: "Fenster öffnen/schließen", s: "je nach Wetter" },
+      ],
+      spaet: [
+        { id: "rund", t: "Rundgang Halle / draußen", rounds: true },
+        { id: "wasser", t: "Wasserspender regelmäßig wischen", important: true },
+        { id: "spuel", t: "Spülbecken (Lager) sauberhalten", important: true },
+        { id: "checkin", t: "Check-ins erledigen, wenn noch offen" },
+        { id: "whatsapp", t: "WhatsApp-Chats abarbeiten" },
+        { id: "muell", t: "Müll rausbringen, wenn voll" },
+        { id: "fenster", t: "Fenster öffnen/schließen", s: "je nach Wetter" },
+      ],
+    },
   };
-  const IDS = {
-    frueh: SHIFTS.frueh.phases.flatMap(p => p.items.map(i => i.id)),
-    spaet: SHIFTS.spaet.phases.flatMap(p => p.items.map(i => i.id)),
+  const SHIFT_META = {
+    frueh: { label: "Frühschicht", short: "Früh", prefix: "f" },
+    spaet: { label: "Spätschicht", short: "Spät", prefix: "s" },
   };
-  const ITEM = {};
-  for (const key of ["frueh", "spaet"]) for (const p of SHIFTS[key].phases) for (const i of p.items) ITEM[i.id] = { ...i, shift: key, phase: p };
+  const KEYS = ["frueh", "spaet"];
 
   // ---------- Helfer ----------
   const $ = (id) => document.getElementById(id);
@@ -297,57 +351,145 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
   const fmtMin = (m) => `${pad(Math.floor(m / 60) % 24)}:${pad(m % 60)}`;
   const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
   const fmtTime = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  const clone = (o) => JSON.parse(JSON.stringify(o));
+  const newId = (prefix) => `${prefix}_x${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   const WD = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
+  const WD_PL = ["Sonntage", "Montage", "Dienstage", "Mittwoche", "Donnerstage", "Freitage", "Samstage"];
   const MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
   const CHECK_SVG = '<svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3L13 4.5"/></svg>';
   const LOOP_SVG = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 5.5A5.5 5.5 0 0 0 3.2 4.6M3 10.5a5.5 5.5 0 0 0 9.8.9"/><path d="M3 1.8v3h3M13 14.2v-3h-3"/></svg>';
-  const isToday = () => state.date === isoDate(new Date());
+
+  // ---------- Plan prüfen (Daten aus der DB sind unvertrauenswürdig) ----------
+  const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+  const ID_RE = /^[A-Za-z0-9_-]{1,60}$/;
+  const str = (v, max) => (typeof v === "string" ? v.slice(0, max) : "");
+  // Akzeptiert 7:30, 0730, 730, 7.30, 7 → "07:30"/"07:00"; sonst null.
+  function normTime(v) {
+    const m = String(v || "").trim().match(/^(\d{1,2})(?:[:.]?(\d{2}))?$/);
+    if (!m) return null;
+    const h = Number(m[1]), mi = Number(m[2] || 0);
+    return h < 24 && mi < 60 ? `${pad(h)}:${pad(mi)}` : null;
+  }
+  const sortPhases = (phases) => phases.map((p, i) => [p, i]).sort((a, b) => (toMin(a[0].from) - toMin(b[0].from)) || (a[1] - b[1])).map(x => x[0]);
+
+  function normalizePlan(raw) {
+    if (!raw || typeof raw !== "object") return null;
+    const out = { always: {} };
+    for (const key of KEYS) {
+      const s = raw[key], def = DEFAULT_PLAN[key];
+      if (!s || typeof s !== "object" || !Array.isArray(s.phases)) return null;
+      const seen = new Set();
+      const phases = s.phases.slice(0, 20).map(p => {
+        if (!p || typeof p !== "object" || !TIME_RE.test(p.from) || !TIME_RE.test(p.to)) return null;
+        const items = (Array.isArray(p.items) ? p.items : []).slice(0, 40).map(i => {
+          if (!i || typeof i !== "object" || !ID_RE.test(i.id) || seen.has(i.id)) return null;
+          const t = str(i.t, 200).trim();
+          if (!t) return null;
+          seen.add(i.id);
+          return { id: i.id, t, s: str(i.s, 300), important: i.important === true, optional: i.optional === true };
+        }).filter(Boolean);
+        return { id: ID_RE.test(p.id) ? p.id : newId("p"), title: str(p.title, 60).trim() || "Abschnitt", from: p.from, to: p.to, hint: str(p.hint, 80), items };
+      }).filter(Boolean);
+      out[key] = {
+        start: TIME_RE.test(s.start) ? s.start : def.start,
+        end: TIME_RE.test(s.end) ? s.end : def.end,
+        phases: sortPhases(phases),
+      };
+      const al = raw.always && Array.isArray(raw.always[key]) ? raw.always[key] : DEFAULT_PLAN.always[key];
+      out.always[key] = al.slice(0, 20).map(a => {
+        if (!a || typeof a !== "object") return null;
+        const t = str(a.t, 200).trim();
+        if (!t) return null;
+        return { id: ID_RE.test(a.id) ? a.id : newId("a"), t, s: str(a.s, 200), important: a.important === true, rounds: a.rounds === true };
+      }).filter(Boolean);
+    }
+    return out;
+  }
+
+  // Abgeleitete Strukturen pro Planobjekt einmal berechnen.
+  const derivedCache = new WeakMap();
+  function derive(plan) {
+    let d = derivedCache.get(plan);
+    if (d) return d;
+    d = { ids: {}, item: {} };
+    for (const key of KEYS) {
+      d.ids[key] = [];
+      for (const p of plan[key].phases) for (const i of p.items) { d.ids[key].push(i.id); d.item[i.id] = { ...i, shift: key, phase: p }; }
+    }
+    derivedCache.set(plan, d);
+    return d;
+  }
 
   // ---------- Zustand ----------
+  const DEFAULT = normalizePlan(DEFAULT_PLAN);
   const state = {
     date: isoDate(new Date()),
     view: "uebersicht",
-    checks: {},          // id -> {s:"done"|"na", by, at}
-    notes: {},           // { frueh: {text, by, at}, spaet: {...} }
-    prevNotes: {},       // Notizen vom Vortag (für die Frühschicht)
-    docExists: false,
-    month: {},           // date -> checks
-    names: {},           // userId -> Anzeigename
-    expanded: new Set(), // aufgeklappte, bereits erledigte Phasen
-    mode: "loading",     // "shared" | "local" | "loading"
+    checks: {}, notes: {}, prevNotes: {},
+    dayPlan: null,       // Tagesanpassung (normalisiert) oder null
+    cfg: { base: null, weekday: {} }, // gespeicherter Standard + Wochentag-Vorlagen (normalisiert)
+    docExists: false, cfgExists: false,
+    month: {},           // date -> { checks, plan }
+    names: {},
+    expanded: new Set(),
+    draft: null,         // Plan-Editor: Arbeitskopie
+    draftDirty: false,
+    confirm: null,       // zweistufiges Löschen
+    mode: "loading",
     readOnly: false,
   };
-  let db = null, user = null, myId = null, unsubDay = null, unsubMonth = null, monthKey = null;
+  let db = null, user = null, myId = null, unsubDay = null, unsubMonth = null, unsubCfg = null, monthKey = null;
   let writeChain = Promise.resolve();
   let renderPending = false;
 
-  // ---------- Speicher: geteilte DB, sonst lokal ----------
+  function resolvePlan(date, dayPlan) {
+    if (dayPlan) return { plan: dayPlan, source: "day" };
+    const wd = String(parseIso(date).getDay());
+    if (state.cfg.weekday[wd]) return { plan: state.cfg.weekday[wd], source: "weekday" };
+    if (state.cfg.base) return { plan: state.cfg.base, source: "base" };
+    return { plan: DEFAULT, source: "default" };
+  }
+  const P = () => resolvePlan(state.date, state.dayPlan).plan;
+
+  // ---------- Speicher ----------
   const LS = {
-    read(date) { try { return JSON.parse(localStorage.getItem("rz2:" + date) || "{}"); } catch { return {}; } },
-    write(date, doc) { try { localStorage.setItem("rz2:" + date, JSON.stringify(doc)); return true; } catch { return false; } },
+    get(key, fallback) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch { return fallback; } },
+    set(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); return true; } catch { return false; } },
     month(ym) {
       const out = {};
       try {
         for (let i = 0; i < localStorage.length; i++) {
           const k = localStorage.key(i);
-          if (k && k.startsWith("rz2:" + ym)) out[k.slice(4)] = (JSON.parse(localStorage.getItem(k) || "{}").checks) || {};
+          if (k && k.startsWith("rz2:" + ym)) { const d = JSON.parse(localStorage.getItem(k) || "{}"); out[k.slice(4)] = { checks: d.checks || {}, plan: normalizePlan(d.plan) }; }
         }
-      } catch { /* Speicher blockiert */ }
+      } catch { /* blockiert */ }
       return out;
     },
   };
 
-  function setStatus(text, err = false) { const el = $("status"); el.textContent = text; el.classList.toggle("err", err); }
+  function setStatus(text, err = false) { const el = $("status"); el.textContent = text; el.title = text; el.classList.toggle("err", err); }
   function statusLine() {
     if (state.readOnly) return "Nur Lesezugriff.";
-    if (state.mode === "shared") return "Live geteilt – alle sehen denselben Stand.";
-    if (state.mode === "local") return "Nur auf diesem Gerät gespeichert.";
+    if (state.mode === "shared") return "Live geteilt";
+    if (state.mode === "local") return "Nur auf diesem Gerät gespeichert";
     return "Verbinde…";
   }
 
   function applyDoc(data) {
-    state.checks = (data && data.checks) || {};
-    state.notes = (data && data.notes) || {};
+    state.checks = (data && data.checks && typeof data.checks === "object") ? data.checks : {};
+    state.notes = (data && data.notes && typeof data.notes === "object") ? data.notes : {};
+    state.dayPlan = data ? normalizePlan(data.plan) : null;
+  }
+  function applyCfg(data) {
+    const weekday = {};
+    if (data && data.weekday && typeof data.weekday === "object") {
+      for (let i = 0; i < 7; i++) { const p = normalizePlan(data.weekday[String(i)]); if (p) weekday[String(i)] = p; }
+    }
+    state.cfg = { base: data ? normalizePlan(data.base) : null, weekday };
+  }
+
+  function currentDayDoc() {
+    return { month: state.date.slice(0, 7), checks: state.checks, notes: state.notes, plan: state.dayPlan };
   }
 
   async function loadPrevNotes() {
@@ -355,9 +497,7 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
     let notes = {};
     if (state.mode === "shared") {
       try { const s = await db.doc("days/" + prev).get(); notes = (s.exists && s.data().notes) || {}; } catch { notes = {}; }
-    } else {
-      notes = LS.read(prev).notes || {};
-    }
+    } else notes = LS.get("rz2:" + prev, {}).notes || {};
     if (forDate !== state.date) return;
     state.prevNotes = notes;
     collectNames();
@@ -368,24 +508,18 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
     if (unsubDay) { unsubDay(); unsubDay = null; }
     state.prevNotes = {};
     if (state.mode !== "shared") {
-      applyDoc(LS.read(state.date));
+      applyDoc(LS.get("rz2:" + state.date, null));
       state.docExists = true;
-      render();
-      loadPrevNotes();
+      render(); loadPrevNotes();
       return;
     }
-    applyDoc({ checks: state.month[state.date] });
-    state.docExists = !!state.month[state.date];
-    render();
-    loadPrevNotes();
+    const m = state.month[state.date];
+    applyDoc(m ? { checks: m.checks, plan: m.plan } : null);
+    state.docExists = !!m;
+    render(); loadPrevNotes();
     unsubDay = db.doc("days/" + state.date).onSnapshot(
-      (snap) => {
-        state.docExists = snap.exists;
-        applyDoc(snap.exists ? snap.data() : null);
-        collectNames();
-        render();
-      },
-      (e) => setStatus("Verbindung unterbrochen (" + ((e && e.code) || "Fehler") + "). Seite neu laden.", true),
+      (snap) => { state.docExists = snap.exists; applyDoc(snap.exists ? snap.data() : null); collectNames(); render(); },
+      (e) => setStatus("Verbindung unterbrochen (" + ((e && e.code) || "Fehler") + ") – Seite neu laden", true),
     );
   }
 
@@ -399,11 +533,19 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
     unsubMonth = db.collection("days").where("month", "==", ym).onSnapshot(
       (snap) => {
         const m = {};
-        snap.docs.forEach(d => { if (d.exists) m[d.id] = d.data().checks || {}; });
+        snap.docs.forEach(d => { if (d.exists) { const x = d.data(); m[d.id] = { checks: x.checks || {}, plan: normalizePlan(x.plan) }; } });
         state.month = m;
         if (state.view === "monat") render();
       },
-      () => { /* Monatsübersicht optional */ },
+      () => { /* optional */ },
+    );
+  }
+
+  function subscribeCfg() {
+    if (state.mode !== "shared") { applyCfg(LS.get("rz2cfg", null)); state.cfgExists = true; return; }
+    unsubCfg = db.doc("config/plan").onSnapshot(
+      (snap) => { state.cfgExists = snap.exists; applyCfg(snap.exists ? snap.data() : null); render(); },
+      () => { /* Standardplan bleibt aktiv */ },
     );
   }
 
@@ -419,50 +561,52 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
     user.profiles(uniq).then(ps => {
       uniq.forEach(id => { state.names[id] = (ps && ps[id] && ps[id].name) || ""; });
       render();
-    }).catch(() => { /* Namen sind optional */ });
+    }).catch(() => { /* optional */ });
   }
 
-  // Alle Schreibvorgänge laufen nacheinander (max. ein Write pro Dokument gleichzeitig).
-  function persist(date, patch, fullDoc) {
-    if (state.readOnly) { setStatus("Nur Lesezugriff – Änderungen werden nicht gespeichert.", true); return Promise.resolve(false); }
+  // Schreibvorgänge strikt nacheinander. patch = Merge auf bestehendes Dokument, full = Inhalt beim Neuanlegen.
+  function persistDoc(path, patch, full, localKey, localFull) {
+    if (state.readOnly) { setStatus("Nur Lesezugriff – Änderungen werden nicht gespeichert", true); return Promise.resolve(false); }
     if (state.mode !== "shared") {
-      const ok = LS.write(date, fullDoc);
-      if (!ok) setStatus("Browser-Speicher blockiert – Änderungen gehen beim Neuladen verloren.", true);
+      const ok = LS.set(localKey, localFull);
+      if (!ok) setStatus("Browser-Speicher blockiert – Änderungen gehen beim Neuladen verloren", true);
       return Promise.resolve(ok);
     }
     const job = writeChain.then(async () => {
-      const ref = db.doc("days/" + date);
+      const ref = db.doc(path);
       try {
-        if (state.docExists && date === state.date) await ref.update(patch);
-        else {
-          const snap = await ref.get();
-          if (snap.exists) await ref.update(patch);
-          else await ref.set({ month: date.slice(0, 7), ...fullDoc });
-        }
+        const snap = await ref.get();
+        if (snap.exists) await ref.update(patch); else await ref.set(full);
         setStatus(statusLine());
         return true;
       } catch (e) {
         const code = e && e.code;
-        if (code === "not_granted") { state.readOnly = true; setStatus("Nur Lesezugriff – bitte Bearbeitungsrechte beim Besitzer anfragen.", true); }
-        else setStatus("Speichern fehlgeschlagen (" + (code || "Fehler") + "). Bitte erneut versuchen.", true);
+        if (code === "not_granted") { state.readOnly = true; setStatus("Nur Lesezugriff – Bearbeitungsrechte beim Besitzer anfragen", true); }
+        else setStatus("Speichern fehlgeschlagen (" + (code || "Fehler") + ") – bitte erneut versuchen", true);
         return false;
       }
     });
     writeChain = job;
     return job;
   }
+  const persistDay = (date, patch) => persistDoc("days/" + date, patch, currentDayDoc(), "rz2:" + date, currentDayDoc());
+  function cfgPayload() {
+    const weekday = {};
+    for (const k of Object.keys(state.cfg.weekday)) weekday[k] = state.cfg.weekday[k];
+    return { base: state.cfg.base, weekday };
+  }
+  const persistCfg = (patch) => persistDoc("config/plan", patch, cfgPayload(), "rz2cfg", cfgPayload());
 
   function setCheck(id, value) {
-    if (state.readOnly) { setStatus("Nur Lesezugriff – Änderungen werden nicht gespeichert.", true); return; }
+    if (state.readOnly) { setStatus("Nur Lesezugriff – Änderungen werden nicht gespeichert", true); return; }
     const next = { ...state.checks, [id]: value };
     if (!value) delete next[id];
     state.checks = next;
-    state.month = { ...state.month, [state.date]: next };
+    state.month = { ...state.month, [state.date]: { checks: next, plan: state.dayPlan } };
     render();
-    persist(state.date, { checks: { [id]: value } }, { checks: next, notes: state.notes });
+    persistDay(state.date, { checks: { [id]: value } });
   }
 
-  // Notizen: speichern nach kurzer Tipp-Pause.
   const noteTimers = {};
   function queueNote(shift, text) {
     clearTimeout(noteTimers[shift]);
@@ -470,20 +614,16 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
     const el = $("saved-" + shift);
     if (el) el.textContent = "Speichert…";
     noteTimers[shift] = setTimeout(async () => {
+      if (date !== state.date) return;
       const val = { text: text.slice(0, 4000), by: myId || null, at: new Date().toISOString() };
-      if (date === state.date) state.notes = { ...state.notes, [shift]: val };
-      const ok = await persist(date, { notes: { [shift]: val } }, { checks: state.checks, notes: { ...state.notes, [shift]: val } });
+      state.notes = { ...state.notes, [shift]: val };
+      const ok = await persistDay(date, { notes: { [shift]: val } });
       const el2 = $("saved-" + shift);
       if (el2) el2.textContent = ok ? "Gespeichert " + fmtTime(val.at) : "Nicht gespeichert";
     }, 700);
   }
 
-  // ---------- Berechnungen ----------
-  function progress(key, checks) {
-    const ids = IDS[key];
-    const done = ids.filter(id => checks[id]).length;
-    return { done, total: ids.length, pct: ids.length ? Math.round(done / ids.length * 100) : 0 };
-  }
+  // ---------- Zeitlogik ----------
   function timeCtx() {
     const today = isoDate(new Date());
     if (state.date < today) return "past";
@@ -491,6 +631,7 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
     return nowMin();
   }
   function phaseState(phase, ctx) {
+    if (!phase.items.length) return "done";
     const open = phase.items.filter(i => !state.checks[i.id]).length;
     if (!open) return "done";
     if (ctx === "future") return "later";
@@ -499,19 +640,35 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
     if (ctx >= toMin(phase.from)) return "now";
     return "later";
   }
-  function activeShift(ctx) {
+  function activeShift(plan, ctx) {
     if (typeof ctx !== "number") return null;
-    if (ctx < toMin(SHIFTS.frueh.start) || ctx >= toMin(SHIFTS.spaet.end)) return null;
-    return ctx < toMin(SHIFTS.spaet.start) ? "frueh" : "spaet";
+    const f = plan.frueh, s = plan.spaet;
+    if (ctx >= toMin(f.start) && ctx < toMin(f.end) && ctx < toMin(s.start)) return "frueh";
+    if (ctx >= toMin(s.start) && ctx < toMin(s.end)) return "spaet";
+    if (ctx >= toMin(f.start) && ctx < toMin(f.end)) return "frueh";
+    return null;
   }
-  function nextRound(key, ctx) {
-    const s = SHIFTS[key], start = toMin(s.start), end = toMin(s.end);
+  function focusShift(plan, ctx) {
+    const a = activeShift(plan, ctx);
+    if (a) return a;
+    if (typeof ctx === "number" && ctx >= toMin(plan.spaet.start)) return "spaet";
+    return "frueh";
+  }
+  function nextRound(s, ctx) {
+    const start = toMin(s.start), end = toMin(s.end);
     if (typeof ctx !== "number" || ctx >= end) return null;
     const next = Math.max(start, (Math.floor(ctx / 60) + 1) * 60);
     return next < end ? next : null;
   }
+  function progress(plan, key, checks) {
+    const ids = derive(plan).ids[key];
+    const done = ids.filter(id => checks[id]).length;
+    return { done, total: ids.length, pct: ids.length ? Math.round(done / ids.length * 100) : 0 };
+  }
 
   // ---------- Bausteine ----------
+  const PILL = { now: '<span class="pill now">jetzt</span>', late: '<span class="pill late">offen</span>', done: '<span class="pill done">erledigt</span>', later: '<span class="pill later">später</span>' };
+
   function whoLine(c) {
     if (!c) return "";
     const name = (c.by && state.names[c.by]) || (c.by && c.by === myId ? "dir" : "");
@@ -521,26 +678,29 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
 
   function itemHtml(item, opts = {}) {
     const c = state.checks[item.id];
-    const cls = [item.important ? "important" : "", c ? (c.s === "na" ? "na" : "done") : ""].join(" ");
+    const cls = [item.important ? "important" : "", c ? (c.s === "na" ? "na" : "done") : "", opts.upcoming ? "upcoming" : ""].join(" ");
     const tag = opts.showPhase ? `<span class="tag">${esc(item.phase.title)} · bis ${item.phase.to}</span>` : "";
     return `<li class="${cls}">
-      <button class="check" data-id="${item.id}" aria-pressed="${!!c}">
+      <button class="check" data-id="${esc(item.id)}" aria-pressed="${!!c}">
         <span class="box">${CHECK_SVG}</span>
         <span class="txt"><span class="label">${esc(item.t)}</span>${tag}${item.s ? `<span class="sub">${esc(item.s)}</span>` : ""}${c ? `<span class="who">${whoLine(c)}</span>` : ""}</span>
       </button>
-      ${item.optional ? `<button class="skip" data-skip="${item.id}" aria-pressed="${c && c.s === "na" ? "true" : "false"}">entfällt</button>` : ""}
+      ${item.optional ? `<button class="skip" data-skip="${esc(item.id)}" aria-pressed="${c && c.s === "na" ? "true" : "false"}">entfällt</button>` : ""}
     </li>`;
   }
 
-  function alwaysHtml(key, ctx) {
-    return `<div class="always">${ALWAYS[key].map(a => {
+  function alwaysHtml(plan, key, ctx) {
+    const list = plan.always[key];
+    if (!list.length) return `<div class="empty">Keine Daueraufgaben.</div>`;
+    const act = activeShift(plan, ctx) === key;
+    return `<ul class="always">${list.map(a => {
       let sub = a.s ? esc(a.s) : "";
       if (a.rounds) {
-        const n = nextRound(key, ctx);
-        sub = n !== null && activeShift(ctx) === key ? `1× pro Stunde · nächster um <b>${fmtMin(n)}</b>` : "1× pro Stunde";
+        const n = nextRound(plan[key], ctx);
+        sub = n !== null && act ? `1× pro Stunde · nächster um <b>${fmtMin(n)}</b>` : "1× pro Stunde";
       }
-      return `<div class="${a.important ? "important" : ""}"><span class="ic" aria-hidden="true">${LOOP_SVG}</span><span><span class="label">${esc(a.t)}</span>${sub ? `<span class="sub">${sub}</span>` : ""}</span></div>`;
-    }).join("")}</div>`;
+      return `<li class="${a.important ? "important" : ""}"><span class="ic" aria-hidden="true">${LOOP_SVG}</span><span><span class="label">${esc(a.t)}</span>${sub ? `<span class="sub">${sub}</span>` : ""}</span></li>`;
+    }).join("")}</ul>`;
   }
 
   function noteAuthor(n) {
@@ -555,116 +715,116 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
       <span class="saved" id="saved-${shift}">${n && n.at ? "Gespeichert" + noteAuthor(n) : ""}</span></div>`;
   }
   function noteReader(n, label) {
-    const has = n && n.text && n.text.trim();
+    const has = n && typeof n.text === "string" && n.text.trim();
     return `<div class="note"><label>${esc(label)}${has ? noteAuthor(n) : ""}</label>
       <div class="read${has ? "" : " none"}">${has ? esc(n.text) : "Keine Notiz hinterlassen."}</div></div>`;
   }
-
-  // ---------- Ansichten ----------
-  function renderOverview() {
-    const ctx = timeCtx(), act = activeShift(ctx);
-    const focus = act || (typeof ctx === "number" && ctx >= toMin(SHIFTS.spaet.end) ? "spaet" : "frueh");
-    const fShift = SHIFTS[focus];
-
-    // Jetzt dran + überfällig (bei vergangenen Tagen: alles Offene)
-    // Nur die Schicht im Fokus; Reste der anderen Schicht zeigt der Schichtplan.
-    const nowItems = [], lateItems = [];
-    for (const p of fShift.phases) {
-      const st = phaseState(p, ctx);
-      const open = p.items.filter(i => !state.checks[i.id]).map(i => ITEM[i.id]);
-      if (st === "now") nowItems.push(...open);
-      if (st === "late") lateItems.push(...open);
-    }
-    const other = focus === "frueh" ? "spaet" : "frueh";
-    const otherOpen = SHIFTS[other].phases.filter(p => phaseState(p, ctx) === "late").reduce((n, p) => n + p.items.filter(i => !state.checks[i.id]).length, 0);
-    const otherHint = otherOpen ? `<div class="empty" style="border-top:1px solid var(--line)">${SHIFTS[other].label}: <b style="color:var(--warn)">${otherOpen} offen geblieben</b> – im Schichtplan antippen.</div>` : "";
-    // Als Nächstes: erste kommende Phase der aktiven Schicht
-    let nextPhase = null;
-    if (typeof ctx === "number") nextPhase = fShift.phases.find(p => toMin(p.from) > ctx && phaseState(p, ctx) !== "done") || null;
-
-    let headline;
-    if (ctx === "past") headline = `<span class="what">Rückblick auf <b>${WD[parseIso(state.date).getDay()]}</b></span>`;
-    else if (ctx === "future") headline = `<span class="what">Vorschau – Haken erst am Tag selbst setzen.</span>`;
-    else headline = act
-      ? `<span class="clock">${fmtMin(ctx)}</span><span class="what"><b>${fShift.label}</b> · bis ${fShift.end} Uhr</span>`
-      : `<span class="clock">${fmtMin(ctx)}</span><span class="what">Gerade keine Schicht.</span>`;
-
-    let nowCard = "";
-    if (nowItems.length || lateItems.length) {
-      nowCard = `<ul class="items">` +
-        (lateItems.length ? `<li class="sublabel late">Überfällig (${lateItems.length})</li>${lateItems.map(i => itemHtml(i, { showPhase: true })).join("")}` : "") +
-        (nowItems.length ? `<li class="sublabel">Jetzt (${nowItems.length})</li>${nowItems.map(i => itemHtml(i, { showPhase: true })).join("")}` : "") +
-        `</ul>` + otherHint;
-    } else {
-      nowCard = `<div class="empty">${nextPhase ? `Gerade nichts offen. Als Nächstes: <b>${esc(nextPhase.title)}</b> ab ${nextPhase.from} Uhr.` : (ctx === "future" ? "Noch nichts fällig." : "Alles erledigt.")}</div>`;
-      nowCard += otherHint;
-    }
-
-    const planCard = ["frueh", "spaet"].map(key => {
-      const s = SHIFTS[key], pr = progress(key, state.checks);
-      const rows = s.phases.map(p => {
-        const st = phaseState(p, ctx);
-        const done = p.items.filter(i => state.checks[i.id]).length;
-        const pill = { now: '<span class="pill now">jetzt</span>', late: '<span class="pill late">offen</span>', done: '<span class="pill done">erledigt</span>', later: '<span class="pill later">später</span>' }[st];
-        return `<li class="${st === "now" ? "cur" : ""}"><button data-goto="${key}" data-phase="${p.id}"><span class="t">${p.from}</span><span class="n">${esc(p.title)}<small>${done}/${p.items.length}</small></span>${pill}</button></li>`;
-      }).join("");
-      return `<div class="shiftsum"><b>${s.label}</b><span>${s.start}–${s.end} · ${pr.done}/${pr.total}</span></div>
-        <div class="bar"><i style="width:${pr.pct}%"></i></div><ul class="plan">${rows}</ul>`;
-    }).join(`<div style="height:6px"></div>`);
-
-    const handover = focus === "frueh"
+  function handoverHtml(key) {
+    return key === "frueh"
       ? noteReader(state.prevNotes.spaet, "Von der Spätschicht (gestern)") + noteEditor("frueh", "Für die Spätschicht")
       : noteReader(state.notes.frueh, "Von der Frühschicht") + noteEditor("spaet", "Für die Frühschicht morgen");
-
-    return `<div class="now-strip">${headline}</div>
-      <div class="dash">
-        <div class="col">
-          <section class="card"><div class="chead"><h2>Jetzt dran</h2><span class="hint">${fShift.label} · zum Abhaken</span></div>${nowCard}</section>
-          <section class="card"><div class="chead"><h2>Immer im Blick</h2><span class="hint">${fShift.short}schicht · laufend, ohne Haken</span></div>${alwaysHtml(focus, ctx)}</section>
-        </div>
-        <div class="col">
-          <section class="card"><div class="chead"><h2>Schichtplan</h2><span class="hint">antippen zum Öffnen</span></div>${planCard}</section>
-          <section class="card"><div class="chead"><h2>Übergabe</h2></div>${handover}</section>
-        </div>
-      </div>`;
   }
 
-  function renderShift(key) {
-    const s = SHIFTS[key], ctx = timeCtx();
-    const phases = s.phases.map(p => {
+  // ---------- Übersicht ----------
+  function renderOverview() {
+    const plan = P(), ctx = timeCtx(), d = derive(plan);
+    const focus = focusShift(plan, ctx), s = plan[focus], meta = SHIFT_META[focus];
+
+    const nowItems = [], lateItems = [];
+    let nowPhase = null;
+    for (const p of s.phases) {
+      const st = phaseState(p, ctx);
+      const open = p.items.filter(i => !state.checks[i.id]).map(i => d.item[i.id]);
+      if (st === "now") { nowItems.push(...open); nowPhase = nowPhase || p; }
+      if (st === "late") lateItems.push(...open);
+    }
+    const nextPhase = typeof ctx === "number"
+      ? s.phases.find(p => toMin(p.from) > ctx && p !== nowPhase && phaseState(p, ctx) !== "done") || null
+      : (ctx === "future" ? s.phases.find(p => phaseState(p, ctx) !== "done") || null : null);
+
+    let body = "";
+    if (lateItems.length) body += `<li class="sublabel late">Überfällig (${lateItems.length})</li>${lateItems.map(i => itemHtml(i, { showPhase: true })).join("")}`;
+    if (nowItems.length) body += `<li class="sublabel now">Jetzt · ${esc(nowPhase.title)} bis ${nowPhase.to}</li>${nowItems.map(i => itemHtml(i)).join("")}`;
+    if (nextPhase) {
+      const open = nextPhase.items.filter(i => !state.checks[i.id]).map(i => d.item[i.id]);
+      body += `<li class="sublabel">Als Nächstes · ${esc(nextPhase.title)} ab ${nextPhase.from}</li>${open.map(i => itemHtml(i, { upcoming: true })).join("")}`;
+    }
+    if (!body) body = `<li class="empty">${ctx === "past" ? "Alles erledigt." : "Für diese Schicht ist alles erledigt."}</li>`;
+
+    const other = focus === "frueh" ? "spaet" : "frueh";
+    const otherOpen = plan[other].phases.filter(p => phaseState(p, ctx) === "late").reduce((n, p) => n + p.items.filter(i => !state.checks[i.id]).length, 0);
+    const otherPr = progress(plan, other, state.checks);
+
+    const pr = progress(plan, focus, state.checks);
+    const rows = s.phases.map(p => {
       const st = phaseState(p, ctx);
       const done = p.items.filter(i => state.checks[i.id]).length;
-      const open = st !== "done" || state.expanded.has(p.id);
-      const pill = { now: '<span class="pill now">jetzt</span>', late: '<span class="pill late">offen</span>', done: '<span class="pill done">erledigt</span>', later: "" }[st];
-      const head = st === "done"
-        ? `<div class="chead toggle" data-toggle="${p.id}" role="button" tabindex="0" aria-expanded="${open}"><h2>${esc(p.title)}</h2><span class="hint">${done}/${p.items.length}</span>${pill}<span class="chev">${open ? "▲" : "▼"}</span></div>`
-        : `<div class="chead"><h2>${esc(p.title)}</h2>${p.hint ? `<span class="hint">${esc(p.hint)}</span>` : ""}<span class="hint">${done}/${p.items.length}</span>${pill}</div>`;
-      return `<section class="phase is-${st}${open ? " open" : ""}" id="phase-${p.id}">
-        <div class="when">${p.from}<small>bis ${p.to}</small></div>
-        <div class="card">${head}${open ? `<ul class="items">${p.items.map(i => itemHtml(ITEM[i.id])).join("")}</ul>` : ""}</div>
-      </section>`;
+      return `<li class="${st === "now" ? "cur" : ""}"><button data-goto="${focus}" data-phase="${esc(p.id)}"><span class="t">${p.from}</span><span class="n">${esc(p.title)}<small>${done}/${p.items.length}</small></span>${PILL[st]}</button></li>`;
     }).join("");
-    const noteLast = key === "frueh"
-      ? `<section class="phase"><div class="when">${fmtMin(toMin(s.end) - 30)}<small>bis ${s.end}</small></div><div class="card"><div class="chead"><h2>Übergabe</h2><span class="hint">vor Schichtende</span></div>${noteEditor("frueh", "Notiz für die Spätschicht")}</div></section>`
-      : `<section class="phase"><div class="when">${s.end}<small>Schluss</small></div><div class="card"><div class="chead"><h2>Übergabe</h2></div>${noteEditor("spaet", "Notiz für die Frühschicht morgen")}</div></section>`;
-    const noteFirst = key === "frueh"
-      ? noteReader(state.prevNotes.spaet, "Von der Spätschicht (gestern)")
-      : noteReader(state.notes.frueh, "Von der Frühschicht");
-    return `<section class="card alwayscard"><div class="chead"><h2>Immer im Blick</h2><span class="hint">laufend, ohne Haken</span></div>${alwaysHtml(key, ctx)}${noteFirst}</section>
-      <div class="timeline">${phases}${noteLast}</div>`;
+
+    const title = ctx === "past" ? "Rückblick" : ctx === "future" ? "Vorschau" : "Jetzt dran";
+    return `<div class="dash">
+      <div class="col">
+        <section class="card grow"><div class="chead"><h2>${title}</h2><span class="hint">${meta.label} · ${s.start}–${s.end}</span></div>
+          <div class="cbody"><ul class="items">${body}</ul></div></section>
+      </div>
+      <div class="col">
+        <section class="card grow"><div class="chead"><h2>Schichtplan</h2><span class="hint">antippen zum Öffnen</span></div>
+          <div class="cbody">
+            <div class="shiftsum"><b>${meta.label}</b><span>${pr.done}/${pr.total}</span></div>
+            <div class="bar"><i style="width:${pr.pct}%"></i></div>
+            <ul class="plan">${rows}</ul>
+            <button class="othersum" data-view-go="${other}">${SHIFT_META[other].label} ${plan[other].start}–${plan[other].end}: ${otherPr.done}/${otherPr.total}${otherOpen ? ` · <b>${otherOpen} offen geblieben</b>` : ""}</button>
+          </div></section>
+      </div>
+      <div class="col">
+        <section class="card grow"><div class="chead"><h2>Immer im Blick</h2><span class="hint">laufend, ohne Haken</span></div>
+          <div class="cbody">${alwaysHtml(plan, focus, ctx)}</div></section>
+        <section class="card"><div class="chead"><h2>Übergabe</h2></div><div class="cbody">${handoverHtml(focus)}</div></section>
+      </div>
+    </div>`;
   }
 
+  // ---------- Schichtansicht ----------
+  function renderShift(key) {
+    const plan = P(), s = plan[key], ctx = timeCtx(), d = derive(plan);
+    const lanes = s.phases.map(p => {
+      const st = phaseState(p, ctx);
+      const done = p.items.filter(i => state.checks[i.id]).length;
+      const collapsed = st === "done" && p.items.length > 0 && !state.expanded.has(p.id);
+      return { p, st, done, collapsed };
+    });
+    if (!lanes.length) return `<div class="empty">Für diese Schicht sind keine Abschnitte geplant. Unter „Plan anpassen“ hinzufügen.</div>`;
+    // Aktuelle/überfällige Spalten breiter, erledigte schmal – so passt die Schicht auf einen Bildschirm.
+    const cols = lanes.map(l => l.collapsed ? "minmax(96px, .45fr)" : (l.st === "now" || l.st === "late") ? "minmax(170px, 1.5fr)" : "minmax(140px, 1fr)").join(" ");
+    const html = lanes.map(({ p, st, done, collapsed }) => `
+      <section class="card lane is-${st}${collapsed ? " collapsed" : ""}" id="phase-${esc(p.id)}">
+        <div class="chead"><span class="time">${p.from}–${p.to}</span>${PILL[st]}<h2>${esc(p.title)} <span class="hint">${done}/${p.items.length}</span></h2>${p.hint ? `<span class="hint" style="grid-column:1/-1">${esc(p.hint)}</span>` : ""}</div>
+        ${st === "done" && p.items.length ? `<button class="toggle" data-toggle="${esc(p.id)}">${collapsed ? "Aufklappen" : "Einklappen"}</button>` : ""}
+        <div class="cbody"><ul class="items">${p.items.map(i => itemHtml(d.item[i.id])).join("") || '<li class="empty">Keine Aufgaben.</li>'}</ul></div>
+      </section>`).join("");
+    return `<div class="shiftview">
+      <div class="side">
+        <section class="card grow"><div class="chead"><h2>Immer im Blick</h2><span class="hint">${s.start}–${s.end}</span></div><div class="cbody">${alwaysHtml(plan, key, ctx)}</div></section>
+        <section class="card"><div class="chead"><h2>Übergabe</h2></div><div class="cbody">${handoverHtml(key)}</div></section>
+      </div>
+      <div class="lanes" style="--cols:${cols}">${html}</div>
+    </div>`;
+  }
+
+  // ---------- Monat ----------
   function renderMonth() {
     const d = parseIso(state.date), y = d.getFullYear(), m = d.getMonth();
     const days = new Date(y, m + 1, 0).getDate(), today = isoDate(new Date());
     const head = Array.from({ length: days }, (_, i) => `<th scope="col">${pad(i + 1)}.</th>`).join("");
     const row = (key) => Array.from({ length: days }, (_, i) => {
       const date = `${y}-${pad(m + 1)}-${pad(i + 1)}`;
-      const checks = date === state.date ? state.checks : (state.month[date] || {});
-      const p = progress(key, checks);
+      const entry = date === state.date ? { checks: state.checks, plan: state.dayPlan } : (state.month[date] || { checks: {}, plan: null });
+      const plan = resolvePlan(date, entry.plan).plan;
+      const p = progress(plan, key, entry.checks || {});
       const cls = date > today && !p.done ? "future" : p.pct === 100 ? "full" : p.done ? "part" : "none";
       const text = p.done ? (p.pct === 100 ? "✓" : p.pct + "%") : "·";
-      return `<td><button class="mcell ${cls}${date === state.date ? " sel" : ""}" data-date="${date}" data-shift="${key}" aria-label="${SHIFTS[key].label} ${pad(i + 1)}.${pad(m + 1)}.: ${p.done} von ${p.total}">${text}</button></td>`;
+      return `<td><button class="mcell ${cls}${date === state.date ? " sel" : ""}" data-date="${date}" data-shift="${key}" aria-label="${SHIFT_META[key].label} ${pad(i + 1)}.${pad(m + 1)}.: ${p.done} von ${p.total}">${text}</button></td>`;
     }).join("");
     return `<div class="monthhead">
         <button class="iconbtn" id="mprev" aria-label="Vorheriger Monat">‹</button>
@@ -678,35 +838,224 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
       <div class="legend"><span><i class="lg-full"></i>vollständig</span><span><i class="lg-part"></i>teilweise</span><span>Tippe auf einen Tag, um ihn zu öffnen.</span></div>`;
   }
 
-  function renderHeader() {
-    const d = parseIso(state.date);
-    $("weekday").textContent = WD[d.getDay()] + (isToday() ? " · heute" : "");
-    $("datelabel").textContent = `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
-    $("datepick").value = state.date;
-    for (const key of ["frueh", "spaet"]) {
-      const p = progress(key, state.checks);
-      $("meta-" + key).textContent = `${p.done}/${p.total}`;
+  // ---------- Plan-Editor ----------
+  const SOURCE_LABEL = { day: "Tagesanpassung", weekday: "Wochentag-Vorlage", base: "Standard", default: "Standard (Aushang)" };
+
+  function ensureDraft() {
+    if (!state.draft || state.draft.date !== state.date) { state.draft = { date: state.date, plan: clone(P()) }; state.draftDirty = false; }
+    return state.draft.plan;
+  }
+
+  function renderEditor() {
+    const plan = ensureDraft();
+    const { source } = resolvePlan(state.date, state.dayPlan);
+    const wd = parseIso(state.date).getDay();
+    const dd = parseIso(state.date);
+    const dateTxt = `${WD[wd]}, ${pad(dd.getDate())}.${pad(dd.getMonth() + 1)}.`;
+    const wdTemplates = Object.keys(state.cfg.weekday).map(Number).sort();
+    const del = (path) => state.confirm === path ? `<button class="mini del confirm" data-act="del" data-path="${path}">Löschen?</button>` : `<button class="mini del" data-act="del" data-path="${path}" aria-label="Löschen">✕</button>`;
+
+    const shiftHtml = (key) => {
+      const s = plan[key], meta = SHIFT_META[key];
+      const phases = s.phases.map((p, pi) => {
+        const base = `${key}.phases.${pi}`;
+        const items = p.items.map((it, ii) => {
+          const path = `${base}.items.${ii}`;
+          const moveOpts = s.phases.map((q, qi) => `<option value="${qi}"${qi === pi ? " selected" : ""}>${esc(q.from)} ${esc(q.title)}</option>`).join("");
+          return `<li>
+            <div class="order"><button class="mini" data-act="up" data-path="${path}" ${ii === 0 ? "disabled" : ""} aria-label="Nach oben">▲</button><button class="mini" data-act="down" data-path="${path}" ${ii === p.items.length - 1 ? "disabled" : ""} aria-label="Nach unten">▼</button></div>
+            <div class="fields">
+              <input class="in" id="ed-${path}-t" data-path="${path}.t" value="${esc(it.t)}" maxlength="200" aria-label="Aufgabe">
+              <input class="in sub" id="ed-${path}-s" data-path="${path}.s" value="${esc(it.s || "")}" maxlength="300" placeholder="Hinweis (optional)" aria-label="Hinweis">
+              <div class="opts">
+                <label><input type="checkbox" data-path="${path}.important" ${it.important ? "checked" : ""}> wichtig (rot)</label>
+                <label><input type="checkbox" data-path="${path}.optional" ${it.optional ? "checked" : ""}> „entfällt“ erlaubt</label>
+                <label>Abschnitt <select data-move="${path}">${moveOpts}</select></label>
+              </div>
+            </div>
+            ${del(path)}
+          </li>`;
+        }).join("");
+        return `<section class="card ed-phase">
+          <div class="chead">
+            <input class="in title" id="ed-${base}-title" data-path="${base}.title" value="${esc(p.title)}" maxlength="60" aria-label="Abschnitt">
+            <input class="in time" inputmode="numeric" maxlength="5" placeholder="HH:MM" id="ed-${base}-from" data-time="${base}.from" value="${p.from}" aria-label="von">
+            <span class="hint">–</span>
+            <input class="in time" inputmode="numeric" maxlength="5" placeholder="HH:MM" id="ed-${base}-to" data-time="${base}.to" value="${p.to}" aria-label="bis">
+            ${del(base)}
+          </div>
+          <ul class="ed-items">${items}</ul>
+          <button class="addrow" data-act="add-item" data-path="${base}">+ Aufgabe</button>
+        </section>`;
+      }).join("");
+      const always = plan.always[key].map((a, ai) => {
+        const path = `always.${key}.${ai}`;
+        return `<li>
+          <div class="order"><button class="mini" data-act="up" data-path="${path}" ${ai === 0 ? "disabled" : ""} aria-label="Nach oben">▲</button><button class="mini" data-act="down" data-path="${path}" ${ai === plan.always[key].length - 1 ? "disabled" : ""} aria-label="Nach unten">▼</button></div>
+          <div class="fields">
+            <input class="in" id="ed-${path}-t" data-path="${path}.t" value="${esc(a.t)}" maxlength="200" aria-label="Daueraufgabe">
+            <div class="opts"><label><input type="checkbox" data-path="${path}.important" ${a.important ? "checked" : ""}> wichtig (rot)</label><label><input type="checkbox" data-path="${path}.rounds" ${a.rounds ? "checked" : ""}> stündlich</label></div>
+          </div>
+          ${del(path)}
+        </li>`;
+      }).join("");
+      return `<div class="edshift">
+        <h2>${meta.label}
+          <label>Beginn <input class="in time" inputmode="numeric" maxlength="5" placeholder="HH:MM" id="ed-${key}-start" data-time="${key}.start" value="${s.start}"></label>
+          <label>Ende <input class="in time" inputmode="numeric" maxlength="5" placeholder="HH:MM" id="ed-${key}-end" data-time="${key}.end" value="${s.end}"></label>
+        </h2>
+        ${phases}
+        <button class="btn" data-act="add-phase" data-path="${key}">+ Abschnitt</button>
+        <section class="card"><div class="chead"><h2>Immer im Blick</h2><span class="hint">ohne Haken</span></div>
+          <ul class="ed-items">${always}</ul>
+          <button class="addrow" data-act="add-always" data-path="always.${key}">+ Daueraufgabe</button></section>
+      </div>`;
+    };
+
+    const removeBtns = [
+      source === "day" ? `<button class="btn ghost danger" data-act="reset-day">Tagesanpassung entfernen</button>` : "",
+      state.cfg.weekday[String(wd)] ? `<button class="btn ghost danger" data-act="reset-weekday">${WD[wd]}-Vorlage entfernen</button>` : "",
+    ].join("");
+    return `<div class="edbar">
+        <div class="info">Plan für <b>${dateTxt}</b> · aktuell gilt: <b>${SOURCE_LABEL[source]}</b>${state.draftDirty ? " · <b style=\"color:var(--now)\">ungespeicherte Änderungen</b>" : ""}<br>
+          ${wdTemplates.length ? "Wochentag-Vorlagen: " + wdTemplates.map(i => WD[i]).join(", ") + ". " : ""}Abschnitte sortieren sich nach Uhrzeit, Aufgaben mit ▲▼.</div>
+        <button class="btn primary" data-act="save-day" ${state.draftDirty ? "" : "disabled"}>Nur ${dateTxt} speichern</button>
+        <button class="btn" data-act="save-weekday" ${state.draftDirty ? "" : "disabled"}>Für alle ${WD_PL[wd]}</button>
+        <button class="btn" data-act="save-base" ${state.draftDirty ? "" : "disabled"}>Als Standard</button>
+        <button class="btn ghost" data-act="discard" ${state.draftDirty ? "" : "disabled"}>Verwerfen</button>
+        ${removeBtns}
+      </div>
+      <div class="editor">${shiftHtml("frueh")}${shiftHtml("spaet")}</div>`;
+  }
+
+  function getRef(path) {
+    const parts = path.split(".");
+    const last = parts.pop();
+    let obj = state.draft.plan;
+    for (const p of parts) obj = obj[/^\d+$/.test(p) ? Number(p) : p];
+    return { parent: obj, key: /^\d+$/.test(last) ? Number(last) : last };
+  }
+  function markDirty() { state.draftDirty = true; const b = document.querySelectorAll('[data-act^="save-"],[data-act="discard"]'); b.forEach(x => { x.disabled = false; }); }
+
+  function editorAction(act, path) {
+    const plan = state.draft.plan;
+    if (act === "del") {
+      if (state.confirm !== path) { state.confirm = path; render(); return; }
+      state.confirm = null;
+      const { parent, key } = getRef(path);
+      parent.splice(key, 1);
+    } else if (act === "up" || act === "down") {
+      const { parent, key } = getRef(path);
+      const j = act === "up" ? key - 1 : key + 1;
+      if (j < 0 || j >= parent.length) return;
+      [parent[key], parent[j]] = [parent[j], parent[key]];
+    } else if (act === "add-item") {
+      const { parent, key } = getRef(path);
+      const shift = path.split(".")[0];
+      parent[key].items.push({ id: newId(SHIFT_META[shift].prefix), t: "Neue Aufgabe", s: "", important: false, optional: false });
+    } else if (act === "add-phase") {
+      const s = plan[path];
+      const last = s.phases[s.phases.length - 1];
+      const from = last ? last.to : s.start;
+      const to = fmtMin(Math.min(toMin(from) + 30, 23 * 60 + 59));
+      s.phases.push({ id: newId("p"), title: "Neuer Abschnitt", from, to, hint: "", items: [] });
+      s.phases = sortPhases(s.phases);
+    } else if (act === "add-always") {
+      const { parent, key } = getRef(path);
+      parent[key].push({ id: newId("a"), t: "Neue Daueraufgabe", s: "", important: false, rounds: false });
+    } else return;
+    state.confirm = null;
+    markDirty();
+    render();
+  }
+
+  async function saveDraft(scope) {
+    const plan = normalizePlan(state.draft.plan);
+    if (!plan) { setStatus("Plan ungültig – bitte Uhrzeiten prüfen", true); return; }
+    const wd = String(parseIso(state.date).getDay());
+    let ok;
+    if (scope === "day") {
+      state.dayPlan = plan;
+      ok = await persistDay(state.date, { plan });
+    } else if (scope === "weekday") {
+      state.cfg = { ...state.cfg, weekday: { ...state.cfg.weekday, [wd]: plan } };
+      ok = await persistCfg({ weekday: { [wd]: plan } });
+    } else {
+      state.cfg = { ...state.cfg, base: plan };
+      ok = await persistCfg({ base: plan });
     }
+    if (ok) {
+      state.draft = null; state.draftDirty = false;
+      const { source } = resolvePlan(state.date, state.dayPlan);
+      const shadow = scope !== "day" && source === "day" ? " Für diesen Tag gilt weiter die Tagesanpassung." : (scope === "base" && source === "weekday" ? ` Für ${WD_PL[Number(wd)]} gilt weiter die Wochentag-Vorlage.` : "");
+      setStatus("Plan gespeichert." + shadow, !!shadow);
+    }
+    render();
+  }
+
+  async function resetScope(scope) {
+    const wd = String(parseIso(state.date).getDay());
+    if (scope === "day") { state.dayPlan = null; await persistDay(state.date, { plan: null }); }
+    else { const w = { ...state.cfg.weekday }; delete w[wd]; state.cfg = { ...state.cfg, weekday: w }; await persistCfg({ weekday: { [wd]: null } }); }
+    state.draft = null; state.draftDirty = false;
+    render();
+  }
+
+  // ---------- Rendering ----------
+  function renderHeader() {
+    const d = parseIso(state.date), plan = P(), ctx = timeCtx();
+    const { source } = resolvePlan(state.date, state.dayPlan);
+    $("weekday").textContent = WD[d.getDay()] + (state.date === isoDate(new Date()) ? " · heute" : "");
+    $("datelabel").textContent = `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
+    $("datesrc").textContent = source === "day" ? "angepasst" : source === "weekday" ? WD[d.getDay()].slice(0, 2) + "-Plan" : "";
+    $("datepick").value = state.date;
+    const act = activeShift(plan, ctx);
+    $("clock").innerHTML = `${fmtMin(nowMin())}${act ? `<small>${SHIFT_META[act].label} bis ${plan[act].end}</small>` : ""}`;
+    for (const key of KEYS) { const p = progress(plan, key, state.checks); $("meta-" + key).textContent = `${p.done}/${p.total}`; }
     document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", String(t.dataset.view === state.view)));
   }
 
   function render() {
-    // Nicht neu zeichnen, während jemand eine Notiz tippt; nach dem Verlassen des Felds nachholen.
     const active = document.activeElement;
-    if (active && active.tagName === "TEXTAREA" && $("main").contains(active)) { renderPending = true; renderHeader(); return; }
+    const typing = active && $("main").contains(active) && (active.tagName === "TEXTAREA" || (active.tagName === "INPUT" && active.type !== "checkbox"));
+    if (typing) { renderPending = true; renderHeader(); return; }
     renderPending = false;
     renderHeader();
-    const v = state.view;
-    $("main").innerHTML = v === "monat" ? renderMonth() : v === "uebersicht" ? renderOverview() : renderShift(v);
+    const v = state.view, main = $("main");
+    main.className = v === "plan" || v === "monat" ? "scroll" : "";
+    main.innerHTML = v === "monat" ? renderMonth() : v === "uebersicht" ? renderOverview() : v === "plan" ? renderEditor() : renderShift(v);
+    if (v === "frueh" || v === "spaet") scrollToNow();
+  }
+  // Querformat: aktuelle Spalte ins Bild holen.
+  function scrollToNow() {
+    const el = document.querySelector(".lane.is-now") || document.querySelector(".lane.is-late");
+    const lanes = document.querySelector(".lanes");
+    if (el && lanes && lanes.scrollWidth > lanes.clientWidth) lanes.scrollLeft = Math.max(0, el.offsetLeft - lanes.offsetLeft - 20);
   }
 
   // ---------- Interaktion ----------
   function goDate(date) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+    if (state.view === "plan" && state.draftDirty && !confirmLeave()) return;
     state.date = date;
     state.expanded.clear();
+    state.draft = null; state.draftDirty = false; state.confirm = null;
     subscribeMonth();
     subscribeDay();
+  }
+  let leaveArmed = false;
+  function confirmLeave() {
+    if (leaveArmed) { leaveArmed = false; return true; }
+    leaveArmed = true;
+    setStatus("Ungespeicherte Plan-Änderungen – nochmal tippen zum Verwerfen", true);
+    setTimeout(() => { leaveArmed = false; }, 4000);
+    return false;
+  }
+  function setView(v) {
+    if (state.view === "plan" && v !== "plan" && state.draftDirty && !confirmLeave()) return;
+    if (v !== "plan") { state.draft = null; state.draftDirty = false; }
+    state.view = v; state.confirm = null;
+    render(); window.scrollTo(0, 0);
   }
   function shiftMonths(n) { const d = parseIso(state.date); d.setDate(1); d.setMonth(d.getMonth() + n); goDate(isoDate(d)); }
 
@@ -714,43 +1063,68 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
   $("next").addEventListener("click", () => goDate(addDays(state.date, 1)));
   $("today").addEventListener("click", () => goDate(isoDate(new Date())));
   $("datepick").addEventListener("change", (e) => goDate(e.target.value));
-  document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => { state.view = t.dataset.view; render(); window.scrollTo(0, 0); }));
+  document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => setView(t.dataset.view)));
 
   const main = $("main");
   main.addEventListener("click", (e) => {
-    const tog = e.target.closest("[data-toggle]");
-    if (tog) { const id = tog.dataset.toggle; state.expanded.has(id) ? state.expanded.delete(id) : state.expanded.add(id); render(); return; }
     const t = e.target.closest("button");
-    if (!t) return;
+    if (!t || t.disabled) return;
+    if (t.dataset.act) {
+      const a = t.dataset.act;
+      if (a === "save-day") return saveDraft("day");
+      if (a === "save-weekday") return saveDraft("weekday");
+      if (a === "save-base") return saveDraft("base");
+      if (a === "discard") { state.draft = null; state.draftDirty = false; render(); return; }
+      if (a === "reset-day") return resetScope("day");
+      if (a === "reset-weekday") return resetScope("weekday");
+      return editorAction(a, t.dataset.path);
+    }
+    if (t.dataset.toggle) { const id = t.dataset.toggle; state.expanded.has(id) ? state.expanded.delete(id) : state.expanded.add(id); render(); return; }
     if (t.id === "mprev") return shiftMonths(-1);
     if (t.id === "mnext") return shiftMonths(1);
-    if (t.dataset.date) { state.view = t.dataset.shift; goDate(t.dataset.date); return; }
+    if (t.dataset.viewGo) return setView(t.dataset.viewGo);
+    if (t.dataset.date) { const sh = t.dataset.shift; goDate(t.dataset.date); state.view = sh; render(); return; }
     if (t.dataset.goto) {
-      state.view = t.dataset.goto;
       state.expanded.add(t.dataset.phase);
-      render();
-      const el = $("phase-" + t.dataset.phase);
-      if (el) el.scrollIntoView({ block: "center" });
+      setView(t.dataset.goto);
+      const el = document.getElementById("phase-" + t.dataset.phase);
+      if (el) el.scrollIntoView({ block: "nearest", inline: "start" });
       return;
     }
     const stamp = (s) => ({ s, by: myId || null, at: new Date().toISOString() });
-    if (t.dataset.id) {
-      const c = state.checks[t.dataset.id];
-      setCheck(t.dataset.id, c && c.s === "done" ? null : stamp("done"));
-    } else if (t.dataset.skip) {
-      const c = state.checks[t.dataset.skip];
-      setCheck(t.dataset.skip, c && c.s === "na" ? null : stamp("na"));
+    if (t.dataset.id) { const c = state.checks[t.dataset.id]; setCheck(t.dataset.id, c && c.s === "done" ? null : stamp("done")); }
+    else if (t.dataset.skip) { const c = state.checks[t.dataset.skip]; setCheck(t.dataset.skip, c && c.s === "na" ? null : stamp("na")); }
+  });
+  main.addEventListener("input", (e) => {
+    const el = e.target;
+    if (el.dataset.note) return queueNote(el.dataset.note, el.value);
+    if (el.dataset.path && state.draft && el.type !== "checkbox") { const { parent, key } = getRef(el.dataset.path); parent[key] = el.value; markDirty(); }
+  });
+  main.addEventListener("change", (e) => {
+    const el = e.target;
+    if (!state.draft) return;
+    if (el.dataset.path && el.type === "checkbox") { const { parent, key } = getRef(el.dataset.path); parent[key] = el.checked; markDirty(); return; }
+    if (el.dataset.time) {
+      const t = normTime(el.value);
+      if (!t) { setStatus("Bitte eine Uhrzeit wie 07:30 eingeben", true); el.value = getRef(el.dataset.time).parent[getRef(el.dataset.time).key]; return; }
+      const { parent, key } = getRef(el.dataset.time); parent[key] = t;
+      for (const k of KEYS) state.draft.plan[k].phases = sortPhases(state.draft.plan[k].phases);
+      markDirty(); el.blur(); render(); return;
+    }
+    if (el.dataset.move) {
+      const parts = el.dataset.move.split(".");
+      const shift = parts[0], pi = Number(parts[2]), ii = Number(parts[4]), target = Number(el.value);
+      const phases = state.draft.plan[shift].phases;
+      if (target === pi || !phases[target]) return;
+      const [item] = phases[pi].items.splice(ii, 1);
+      phases[target].items.push(item);
+      markDirty(); render();
     }
   });
-  main.addEventListener("keydown", (e) => {
-    const tog = e.target.closest && e.target.closest("[data-toggle]");
-    if (tog && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); tog.click(); }
-  });
-  main.addEventListener("input", (e) => { if (e.target.dataset && e.target.dataset.note) queueNote(e.target.dataset.note, e.target.value); });
-  main.addEventListener("focusout", (e) => { if (e.target.tagName === "TEXTAREA") setTimeout(() => { if (renderPending) render(); }, 0); });
+  main.addEventListener("focusout", () => setTimeout(() => { if (renderPending) render(); }, 0));
 
-  // Uhr und Fälligkeiten jede Minute aktualisieren (nur Anzeige).
-  setInterval(() => { if (state.view !== "monat") render(); }, 60000);
+  // Uhr, Fälligkeiten und „mitlaufende" Spalten jede Minute aktualisieren (nur Anzeige).
+  setInterval(() => { if (state.view === "plan" || state.view === "monat") renderHeader(); else render(); }, 30000);
 
   // ---------- Start ----------
   render();
@@ -766,6 +1140,7 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
       try { if ((await user.can("data.write")) === false) state.readOnly = true; } catch { /* unbekannt */ }
     }
     setStatus(statusLine(), state.readOnly);
+    subscribeCfg();
     subscribeMonth();
     subscribeDay();
   })();
