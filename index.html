@@ -132,21 +132,38 @@ li.na .skip { color: var(--ink); background: var(--surface-2) }
 .dash { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-top: 12px }
 .dash > .col { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0 }
 
-/* Schichtansicht: Phasen als Spalten */
-.shiftview { display: grid; grid-template-columns: minmax(200px, 230px) minmax(0, 1fr); gap: 12px; margin-top: 12px }
+/* Schichtansicht: Fahrplan */
+.shiftview { display: grid; grid-template-columns: minmax(200px, 250px) minmax(0, 1fr); gap: 12px; margin-top: 12px }
 .side { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0 }
-.lanes { display: grid; grid-template-columns: var(--cols); gap: 10px; min-width: 0; overflow-x: auto }
-.lane.is-now { border-color: var(--now); box-shadow: 0 0 0 1px var(--now) }
-.lane .chead { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 6px }
-.lane .chead .time { font-family: var(--f-display); font-weight: 700; font-size: 16px; font-variant-numeric: tabular-nums; color: var(--muted) }
-.lane.is-now .chead .time { color: var(--now) }
-.lane.is-late .chead .time { color: var(--warn) }
-.lane.is-done .chead .time { color: var(--done) }
-.lane .chead h2 { grid-column: 1 / -1 }
-.lane.collapsed .cbody { display: none }
-.lane .chead .time { white-space: nowrap; font-size: 15px }
-.lane .skip { padding: 0 6px; font-size: 11px }
-.lane .toggle { border: 0; background: none; color: var(--accent); font-size: 12px; font-weight: 600; padding: 8px 12px; text-align: left }
+.board { min-width: 0 }
+.board-in { display: grid; gap: 8px }
+.stop { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; break-inside: avoid; margin-bottom: 8px }
+.stop-head { display: grid; grid-template-columns: 22px 92px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 12px; width: 100%; border: 0; background: none; text-align: left }
+.stop-head .mark { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; background: var(--surface-2); color: var(--muted); box-shadow: inset 0 0 0 1px var(--line) }
+.stop-head .time { font-family: var(--f-display); font-weight: 700; font-size: 17px; font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap }
+.stop-head .ttl { font-family: var(--f-display); font-weight: 700; font-size: 17px; letter-spacing: .03em; text-transform: uppercase; min-width: 0 }
+.stop-head .ttl small { font-family: var(--f-body); font-weight: 500; font-size: 12px; letter-spacing: 0; text-transform: none; color: var(--muted); margin-left: 8px }
+.stop.is-done { background: transparent; border-style: dashed }
+.stop.is-done .mark { background: var(--done); color: #fff; box-shadow: none }
+.stop.is-done .ttl, .stop.is-done .time { color: var(--muted) }
+.stop.is-done .stop-head { padding-block: 5px }
+.stop.is-now { border-color: var(--now); box-shadow: 0 0 0 1px var(--now) }
+.stop.is-now .stop-head { background: var(--now-soft) }
+.stop.is-now .mark { background: var(--now); color: #fff; box-shadow: none }
+.stop.is-now .time { color: var(--now) }
+.stop.is-late { border-color: var(--warn) }
+.stop.is-late .stop-head { background: var(--warn-soft) }
+.stop.is-late .mark { background: var(--warn); color: #fff; box-shadow: none }
+.stop.is-late .time { color: var(--warn) }
+.stop .items { border-top: 1px solid var(--line) }
+.stop.is-later .check { padding-block: 5px; min-height: 34px }
+.stop.is-later .box { width: 18px; height: 18px; border-radius: 5px }
+.stop.is-later .txt .label { color: var(--muted); font-weight: 400 }
+.stop.is-later .txt .sub { display: none }
+.stop .phint { font-size: 12px; color: var(--muted); padding: 0 12px 6px 146px }
+.stop.is-now .phint { background: var(--now-soft) }
+.stop.is-late .phint { background: var(--warn-soft) }
+@media (max-width: 480px) { .stop .phint { padding-left: 44px } .stop-head { grid-template-columns: 22px 80px minmax(0, 1fr) auto; gap: 8px } }
 
 /* Monat */
 .monthhead { display: flex; align-items: center; gap: 8px; margin-top: 14px }
@@ -211,13 +228,12 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
   .dash > .col > .card, .side > .card { min-height: 0 }
   .dash > .col > .card.grow, .side > .card.grow { flex: 1 }
   .card .cbody { overflow-y: auto; flex: 1 }
-  .lanes { min-height: 0; grid-template-rows: minmax(0, 1fr) }
-  .lane { min-height: 0 }
+  .board { min-height: 0; overflow-y: auto }
+  .board-in { display: block; columns: 2 320px; column-gap: 12px }
 }
 @media (orientation: portrait), (max-width: 899px) {
   .dash { grid-template-columns: minmax(0, 1fr) }
   .shiftview { grid-template-columns: minmax(0, 1fr) }
-  .lanes { grid-template-columns: minmax(0, 1fr) !important }
   .clock { font-size: 28px }
 }
 @media (max-width: 760px) { .editor { grid-template-columns: minmax(0, 1fr) } .datenav { margin-left: 0 } }
@@ -441,6 +457,7 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
   let db = null, user = null, myId = null, unsubDay = null, unsubMonth = null, unsubCfg = null, monthKey = null;
   let writeChain = Promise.resolve();
   let renderPending = false;
+  let scrolledOnce = false;
 
   function resolvePlan(date, dayPlan) {
     if (dayPlan) return { plan: dayPlan, source: "day" };
@@ -785,30 +802,31 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
     </div>`;
   }
 
-  // ---------- Schichtansicht ----------
+  // ---------- Schichtansicht: Fahrplan ----------
+  // Chronologische Liste: erledigt = eine Zeile, aktuell/überfällig = groß, später = kompakt (trotzdem abhakbar).
   function renderShift(key) {
     const plan = P(), s = plan[key], ctx = timeCtx(), d = derive(plan);
-    const lanes = s.phases.map(p => {
+    if (!s.phases.length) return `<div class="empty">Für diese Schicht sind keine Abschnitte geplant. Unter „Plan anpassen“ hinzufügen.</div>`;
+    const MARK = { done: "✓", now: "▶", late: "!", later: "" };
+    const stops = s.phases.map(p => {
       const st = phaseState(p, ctx);
       const done = p.items.filter(i => state.checks[i.id]).length;
-      const collapsed = st === "done" && p.items.length > 0 && !state.expanded.has(p.id);
-      return { p, st, done, collapsed };
-    });
-    if (!lanes.length) return `<div class="empty">Für diese Schicht sind keine Abschnitte geplant. Unter „Plan anpassen“ hinzufügen.</div>`;
-    // Aktuelle/überfällige Spalten breiter, erledigte schmal – so passt die Schicht auf einen Bildschirm.
-    const cols = lanes.map(l => l.collapsed ? "minmax(96px, .45fr)" : (l.st === "now" || l.st === "late") ? "minmax(170px, 1.5fr)" : "minmax(140px, 1fr)").join(" ");
-    const html = lanes.map(({ p, st, done, collapsed }) => `
-      <section class="card lane is-${st}${collapsed ? " collapsed" : ""}" id="phase-${esc(p.id)}">
-        <div class="chead"><span class="time">${p.from}–${p.to}</span>${PILL[st]}<h2>${esc(p.title)} <span class="hint">${done}/${p.items.length}</span></h2>${p.hint ? `<span class="hint" style="grid-column:1/-1">${esc(p.hint)}</span>` : ""}</div>
-        ${st === "done" && p.items.length ? `<button class="toggle" data-toggle="${esc(p.id)}">${collapsed ? "Aufklappen" : "Einklappen"}</button>` : ""}
-        <div class="cbody"><ul class="items">${p.items.map(i => itemHtml(d.item[i.id])).join("") || '<li class="empty">Keine Aufgaben.</li>'}</ul></div>
-      </section>`).join("");
+      const collapsed = st === "done" && !state.expanded.has(p.id);
+      const label = { done: "erledigt", now: "jetzt", late: "offen", later: "später" }[st];
+      const head = `<span class="mark" aria-hidden="true">${MARK[st]}</span><span class="time">${p.from}–${p.to}</span><span class="ttl">${esc(p.title)}<small>${done}/${p.items.length}</small></span>${PILL[st]}`;
+      const headEl = st === "done"
+        ? `<button class="stop-head" data-toggle="${esc(p.id)}" aria-expanded="${!collapsed}" aria-label="${esc(p.title)}, ${label}, ${collapsed ? "aufklappen" : "zuklappen"}">${head}</button>`
+        : `<div class="stop-head">${head}</div>`;
+      const hint = p.hint && (st === "now" || st === "late") ? `<div class="phint">${esc(p.hint)}</div>` : "";
+      const items = collapsed ? "" : `<ul class="items">${p.items.map(i => itemHtml(d.item[i.id])).join("") || '<li class="empty">Keine Aufgaben.</li>'}</ul>`;
+      return `<section class="stop is-${st}" id="phase-${esc(p.id)}">${headEl}${hint}${items}</section>`;
+    }).join("");
     return `<div class="shiftview">
       <div class="side">
         <section class="card grow"><div class="chead"><h2>Immer im Blick</h2><span class="hint">${s.start}–${s.end}</span></div><div class="cbody">${alwaysHtml(plan, key, ctx)}</div></section>
         <section class="card"><div class="chead"><h2>Übergabe</h2></div><div class="cbody">${handoverHtml(key)}</div></section>
       </div>
-      <div class="lanes" style="--cols:${cols}">${html}</div>
+      <div class="board"><div class="board-in">${stops}</div></div>
     </div>`;
   }
 
@@ -1028,10 +1046,19 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
   }
   // Querformat: aktuelle Spalte ins Bild holen.
   function scrollToNow() {
-    const el = document.querySelector(".lane.is-now") || document.querySelector(".lane.is-late");
-    const lanes = document.querySelector(".lanes");
-    if (el && lanes && lanes.scrollWidth > lanes.clientWidth) lanes.scrollLeft = Math.max(0, el.offsetLeft - lanes.offsetLeft - 20);
+    // Erster offener Abschnitt (überfällig oder aktuell) in Zeitreihenfolge.
+    const el = document.querySelector(".stop.is-late, .stop.is-now");
+    if (!el) return;
+    const board = document.querySelector(".board");
+    if (board && board.scrollHeight > board.clientHeight) board.scrollTop = Math.max(0, el.offsetTop - board.offsetTop - 8);
+    else if (window.innerHeight < document.documentElement.scrollHeight && !scrolledOnce) {
+      const head = document.querySelector("header.top");
+      const offset = head && getComputedStyle(head).position === "sticky" ? head.offsetHeight : 0;
+      window.scrollTo(0, Math.max(0, el.getBoundingClientRect().top + window.scrollY - offset - 8));
+      scrolledOnce = true;
+    }
   }
+
 
   // ---------- Interaktion ----------
   function goDate(date) {
@@ -1054,8 +1081,8 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
   function setView(v) {
     if (state.view === "plan" && v !== "plan" && state.draftDirty && !confirmLeave()) return;
     if (v !== "plan") { state.draft = null; state.draftDirty = false; }
-    state.view = v; state.confirm = null;
-    render(); window.scrollTo(0, 0);
+    state.view = v; state.confirm = null; scrolledOnce = false;
+    window.scrollTo(0, 0); render();
   }
   function shiftMonths(n) { const d = parseIso(state.date); d.setDate(1); d.setMonth(d.getMonth() + n); goDate(isoDate(d)); }
 
