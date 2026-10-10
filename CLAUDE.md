@@ -1,12 +1,13 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## Projekt
 
-## Repository status
+Digitale Abhak-Checkliste für Früh- und Spätschicht an der Rezeption (Vorlage: Papier-Aushang „Checkliste neue Rezeption").
 
-This repository is currently empty — no source files, configuration, or commit history exist yet beyond this file. There is no build system, test suite, or architecture to document.
+- `index.html` – komplette App, kein Build. Wird als claude.ai-Artifact veröffentlicht (Capabilities `db` + `user`); lokal im Browser geöffnet fällt sie auf `localStorage` zurück.
+- Checklisteninhalt und Uhrzeiten stehen im Objekt `SHIFTS` oben im Script. Item-IDs (`f_*`, `s_*`, `*_rund_HH`) sind Schlüssel in der Datenbank – nie umbenennen, nur neue hinzufügen.
+- Datenmodell: ein Dokument pro Tag `days/YYYY-MM-DD` = `{ month: "YYYY-MM", checks: { <itemId>: { s: "done"|"na", by: <userId>, at: <ISO> } | null } }`.
 
-When code is added to this repository, update this file to cover:
-- Build, lint, and test commands (including how to run a single test)
-- High-level architecture and how the major pieces of the codebase fit together
-- Project-specific conventions that aren't obvious from the code itself
+## Testen
+
+Kein Test-Setup. `index.html` direkt im Browser öffnen (lokaler Modus) und Früh/Spät/Monat durchklicken.
