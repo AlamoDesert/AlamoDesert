@@ -1,5 +1,5 @@
 /* Courtside – Offline-Cache. Seiten: zuerst Netz, sonst Cache. Dateien: Cache, im Hintergrund auffrischen. */
-const CACHE = 'courtside-v1';
+const CACHE = 'courtside-v2';
 const ASSETS = [
   './', 'index.html', 'app.js', 'engine.js', 'content.js', 'vendor/qrcode.js', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'
@@ -17,7 +17,9 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const req = e.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
+  const url = new URL(req.url);
+  // Anmeldelisten immer frisch vom Server, nie aus dem Cache.
+  if (req.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/api/')) return;
   if (req.mode === 'navigate') {
     e.respondWith(fetch(req)
       .then((res) => { const copy = res.clone(); caches.open(CACHE).then((c) => c.put('index.html', copy)); return res; })

@@ -12,16 +12,18 @@ Digitale Abhak-Checkliste für Früh- und Spätschicht an der Rezeption (Vorlage
 
 ## Courtside (`courtside/`)
 
-Eigene Web-App (PWA, kein Build) für Turniere in Padel (Schwerpunkt), Pickleball und Tennis. Unabhängig von der Checkliste.
+Eigene Web-App (PWA, kein Build) für Turniere in Padel (Schwerpunkt), Pickleball und Tennis. Unabhängig von der Checkliste. Netlify-Basisverzeichnis ist `courtside/` (`netlify.toml`).
 
-- `engine.js` – reine Logik ohne DOM (Formate, Modi, Auslosung, Tabellen, `next()` = „Was kommt als Nächstes“). Vier Motoren: `rotation` (Americano, Mexicano, Mixed, Team-Varianten), `ladder` (King of the Court), `queue` (Gewinner bleibt), `rally` (Königsseite), `pool` (Jeder gegen jeden, K.-o., Gruppen + K.-o., Kompass; Spiele als Graph mit `sa`/`sb`-Quellen, Plätze werden frei vergeben).
-- `app.js` – Oberfläche, Speicher (`localStorage` Schlüssel `courtside.v1`), Undo per Snapshot, Timer, Navigation mit History-API (Android-Zurück).
-- `content.js` – Texte zu Modi und Regeln. `index.html` – CSS mit zwei Designsprachen über `html[data-platform="ios"|"android"]` (iOS 26 / Material 3 Expressive), automatisch erkannt, in den Einstellungen umschaltbar.
-- `sw.js` + `manifest.webmanifest` – offline und installierbar. Bei Änderungen an Dateien `CACHE` in `sw.js` hochzählen.
-- `vendor/qrcode.js` – QR-Code-Generator (Kazuhiko Arase, MIT), unverändert.
+- `public/` – die App. `engine.js` ist reine Logik ohne DOM: vier Modi (Americano, Mexicano, King of the Court, Team-Turnier) auf zwei Motoren (`rotation`, `ladder`), Spielstärke (`LEVELS`, Playtomic 0–7 hat Vorrang), Teambildung (`buildTeams`: `similar` = gut mit gut, `balanced` = gut mit schwächer), Tabellen und `next()` = „Was kommt als Nächstes“.
+- `public/app.js` – Oberfläche, Speicher (`localStorage` `courtside.v1`, Spieler-Links in `courtside.me`), Undo per Snapshot, Timer, Navigation mit History-API. Turniere mit `status: 'draft'` sind offene Online-Anmeldungen; erst beim Start entsteht daraus ein Engine-Turnier.
+- Spielerseite: `?anmeldung=<eventId>` (gemeinsamer Link), persönlicher Link zusätzlich `&ich=<playerId>#k=<token>`.
+- `netlify/functions/api/` – Anmelde-API unter `/api/*`: `core.mts` ist die Logik mit austauschbarem Speicher, `api.mts` bindet Netlify Blobs an. Jede Anmeldung ist ein eigener Blob-Schlüssel (`e/<id>/p/<pid>`), Admin- und Spieler-Schlüssel liegen nur als SHA-256 vor.
+- `public/index.html` – CSS mit zwei Designsprachen über `html[data-platform="ios"|"android"]`. Spielfelder im echten Seitenverhältnis (Padel 20 × 10 m).
+- `public/sw.js` – Offline-Cache, `/api/*` geht immer ans Netz. Bei Änderungen an Dateien `CACHE` hochzählen.
+- `public/vendor/qrcode.js` – QR-Code-Generator (Kazuhiko Arase, MIT), unverändert.
 
 ## Testen
 
 Checkliste: kein Test-Setup. `index.html` direkt im Browser öffnen (lokaler Modus) und Früh/Spät/Monat durchklicken.
 
-Courtside: `node --test courtside/tests/engine.test.js` prüft die Engine. Die App über einen lokalen Server öffnen (`python3 -m http.server` im Ordner `courtside/`), sonst greifen Service Worker und Manifest nicht.
+Courtside (im Ordner `courtside/`): `npm test` prüft Engine und API. `npm run dev` startet `dev/server.mjs` auf Port 8888: liefert `public/` aus und beantwortet `/api/*` mit einem Speicher im Arbeitsspeicher, so lässt sich die Online-Anmeldung lokal mit mehreren Browserfenstern durchspielen.
