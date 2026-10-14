@@ -281,6 +281,11 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
 .imptab td { color: var(--muted) }
 .imptab td.on { color: var(--done); font-weight: 600 }
 .imptab td small { margin-left: 6px; color: var(--now); font-weight: 500 }
+.imptab td .t { margin-left: 8px; color: var(--muted); font-weight: 400 }
+.imptab td.gap { color: var(--warn) }
+.imp p.new { color: var(--ink) }
+.roster .rnote { font-size: 11px; color: var(--now); margin-top: 4px }
+.dialog p.pnote { color: var(--now) }
 
 /* Verwaltung */
 .admin { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-top: 12px; align-items: start }
