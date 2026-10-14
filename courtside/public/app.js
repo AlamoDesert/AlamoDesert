@@ -718,13 +718,57 @@
     if (!E.roundTimed(t) || !t.timer || !t.timer.dur) return '';
     const run = !!t.timer.endsAt;
     return `<div class="timer">
-      <div class="clock num" data-clock aria-live="off">${clockText(t.timer.dur)}</div>
+      <button type="button" class="clock num" data-clock data-act="timer-edit" aria-live="off" aria-label="Rundenzeit ändern">${clockText(t.timer.dur)}</button>
       <div class="ctl">
         <button class="iconbtn ${run ? 'stop' : 'go'}" data-act="timer-toggle" type="button" aria-label="${run ? 'Pause' : 'Start'}">${icon(run ? 'pause' : 'play')}</button>
         <button class="iconbtn" data-act="timer-plus" type="button" aria-label="Eine Minute mehr"><span class="num" style="font-weight:700;font-size:15px">+1</span></button>
         <button class="iconbtn" data-act="timer-reset" type="button" aria-label="Zurücksetzen">${icon('reset')}</button>
       </div>
-      <div class="bar"><span data-bar style="width:100%"></span></div></div>`;
+      <div class="bar"><span data-bar style="width:100%"></span></div>
+      <button type="button" class="btn-text" data-act="timer-edit">${icon('timer', 'sm')}Zeit ändern · ${Math.round(t.timer.dur / 60)} Min. pro Runde</button></div>`;
+  }
+
+  // Rundenzeit ändern; eine laufende Runde behält die schon gespielte Zeit.
+  function applyRoundMinutes(t, min) {
+    const T = t.timer || (t.timer = { dur: 0, endsAt: null, left: null });
+    t.options.roundMinutes = min;
+    if (!min) { Object.assign(T, { dur: 0, endsAt: null, left: null, warned: false, rang: false }); return; }
+    const dur = min * 60;
+    if (T.dur && T.endsAt) T.endsAt = Date.now() + (dur - (T.dur - (T.endsAt - Date.now()) / 1000)) * 1000;
+    else if (T.dur && T.left != null) T.left = dur - (T.dur - T.left);
+    T.dur = dur;
+    const left = remaining(t);
+    T.warned = left <= 60;
+    T.rang = left <= 0;
+  }
+  function openTimerSheet(t) {
+    let min = t.timer && t.timer.dur ? Math.round(t.timer.dur / 60) : 12;
+    const has = !!(t.timer && t.timer.dur);
+    const required = E.MODES[t.mode].engine === 'ladder' || !!E.fmtOf(t).timed;
+    const running = has && !!t.timer.endsAt;
+    const body = () => `<div class="timer-pick"><span class="big num">${min} Min.</span>
+        <span class="stepper"><button type="button" data-d="-1" aria-label="Eine Minute weniger">${icon('minus', 'sm')}</button><button type="button" data-d="1" aria-label="Eine Minute mehr">${icon('plus', 'sm')}</button></span></div>
+      <div class="chips">${[5, 8, 10, 12, 15, 20, 25, 30].map((v) => `<button class="chip" type="button" data-v="${v}" aria-pressed="${v === min}">${v} Min.</button>`).join('')}</div>
+      <p class="foot">${running ? 'Die laufende Runde wird angepasst, die schon gespielte Zeit zählt mit. ' : ''}Gilt für diese und alle folgenden Runden.</p>`;
+    const o = sheet({
+      title: 'Rundenzeit', body: body(), doneLabel: 'Fertig',
+      foot: `${has && !required ? `<button class="btn danger" type="button" data-off>Timer aus</button>` : ''}<button class="btn filled big" type="button" data-save>Übernehmen</button>`
+    });
+    const apply = (value) => {
+      applyRoundMinutes(t, value);
+      Store.save();
+      closeLayer(o).then(() => { render(); toast(value ? `Rundenzeit: ${value} Min.` : 'Timer ausgeschaltet'); });
+    };
+    o.el.addEventListener('click', (ev) => {
+      const b = ev.target.closest('button');
+      if (!b || !o.el.contains(b)) return;
+      if (b.dataset.d) { min = Math.max(1, Math.min(90, min + Number(b.dataset.d))); haptic(4); }
+      else if (b.dataset.v) min = Number(b.dataset.v);
+      else if (b.dataset.save !== undefined || b.dataset.sheet === 'done') return apply(min);
+      else if (b.dataset.off !== undefined) return apply(0);
+      else return;
+      o.el.querySelector('.sheet-b').innerHTML = body();
+    });
   }
 
   function nextCard(t) {
@@ -733,7 +777,8 @@
     const acts = [];
     if (n.action) acts.push(`<button class="btn filled big" data-act="next" data-id="${n.action.id}"${n.action.match ? ` data-match="${n.action.match}"` : ''} type="button">${esc(n.action.label)}</button>`);
     if (n.alt) acts.push(`<button class="btn tonal big" data-act="next" data-id="${n.alt.id}" type="button">${esc(n.alt.label)}</button>`);
-    return `<section class="card next"><div class="state">${badge}</div><h2>${esc(n.title)}</h2><p>${esc(n.text)}</p>${timerBlock(t)}${acts.length ? `<div class="actions">${acts.join('')}</div>` : ''}</section>`;
+    const addTimer = t.status === 'running' && !(E.roundTimed(t) && t.timer && t.timer.dur) ? `<button type="button" class="btn-text" data-act="timer-edit">${icon('timer', 'sm')}Timer hinzufügen</button>` : '';
+    return `<section class="card next"><div class="state">${badge}</div><h2>${esc(n.title)}</h2><p>${esc(n.text)}</p>${timerBlock(t)}${acts.length ? `<div class="actions">${acts.join('')}</div>` : ''}${addTimer}</section>`;
   }
 
   function moveHint(t, m) {
@@ -1052,8 +1097,8 @@
       <section class="section"><div class="section-h"><h2>So läuft’s</h2></div><div class="card"><ol class="steps">${c.steps.map((s) => `<li><span>${esc(s)}</span></li>`).join('')}</ol></div></section>
       <section class="section"><div class="section-h"><h2>Wertung</h2></div><div class="card"><p>${esc(c.scoring)}</p></div></section>
       ${c.tips.length ? `<section class="section"><div class="section-h"><h2>Tipps</h2></div><div class="card"><ul class="bullets">${c.tips.map((s) => `<li>${esc(s)}</li>`).join('')}</ul></div></section>` : ''}
-      ${inSheet ? '' : `<div class="row"><button class="btn filled big grow" type="button" data-act="new-with" data-id="${id}" data-sport="${sport}">${icon('plus')}Mit diesem Modus starten</button>
-        <button class="btn tonal big" type="button" data-act="share-mode" data-id="${id}">${icon('share', 'sm')}An Spieler weitergeben</button></div>`}`;
+      ${inSheet ? '' : `<div class="stack"><button class="btn filled big block" type="button" data-act="new-with" data-id="${id}" data-sport="${sport}">${icon('plus')}Mit diesem Modus starten</button>
+        <button class="btn tonal big block" type="button" data-act="share-mode" data-id="${id}">${icon('share', 'sm')}An Spieler weitergeben</button></div>`}`;
   }
   const viewMode = (id, sport) => ({ title: C.modes[id].name, large: false, body: modeDetail(id, sport) });
   function openModeInfo(id, sport, onPick) {
@@ -1129,29 +1174,32 @@
     return { title: 'Einstellungen', large: true, body };
   }
 
-  /* ---------- Neues Turnier ---------- */
+  /* ---------- Neues Turnier (4 Schritte) ---------- */
+  const WIZARD_STEPS = ['Sport & Modus', 'Teilnehmende', 'Spielablauf', 'Überblick'];
   function openWizard(preset = {}) {
     const sport = preset.sport || S().sport || 'padel';
     const online = API.available();
     const W = {
-      sport, discipline: 'doubles', mode: preset.mode || 'americano', people: [], courts: 2, format: null,
-      rules: {}, options: {}, name: '', rounds: null, signup: online, teamsFixed: false, when: ''
+      step: 0, sport, discipline: 'doubles', mode: preset.mode || 'americano', people: [], courts: 2, format: null,
+      rules: {}, options: {}, name: '', rounds: null, signup: online, teamsFixed: false, when: '', stepError: ''
     };
     const setMode = (id) => {
       W.mode = id;
       W.format = E.defaultFormat(id, W.sport);
       W.rounds = null;
       const m = E.MODES[id];
-      W.options = { byePoints: 'avg' };
+      W.options = { byePoints: 'avg', roundMinutes: 0 };
       if (id === 'americano') W.options.balance = true;
       if (id === 'mexicano') { W.options.scheme = '14'; W.options.firstRound = 'level'; }
       if (m.engine === 'ladder') { W.options.roundMinutes = 12; W.options.ranking = 'position'; }
     };
     setMode(W.mode);
     const m = () => E.MODES[W.mode];
+    const fmt = () => E.FORMATS[W.format];
     const singles = () => W.discipline === 'singles';
     const buildTeams = () => m().unit === 'team' && !singles() && !W.teamsFixed;
     const unitWord = () => (m().unit === 'player' || singles() || buildTeams() ? 'Personen' : 'Teams');
+    const timerNeeded = () => m().engine === 'ladder' || !!fmt().timed;
     const autoName = () => `${E.SPORTS[W.sport].name} ${C.modes[W.mode].name} ${new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}`;
     const cfg = (entrants) => {
       const o = Object.assign({}, W.options);
@@ -1159,66 +1207,70 @@
       return { name: W.name.trim() || autoName(), sport: W.sport, discipline: W.discipline, mode: W.mode, format: W.format, courts: W.courts, rules: W.rules, options: o, entrants: entrants || W.people };
     };
     // Prüft alles außer der Teilnehmerzahl, die bei Online-Anmeldung noch offen ist.
-    const checkBase = () => {
-      const fake = Array.from({ length: Math.max(m().min, 8) }, (_, i) => ({ name: 'x' + i }));
-      return E.validateConfig(cfg(fake));
-    };
-    const check = () => {
-      if (W.signup) return checkBase();
-      if (buildTeams()) {
-        const err = checkBase();
-        if (err) return err;
-        if (W.people.length < m().min * 2) return `Für ${m().min} Teams braucht es mindestens ${m().min * 2} Personen.`;
-        return null;
-      }
+    const checkBase = () => E.validateConfig(cfg(Array.from({ length: Math.max(m().min, 8) }, (_, i) => ({ name: 'x' + i }))));
+    const checkPeople = () => {
+      if (W.signup) return null;
+      if (buildTeams()) return W.people.length < m().min * 2 ? `Für ${m().min} Teams braucht es mindestens ${m().min * 2} Personen. Bisher: ${W.people.length}.` : null;
+      if (W.people.length < m().min) return `Dieser Modus braucht mindestens ${m().min} ${unitWord()}. Bisher: ${W.people.length}.`;
       return E.validateConfig(cfg());
     };
+    const check = () => checkBase() || checkPeople();
 
-    const secSport = () => `<section class="section"><div class="section-h"><h2>Sportart</h2></div>${sportSeg(W.sport, 'w-sport')}
-      ${E.SPORTS[W.sport].singles ? `<div class="seg"><button type="button" data-act="w-disc" data-v="doubles" aria-pressed="${!singles()}">Doppel</button><button type="button" data-act="w-disc" data-v="singles" aria-pressed="${singles()}">Einzel</button></div>` : ''}</section>`;
-    const secMode = () => {
-      const cell = (id) => {
+    /* Bausteine */
+    const stepperRow = (label, sub, key, value, min, max) => `<div class="cell"><span class="body"><span class="t1">${esc(label)}</span>${sub ? `<span class="t2">${esc(sub)}</span>` : ''}</span>
+      <span class="stepper"><button type="button" data-act="w-step" data-k="${key}" data-d="-1" data-min="${min}" data-max="${max}" aria-label="${esc(label)} weniger">${icon('minus', 'sm')}</button><output class="num">${value}</output><button type="button" data-act="w-step" data-k="${key}" data-d="1" data-min="${min}" data-max="${max}" aria-label="${esc(label)} mehr">${icon('plus', 'sm')}</button></span></div>`;
+    const switchRow = (label, sub, key, on) => `<label class="cell"><span class="body"><span class="t1">${esc(label)}</span>${sub ? `<span class="t2">${esc(sub)}</span>` : ''}</span><input type="checkbox" class="switch" data-w-opt="${key}" ${on ? 'checked' : ''}></label>`;
+    const segRow = (label, key, opts) => `<div class="cell" style="flex-wrap:wrap"><span class="body" style="flex-basis:100%"><span class="t1">${esc(label)}</span></span><div class="seg" style="flex:1">${opts.map(([v, l]) => `<button type="button" data-act="w-opt" data-k="${key}" data-v="${v}" aria-pressed="${String(W.options[key]) === String(v)}">${esc(l)}</button>`).join('')}</div></div>`;
+    const section = (title, inner, foot = '') => `<section class="section"><div class="section-h"><h2>${esc(title)}</h2></div>${inner}${foot ? `<p class="foot">${foot}</p>` : ''}</section>`;
+    const radioCell = (act, id, title, sub, checked, badge = '') => `<button type="button" class="cell check tappable" role="radio" aria-checked="${checked}" data-act="${act}" data-id="${id}">
+      <span class="body"><span class="t1">${esc(title)}${badge}</span>${sub ? `<span class="t2">${esc(sub)}</span>` : ''}</span>${icon('check', 'tick')}<span class="radio" aria-hidden="true"></span></button>`;
+
+    /* Schritt 1: Sport & Modus */
+    const stepMode = () => {
+      const modes = MODE_ORDER.map((id) => {
         const c = C.modes[id];
         const avail = E.modeAvailable(id, W.sport, W.discipline);
         return `<div class="cell check${avail ? '' : ' dim'}" role="radio" aria-checked="${id === W.mode}" style="padding-right:8px"><button type="button" class="body" data-act="w-mode" data-id="${id}" ${avail ? '' : 'disabled'} style="text-align:left;display:flex;flex-direction:column;gap:2px;min-height:44px;justify-content:center">
           <span class="t1">${esc(c.name)}</span><span class="t2">${esc(avail ? c.tag : 'Nur im Doppel')}</span></button>
           <button type="button" class="iconbtn" data-act="w-info" data-id="${id}" aria-label="${esc(c.name)} erklärt">${icon('info', 'sm')}</button>${icon('check', 'tick')}<span class="radio" aria-hidden="true"></span></div>`;
-      };
-      return `<section class="section"><div class="section-h"><h2>Modus</h2></div><div class="list" role="radiogroup">${MODE_ORDER.map(cell).join('')}</div></section>`;
+      }).join('');
+      return section('Sportart', sportSeg(W.sport, 'w-sport') + (E.SPORTS[W.sport].singles ? `<div class="seg"><button type="button" data-act="w-disc" data-v="doubles" aria-pressed="${!singles()}">Doppel</button><button type="button" data-act="w-disc" data-v="singles" aria-pressed="${singles()}">Einzel</button></div>` : ''))
+        + section('Modus', `<div class="list" role="radiogroup">${modes}</div>`, `Mit ${icon('info', 'sm')} siehst du, wie ein Modus abläuft.`);
     };
-    const secPeople = () => {
+
+    /* Schritt 2: Teilnehmende */
+    const stepPeople = () => {
       const signupSeg = online ? `<div class="seg"><button type="button" data-act="w-signup" data-v="1" aria-pressed="${W.signup}">Per Link anmelden</button><button type="button" data-act="w-signup" data-v="0" aria-pressed="${!W.signup}">Selbst eintragen</button></div>` : '';
       if (W.signup) {
-        return `<section class="section"><div class="section-h"><h2>Teilnehmende</h2></div>${signupSeg}
-          <div class="card"><p>Du bekommst einen Link und QR-Code. Jede Person trägt sich mit Name und Level ein${buildTeams() ? ', die App bildet daraus die Teams' : ''}. Du siehst die Liste live und startest, wenn alle da sind.</p>
-          <div class="field"><label for="w-when">Termin (optional)</label><input class="input" id="w-when" value="${esc(W.when)}" placeholder="z. B. Fr 18:00, Halle 2" maxlength="60" autocomplete="off"></div></div></section>`;
+        return section('Wie kommen die Namen rein?', `${signupSeg}<div class="card"><p>Du bekommst einen Link und QR-Code. Jede Person trägt sich mit Name und Level ein${buildTeams() ? ', die App bildet daraus die Teams' : ''}. Du siehst die Liste live und startest, wenn alle da sind.</p>
+          <div class="field"><label for="w-when">Termin (optional)</label><input class="input" id="w-when" value="${esc(W.when)}" placeholder="z. B. Fr 18:00, Halle 2" maxlength="60" autocomplete="off"></div></div>`);
       }
       const fixedSeg = m().unit === 'team' && !singles()
-        ? `<div class="seg"><button type="button" data-act="w-teams" data-v="0" aria-pressed="${!W.teamsFixed}">Teams nach Level bilden</button><button type="button" data-act="w-teams" data-v="1" aria-pressed="${W.teamsFixed}">Feste Teams eintragen</button></div>` : '';
+        ? `<div class="seg"><button type="button" data-act="w-teams" data-v="0" aria-pressed="${!W.teamsFixed}">Nach Level bilden</button><button type="button" data-act="w-teams" data-v="1" aria-pressed="${W.teamsFixed}">Feste Teams</button></div>` : '';
       const rows = W.people.map((p, i) => `<div class="cell ent-row"><span class="nr">${i + 1}</span><span class="nm">${esc(p.name)}</span>
         <button type="button" class="lvl-chip lv-${esc(p.level || 'none')}" data-act="w-lvl" data-i="${i}">${esc(E.levelLabel(p) || 'Level')}</button>
         <button type="button" class="iconbtn" data-act="w-del" data-i="${i}" aria-label="${esc(p.name)} entfernen">${icon('close', 'sm')}</button></div>`).join('');
       const placeholder = unitWord() === 'Teams' ? 'Teamname, z. B. Anna / Ben' : 'Name';
-      return `<section class="section"><div class="section-h"><h2>${unitWord()} (${W.people.length})</h2></div>${signupSeg}${fixedSeg}
-        <div class="addrow"><input class="input" id="w-add" placeholder="${placeholder}" autocomplete="off" autocapitalize="words" enterkeyhint="next">
-        <button class="iconbtn tint" type="button" data-act="w-add" aria-label="Hinzufügen">${icon('plus')}</button></div>
-        <div class="chips"><button class="chip" type="button" data-act="w-paste">${icon('list', 'sm')}Liste einfügen</button><button class="chip" type="button" data-act="w-fill">${icon('people', 'sm')}Mit Platzhaltern füllen</button></div>
-        ${W.people.length ? `<div class="list">${rows}</div><p class="foot">Level antippen, um es festzulegen. Ohne Angabe zählt „Mittel“.</p>` : ''}</section>`;
+      return section(online ? 'Wie kommen die Namen rein?' : 'Teilnehmende', signupSeg + fixedSeg)
+        + section(`${unitWord()} (${W.people.length})`, `<div class="addrow"><input class="input" id="w-add" placeholder="${placeholder}" autocomplete="off" autocapitalize="words" enterkeyhint="next">
+          <button class="iconbtn tint" type="button" data-act="w-add" aria-label="Hinzufügen">${icon('plus')}</button></div>
+          <div class="chips"><button class="chip" type="button" data-act="w-paste">${icon('list', 'sm')}Liste einfügen</button><button class="chip" type="button" data-act="w-fill">${icon('people', 'sm')}Mit Platzhaltern füllen</button></div>
+          ${W.people.length ? `<div class="list">${rows}</div>` : ''}`, W.people.length ? 'Level antippen, um es festzulegen. Ohne Angabe zählt „Mittel“.' : '');
     };
-    const stepperRow = (label, sub, key, value, min, max) => `<div class="cell"><span class="body"><span class="t1">${esc(label)}</span>${sub ? `<span class="t2">${esc(sub)}</span>` : ''}</span>
-      <span class="stepper"><button type="button" data-act="w-step" data-k="${key}" data-d="-1" data-min="${min}" data-max="${max}" aria-label="${esc(label)} weniger">${icon('minus', 'sm')}</button><output class="num">${value}</output><button type="button" data-act="w-step" data-k="${key}" data-d="1" data-min="${min}" data-max="${max}" aria-label="${esc(label)} mehr">${icon('plus', 'sm')}</button></span></div>`;
-    const switchRow = (label, sub, key, on) => `<label class="cell"><span class="body"><span class="t1">${esc(label)}</span>${sub ? `<span class="t2">${esc(sub)}</span>` : ''}</span><input type="checkbox" class="switch" data-w-opt="${key}" ${on ? 'checked' : ''}></label>`;
-    const segRow = (label, key, opts) => `<div class="cell" style="flex-wrap:wrap"><span class="body" style="flex-basis:100%"><span class="t1">${esc(label)}</span></span><div class="seg" style="flex:1">${opts.map(([v, l]) => `<button type="button" data-act="w-opt" data-k="${key}" data-v="${v}" aria-pressed="${String(W.options[key]) === String(v)}">${esc(l)}</button>`).join('')}</div></div>`;
-    const secCourts = () => `<section class="section"><div class="list">${stepperRow('Plätze', m().engine === 'ladder' ? 'Platz 1 ist der Königsplatz.' : '', 'courts', W.courts, 1, 16)}</div></section>`;
-    const secFormat = () => {
-      const fmt = E.FORMATS[W.format];
-      const serve = m().engine === 'rotation' ? E.serveHint(fmt) : '';
-      return `<section class="section"><div class="section-h"><h2>Zählweise</h2></div><div class="chips">${E.formatsFor(W.mode, W.sport).map((k) => `<button class="chip" type="button" data-act="w-format" data-v="${k}" aria-pressed="${k === W.format}">${esc(E.FORMATS[k].short)}</button>`).join('')}</div>
-        <p class="foot">${esc(fmt.name)}${fmt.timed ? '. Gespielt wird auf Zeit, eingetragen wird der Stand beim Abpfiff.' : ''}${serve ? ' ' + esc(serve) : ''}</p></section>`;
-    };
-    const secOpts = () => {
+
+    /* Schritt 3: Spielablauf */
+    const stepPlay = () => {
       const o = W.options;
-      const fmt = E.FORMATS[W.format];
+      const f = fmt();
+      const formats = E.formatsFor(W.mode, W.sport).map((k, i) => {
+        const x = E.FORMATS[k];
+        return radioCell('w-format', k, x.name, `${x.desc}${x.timed || k === 'win' ? '' : ` Etwa ${x.min} Min.`}`, k === W.format, i === 0 ? ' <span class="badge tint">Standard</span>' : '');
+      }).join('');
+      const pointsHint = E.formatsFor(W.mode, W.sport).some((k) => E.FORMATS[k].total) ? 'Americano und Mexicano zählen nicht 15–30–40, sondern jeden Ballwechsel als einen Punkt.' : '';
+      const minutes = o.roundMinutes || 0;
+      const timer = timerNeeded()
+        ? `<div class="list">${stepperRow('Minuten pro Runde', 'Signal eine Minute vor Schluss und beim Abpfiff', 'roundMinutes', minutes || 12, 3, 60)}</div>`
+        : `<div class="list">${switchRow('Mit Timer spielen', minutes ? 'Endet die Runde nach Zeit, zählt der Stand beim Abpfiff' : 'Aus – gespielt wird bis zur Punktzahl', 'timer', minutes > 0)}${minutes ? stepperRow('Minuten pro Runde', '', 'roundMinutes', minutes, 3, 60) : ''}</div>`;
       const rows = [];
       if (W.mode !== 'team') {
         const def = E.defaultRounds({ mode: W.mode, format: W.format, entrants: W.people, options: o }) || 6;
@@ -1227,8 +1279,6 @@
           : W.mode === 'americano' && n >= 4 ? `Bei ${n} Personen spielt mit ${n - 1} Runden jede Person einmal mit jeder anderen.` : '';
         rows.push(stepperRow('Runden', sub, 'rounds', W.rounds || (W.signup ? 'Auto' : def), 1, 40));
       }
-      if (m().engine === 'ladder' || fmt.timed || o.roundMinutes > 0) rows.push(stepperRow('Minuten pro Runde', 'Timer mit Signal kurz vor Schluss', 'roundMinutes', o.roundMinutes || (fmt.timed ? 12 : 0), m().engine === 'ladder' ? 3 : 0, 60));
-      else rows.push(stepperRow('Zeitlimit pro Runde', 'Aus – gespielt wird bis zur Punktzahl', 'roundMinutes', 0, 0, 60));
       if (W.mode === 'americano') rows.push(switchRow('Ausgeglichene Spiele', 'Beide Teams eines Spiels möglichst gleich stark (nach Level)', 'balance', o.balance !== false));
       if (W.mode === 'mexicano') {
         rows.push(segRow('Erste Runde', 'firstRound', [['level', 'Nach Level'], ['random', 'Zufall']]));
@@ -1236,56 +1286,77 @@
       }
       if (m().engine === 'rotation') rows.push(switchRow('Pausen ausgleichen', 'Wer aussetzt, bekommt den eigenen Punkteschnitt', 'byePoints', o.byePoints !== 'none'));
       if (m().engine === 'ladder') rows.push(segRow('Wertung', 'ranking', [['position', 'Position'], ['points', 'Punkte je Platz']]));
-      return `<section class="section"><div class="section-h"><h2>Ablauf</h2></div><div class="list">${rows.join('')}</div></section>`;
-    };
-    const secRules = () => {
       const R = E.RULES[W.sport];
       const cur = W.rules[R.key] || R.def;
-      const ro = R.options.find((x) => x.id === cur);
-      return `<section class="section"><div class="section-h"><h2>${esc(R.label)}</h2></div><div class="seg">${R.options.map((x) => `<button type="button" data-act="w-rule" data-v="${x.id}" aria-pressed="${x.id === cur}">${esc(x.name)}</button>`).join('')}</div><p class="foot">${esc(ro.hint)}</p></section>`;
-    };
-    const secName = () => `<section class="section"><div class="section-h"><h2>Name</h2></div><input class="input" id="w-name" value="${esc(W.name)}" placeholder="${esc(autoName())}" maxlength="80" autocomplete="off"></section>`;
-    const startLabel = () => (W.signup ? 'Anmeldung öffnen' : buildTeams() ? 'Weiter: Teams bilden' : 'Turnier starten');
-    const summary = () => {
-      const err = check();
-      if (err) return { err, text: !W.signup && !W.people.length ? 'Füge die Teilnehmenden hinzu.' : err };
-      const parts = [];
-      if (W.signup) parts.push('Anmeldung per Link');
-      else parts.push(buildTeams() ? `${W.people.length} Personen → ${Math.floor(W.people.length / 2)} Teams` : `${W.people.length} ${unitWord()}`);
-      parts.push(`${W.courts} ${W.courts === 1 ? 'Platz' : 'Plätze'}`);
-      if (!W.signup) {
-        const est = E.estimate(cfg(buildTeams() ? W.people.slice(0, Math.floor(W.people.length / 2)) : null));
-        if (est && est.rounds) parts.push(`${est.rounds} Runden`);
-        if (est && est.minutes) parts.push(`ca. ${fmtMin(est.minutes)}`);
-      }
-      return { err: null, text: parts.join(' · ') };
+      return section('Plätze', `<div class="list">${stepperRow('Anzahl Plätze', m().engine === 'ladder' ? 'Platz 1 ist der Königsplatz.' : '', 'courts', W.courts, 1, 16)}</div>`)
+        + section('Zählweise', `<div class="list" role="radiogroup">${formats}</div>`, esc(pointsHint))
+        + section('Timer', timer, f.timed ? 'Diese Zählweise braucht einen Timer.' : '')
+        + section('Ablauf', `<div class="list">${rows.join('')}</div>`)
+        + section(R.label, `<div class="seg">${R.options.map((x) => `<button type="button" data-act="w-rule" data-v="${x.id}" aria-pressed="${x.id === cur}">${esc(x.name)}</button>`).join('')}</div>`, esc(R.options.find((x) => x.id === cur).hint));
     };
 
+    /* Schritt 4: Überblick */
+    const stepCheck = () => {
+      const c = cfg(buildTeams() ? W.people.slice(0, Math.floor(W.people.length / 2)) : null);
+      const est = W.signup ? null : E.estimate(c);
+      const R = E.RULES[W.sport];
+      const people = W.signup ? 'Anmeldung per Link' : buildTeams() ? `${W.people.length} Personen → ${Math.floor(W.people.length / 2)} Teams nach Level` : `${W.people.length} ${unitWord()}`;
+      const minutes = W.options.roundMinutes || 0;
+      const rows = [
+        ['Sport & Modus', `${E.SPORTS[W.sport].name}${singles() ? ' (Einzel)' : ''} · ${C.modes[W.mode].name}`, 0],
+        ['Teilnehmende', people + (W.signup && W.when ? ` · ${W.when}` : ''), 1],
+        ['Plätze', String(W.courts), 2],
+        ['Zählweise', fmt().name, 2],
+        ['Timer', minutes ? `${minutes} Min. pro Runde` : 'aus', 2],
+        ['Runden', W.mode === 'team' ? 'Jeder gegen jeden' : W.rounds ? String(W.rounds) : W.signup ? 'automatisch' : String(c.options.rounds), 2],
+        [R.label, R.options.find((x) => x.id === (W.rules[R.key] || R.def)).name, 2]
+      ];
+      return section('Name', `<input class="input" id="w-name" value="${esc(W.name)}" placeholder="${esc(autoName())}" maxlength="80" autocomplete="off">`)
+        + section('Alles im Blick', `<div class="list">${rows.map(([k, v, s]) => `<button type="button" class="cell tappable" data-act="w-goto" data-step="${s}"><span class="body"><span class="t2">${esc(k)}</span><span class="t1">${esc(v)}</span></span><span class="trail">Ändern${icon('chev', 'sm chev')}</span></button>`).join('')}</div>`,
+          est && est.minutes ? `Geschätzte Dauer: etwa ${fmtMin(est.minutes)}${est.rounds ? ` für ${est.rounds} Runden` : ''}.` : '');
+    };
+
+    const STEP_VIEWS = [stepMode, stepPeople, stepPlay, stepCheck];
+    const finalLabel = () => (W.signup ? 'Anmeldung öffnen' : buildTeams() ? 'Teams bilden' : 'Turnier starten');
     const html = `<div class="scrim"></div><section class="page" role="dialog" aria-modal="true" aria-label="Neues Turnier">
       <div class="sheet-h"><div class="l">${PLATFORM === 'ios' ? '<button class="btn-text" type="button" data-act="w-close">Abbrechen</button>' : ''}</div><div class="t">Neues Turnier</div>
       <div class="r">${PLATFORM === 'ios' ? '' : `<button class="iconbtn" type="button" data-act="w-close" aria-label="Schließen">${icon('close')}</button>`}</div></div>
-      <div class="page-b"><div class="inner" id="w-body"></div></div>
-      <div class="page-f"><div class="inner"><p class="summary" id="w-sum"></p><button class="btn filled big block" type="button" data-act="w-start" id="w-go"></button></div></div></section>`;
+      <div class="wsteps" id="w-steps"></div>
+      <div class="page-scroll"><div class="page-b"><div class="inner" id="w-body"></div></div><button type="button" class="more-hint" id="w-more" hidden>${icon('chevd', 'sm')}Weitere Einstellungen</button></div>
+      <div class="page-f"><div class="inner"><p class="summary" id="w-sum"></p><div class="row nowrap" id="w-nav"></div></div></div></section>`;
     const o = openLayer(html, { dismissable: false });
     const el = o.el;
-    const bodyEl = el.querySelector('#w-body');
-    const renderSum = () => {
-      const s = summary();
-      const p = el.querySelector('#w-sum');
-      p.textContent = s.text;
-      p.classList.toggle('err', !!s.err && (W.signup || W.people.length > 0));
-      const go = el.querySelector('#w-go');
-      go.textContent = startLabel();
-      go.disabled = !!s.err;
+    const renderNav = () => {
+      const last = W.step === STEP_VIEWS.length - 1;
+      const sum = el.querySelector('#w-sum');
+      let text = '', err = false;
+      if (W.stepError) { text = W.stepError; err = true; }
+      else if (W.step === 1 && !W.signup) text = `${W.people.length} ${unitWord()} eingetragen`;
+      else if (last) { const e = check(); if (e) { text = e; err = true; } }
+      sum.textContent = text;
+      sum.hidden = !text;
+      sum.classList.toggle('err', err);
+      el.querySelector('#w-nav').innerHTML = (W.step > 0 ? `<button class="btn tonal big" type="button" data-act="w-back">${icon('back', 'sm')}Zurück</button>` : '')
+        + `<button class="btn filled big grow" type="button" data-act="w-next">${last ? finalLabel() : 'Weiter'}</button>`;
     };
-    const renderAll = (focusAdd) => {
+    // Zeigt deutlich, wenn unterhalb noch Einstellungen folgen.
+    const updateMore = () => {
+      const sc = el.querySelector('.page-b');
+      const more = sc.scrollHeight - sc.scrollTop - sc.clientHeight > 40;
+      sc.classList.toggle('more', more);
+      el.querySelector('#w-more').hidden = !more || sc.scrollTop > 40;
+    };
+    const renderAll = ({ focusAdd = false, top = false } = {}) => {
       const scroller = el.querySelector('.page-b');
       const scroll = scroller.scrollTop;
-      bodyEl.innerHTML = secSport() + secMode() + secPeople() + secCourts() + secFormat() + secOpts() + secRules() + secName();
-      scroller.scrollTop = scroll;
-      renderSum();
+      el.querySelector('#w-steps').innerHTML = `<div class="wsteps-bar">${WIZARD_STEPS.map((_, i) => `<span class="${i <= W.step ? 'on' : ''}"></span>`).join('')}</div><p>Schritt ${W.step + 1} von ${WIZARD_STEPS.length} · <strong>${esc(WIZARD_STEPS[W.step])}</strong></p>`;
+      el.querySelector('#w-body').innerHTML = STEP_VIEWS[W.step]();
+      scroller.scrollTop = top ? 0 : scroll;
+      renderNav();
+      requestAnimationFrame(updateMore);
       if (focusAdd) { const a = el.querySelector('#w-add'); if (a) a.focus({ preventScroll: true }); }
     };
+    const goStep = (i) => { W.step = Math.max(0, Math.min(STEP_VIEWS.length - 1, i)); W.stepError = ''; renderAll({ top: true }); };
     const addNames = (names) => {
       let added = 0, dup = 0;
       names.map((n) => n.trim()).filter(Boolean).forEach((n) => {
@@ -1294,32 +1365,16 @@
         added++;
       });
       if (dup) toast(`${dup} ${dup === 1 ? 'Name war' : 'Namen waren'} schon in der Liste.`);
+      if (added) W.stepError = '';
       return added;
     };
     renderAll();
-
-    el.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Enter' && ev.target.id === 'w-add') {
-        ev.preventDefault();
-        if (addNames([ev.target.value])) { haptic(5); renderAll(true); }
-      }
-    });
-    el.addEventListener('input', (ev) => {
-      if (ev.target.id === 'w-name') { W.name = ev.target.value; renderSum(); }
-      if (ev.target.id === 'w-when') W.when = ev.target.value;
-    });
-    el.addEventListener('change', (ev) => {
-      const k = ev.target.dataset.wOpt;
-      if (!k) return;
-      if (k === 'byePoints') W.options.byePoints = ev.target.checked ? 'avg' : 'none';
-      else W.options[k] = ev.target.checked;
-      renderAll();
-    });
+    el.querySelector('.page-b').addEventListener('scroll', updateMore, { passive: true });
+    el.querySelector('#w-more').addEventListener('click', () => { const sc = el.querySelector('.page-b'); sc.scrollBy({ top: sc.clientHeight * 0.7, behavior: 'smooth' }); });
 
     const launchLocal = async (entrants) => {
-      const c = cfg(entrants);
       let t;
-      try { t = E.create(c); } catch (e) { toast(e.message); return; }
+      try { t = E.create(cfg(entrants)); } catch (e) { toast(e.message); return; }
       Store.data.tournaments.unshift(t);
       S().sport = W.sport;
       Store.save();
@@ -1351,17 +1406,48 @@
         go({ name: 't', id: draft.id });
       } catch (e) {
         toast(e.message);
-        renderSum();
+        renderNav();
       }
     };
 
+    el.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' && ev.target.id === 'w-add') {
+        ev.preventDefault();
+        if (addNames([ev.target.value])) { haptic(5); renderAll({ focusAdd: true }); }
+      }
+    });
+    el.addEventListener('input', (ev) => {
+      if (ev.target.id === 'w-name') W.name = ev.target.value;
+      if (ev.target.id === 'w-when') W.when = ev.target.value;
+    });
+    el.addEventListener('change', (ev) => {
+      const k = ev.target.dataset.wOpt;
+      if (!k) return;
+      if (k === 'byePoints') W.options.byePoints = ev.target.checked ? 'avg' : 'none';
+      else if (k === 'timer') W.options.roundMinutes = ev.target.checked ? 12 : 0;
+      else W.options[k] = ev.target.checked;
+      renderAll();
+    });
     el.addEventListener('click', async (ev) => {
       const b = ev.target.closest('[data-act]');
       if (!b || !el.contains(b)) return;
       const a = b.dataset.act;
       if (a === 'w-close') {
-        if (W.people.length && !(await confirmDialog('Verwerfen?', 'Die Eingaben gehen verloren.', 'Verwerfen', true))) return;
+        if ((W.people.length || W.step > 0) && !(await confirmDialog('Verwerfen?', 'Die Eingaben gehen verloren.', 'Verwerfen', true))) return;
         closeLayer(o);
+      } else if (a === 'w-back') goStep(W.step - 1);
+      else if (a === 'w-goto') goStep(Number(b.dataset.step));
+      else if (a === 'w-next') {
+        if (W.step === 1) {
+          const err = checkPeople();
+          if (err) { W.stepError = err; renderNav(); haptic([30, 40, 30]); return; }
+        }
+        if (W.step < STEP_VIEWS.length - 1) { goStep(W.step + 1); return; }
+        const err = check();
+        if (err) { toast(err); return; }
+        if (W.signup) openSignup(b);
+        else if (buildTeams()) openTeamBuilder({ people: W.people, mode: W.mode, onStart: launchLocal });
+        else launchLocal(W.people);
       } else if (a === 'w-sport') {
         W.sport = b.dataset.sport;
         if (!E.SPORTS[W.sport].singles) W.discipline = 'doubles';
@@ -1374,11 +1460,11 @@
         renderAll();
       } else if (a === 'w-mode') { setMode(b.dataset.id); renderAll(); }
       else if (a === 'w-info') openModeInfo(b.dataset.id, W.sport, E.modeAvailable(b.dataset.id, W.sport, W.discipline) ? () => { setMode(b.dataset.id); renderAll(); } : null);
-      else if (a === 'w-signup') { W.signup = b.dataset.v === '1'; renderAll(); }
-      else if (a === 'w-teams') { W.teamsFixed = b.dataset.v === '1'; renderAll(); }
+      else if (a === 'w-signup') { W.signup = b.dataset.v === '1'; W.stepError = ''; renderAll(); }
+      else if (a === 'w-teams') { W.teamsFixed = b.dataset.v === '1'; W.stepError = ''; renderAll(); }
       else if (a === 'w-add') {
         const inp = el.querySelector('#w-add');
-        if (addNames([inp.value])) { haptic(5); renderAll(true); } else inp.focus();
+        if (addNames([inp.value])) { haptic(5); renderAll({ focusAdd: true }); } else inp.focus();
       } else if (a === 'w-lvl') {
         const i = Number(b.dataset.i);
         openPersonSheet({
@@ -1402,6 +1488,7 @@
           const name = `${word} ${i++}`;
           if (!W.people.some((p) => p.name === name)) W.people.push({ name });
         }
+        W.stepError = '';
         toast('Platzhalter lassen sich später im Turnier umbenennen.');
         renderAll();
       } else if (a === 'w-step') {
@@ -1411,31 +1498,18 @@
           const cur = W.rounds || (W.signup ? 6 - d : E.defaultRounds({ mode: W.mode, format: W.format, entrants: W.people, options: W.options }) || 6);
           W.rounds = Math.max(min, Math.min(max, cur + d));
         } else {
-          const fmt = E.FORMATS[W.format];
-          const cur = Number(W.options[k]) || (k === 'roundMinutes' && fmt.timed ? 12 : 0);
-          let nextVal = cur + d;
-          // Minuten: von „aus“ direkt auf 10 springen, unter 3 wieder auf „aus“.
-          if (min === 0) { if (cur === 0 && d > 0) nextVal = 10; else if (nextVal < 3) nextVal = 0; }
-          W.options[k] = Math.max(min, Math.min(max, nextVal));
+          const cur = Number(W.options[k]) || 12;
+          W.options[k] = Math.max(min, Math.min(max, cur + d));
         }
         haptic(4);
         renderAll();
       } else if (a === 'w-opt') { W.options[b.dataset.k] = b.dataset.v; renderAll(); }
       else if (a === 'w-format') {
-        W.format = b.dataset.v;
-        const fmt = E.FORMATS[W.format];
-        if (fmt.timed && !W.options.roundMinutes) W.options.roundMinutes = 12;
-        if (!fmt.timed && m().engine === 'rotation') W.options.roundMinutes = 0;
+        W.format = b.dataset.id;
+        if (fmt().timed && !W.options.roundMinutes) W.options.roundMinutes = 12;
         W.rounds = null;
         renderAll();
       } else if (a === 'w-rule') { W.rules[E.RULES[W.sport].key] = b.dataset.v; renderAll(); }
-      else if (a === 'w-start') {
-        const err = check();
-        if (err) { toast(err); return; }
-        if (W.signup) openSignup(b);
-        else if (buildTeams()) openTeamBuilder({ people: W.people, mode: W.mode, onStart: launchLocal });
-        else launchLocal(W.people);
-      }
     });
   }
 
@@ -1675,6 +1749,7 @@
       else if (id === 'advance') { if (mutate(t, 'Nächste Runde', () => E.advance(t)).ok) window.scrollTo({ top: 0, behavior: 'smooth' }); }
       else if (id === 'addRound') mutate(t, 'Zusatzrunde', () => E.addRound(t));
     },
+    'timer-edit': () => { const t = curT(); if (t) openTimerSheet(t); },
     'timer-toggle': () => { const t = curT(); if (!t) return; if (t.timer.endsAt) timerPause(t); else timerStart(t); haptic(); render(); },
     'timer-plus': () => {
       const t = curT();

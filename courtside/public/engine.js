@@ -61,21 +61,22 @@
     }
   };
 
-  // kind: points | games | winner. min = geschätzte Spielminuten.
+  // kind: points | games | winner. min = geschätzte Spielminuten. desc erklärt die Zählweise in einem Satz.
+  const BALL = 'Jeder Ballwechsel zählt einen Punkt, egal wer aufschlägt.';
   const FORMATS = {
-    p16: { kind: 'points', total: 16, name: '16 Punkte gesamt', short: '16 Pkt.', min: 9 },
-    p21: { kind: 'points', total: 21, name: '21 Punkte gesamt', short: '21 Pkt.', min: 11 },
-    p24: { kind: 'points', total: 24, name: '24 Punkte gesamt', short: '24 Pkt.', min: 13 },
-    p32: { kind: 'points', total: 32, name: '32 Punkte gesamt', short: '32 Pkt.', min: 17 },
-    pTime: { kind: 'points', timed: true, name: 'Punkte auf Zeit', short: 'Punkte/Zeit', min: 12 },
-    gTime: { kind: 'games', timed: true, name: 'Games auf Zeit', short: 'Games/Zeit', min: 15 },
-    r11: { kind: 'points', target: 11, winBy: 2, name: 'Spiel bis 11, 2 Punkte Vorsprung', short: 'bis 11', min: 15 },
-    r15: { kind: 'points', target: 15, winBy: 2, name: 'Spiel bis 15, 2 Punkte Vorsprung', short: 'bis 15', min: 20 },
-    r21: { kind: 'points', target: 21, winBy: 2, name: 'Rally Scoring bis 21', short: 'bis 21', min: 20 },
-    tb10: { kind: 'points', target: 10, winBy: 2, name: 'Match-Tiebreak bis 10', short: 'MTB 10', min: 8 },
-    g4: { kind: 'games', target: 4, name: 'Kurzsatz bis 4 (Fast4)', short: 'Satz bis 4', min: 20 },
-    g6: { kind: 'games', target: 6, name: '1 Satz bis 6, Tiebreak bei 6:6', short: '1 Satz', min: 35 },
-    win: { kind: 'winner', name: 'Nur Sieger antippen', short: 'Sieg', min: 12 }
+    p16: { kind: 'points', total: 16, name: '16 Punkte', short: '16 Pkt.', min: 9, desc: `${BALL} Nach 16 Ballwechseln ist Schluss, z. B. 10:6. Kurz und schnell.` },
+    p21: { kind: 'points', total: 21, name: '21 Punkte', short: '21 Pkt.', min: 11, desc: `${BALL} Nach 21 Ballwechseln ist Schluss, z. B. 12:9. Kein Unentschieden möglich, dafür schlägt eine Person einmal mehr auf.` },
+    p24: { kind: 'points', total: 24, name: '24 Punkte', short: '24 Pkt.', min: 13, desc: `${BALL} Nach 24 Ballwechseln ist Schluss, z. B. 15:9. Der Standard für Americano.` },
+    p32: { kind: 'points', total: 32, name: '32 Punkte', short: '32 Pkt.', min: 17, desc: `${BALL} Nach 32 Ballwechseln ist Schluss, z. B. 18:14. Lange Runden, weniger Wechsel.` },
+    pTime: { kind: 'points', timed: true, name: 'Punkte auf Zeit', short: 'Punkte/Zeit', min: 12, desc: `${BALL} Gespielt wird, bis der Timer abläuft. Eingetragen wird der Stand beim Abpfiff.` },
+    gTime: { kind: 'games', timed: true, name: 'Spiele auf Zeit', short: 'Spiele/Zeit', min: 15, desc: 'Normal zählen mit 15–30–40. Bis der Timer abläuft, eingetragen werden die gewonnenen Spiele, z. B. 4:3.' },
+    r11: { kind: 'points', target: 11, winBy: 2, name: 'Bis 11 Punkte', short: 'bis 11', min: 15, desc: 'Pickleball-Standard: Wer zuerst 11 Punkte hat und 2 vorn liegt, gewinnt.' },
+    r15: { kind: 'points', target: 15, winBy: 2, name: 'Bis 15 Punkte', short: 'bis 15', min: 20, desc: 'Wer zuerst 15 Punkte hat und 2 vorn liegt, gewinnt. Längere Spiele.' },
+    r21: { kind: 'points', target: 21, winBy: 2, name: 'Bis 21 (Rally Scoring)', short: 'bis 21', min: 20, desc: 'Jeder Ballwechsel zählt. Wer zuerst 21 Punkte hat und 2 vorn liegt, gewinnt.' },
+    tb10: { kind: 'points', target: 10, winBy: 2, name: 'Match-Tiebreak bis 10', short: 'MTB 10', min: 8, desc: 'Ein einziger Tiebreak: Wer zuerst 10 Punkte hat und 2 vorn liegt, gewinnt. Sehr kurz.' },
+    g4: { kind: 'games', target: 4, name: 'Kurzsatz bis 4 (Fast4)', short: 'Satz bis 4', min: 20, desc: 'Ein Satz, wer zuerst 4 Spiele hat, gewinnt. Bei 3:3 entscheidet ein Tiebreak.' },
+    g6: { kind: 'games', target: 6, name: '1 Satz bis 6', short: '1 Satz', min: 35, desc: 'Ein normaler Satz bis 6 Spiele, bei 6:6 Tiebreak.' },
+    win: { kind: 'winner', name: 'Nur Sieger antippen', short: 'Sieg', min: 12, desc: 'Gespielt wird auf Zeit. Nach dem Abpfiff nur das Siegerteam antippen, kein Spielstand nötig.' }
   };
 
   const F_ROT = { padel: ['p24', 'p16', 'p21', 'p32', 'pTime', 'gTime'], pickleball: ['r11', 'r15', 'r21', 'pTime'], tennis: ['g4', 'g6', 'tb10', 'gTime'] };

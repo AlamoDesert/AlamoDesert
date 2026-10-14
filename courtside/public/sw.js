@@ -1,5 +1,5 @@
-/* Courtside – Offline-Cache. Seiten: zuerst Netz, sonst Cache. Dateien: Cache, im Hintergrund auffrischen. */
-const CACHE = 'courtside-v2';
+/* Courtside – Offline-Cache. Immer zuerst das Netz, damit Updates sofort ankommen; ohne Netz aus dem Cache. */
+const CACHE = 'courtside-v3';
 const ASSETS = [
   './', 'index.html', 'app.js', 'engine.js', 'content.js', 'vendor/qrcode.js', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'
@@ -26,11 +26,10 @@ self.addEventListener('fetch', (e) => {
       .catch(() => caches.match('index.html')));
     return;
   }
-  e.respondWith(caches.match(req).then((hit) => {
-    const fresh = fetch(req).then((res) => {
+  e.respondWith(fetch(req)
+    .then((res) => {
       if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
       return res;
-    }).catch(() => hit);
-    return hit || fresh;
-  }));
+    })
+    .catch(() => caches.match(req)));
 });
