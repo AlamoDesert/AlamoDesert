@@ -14,6 +14,8 @@ Digitale Abhak-Checkliste für Früh- und Spätschicht an der Rezeption (Vorlage
 
 Eigene Web-App (PWA, kein Build) für Turniere in Padel (Schwerpunkt), Pickleball und Tennis. Unabhängig von der Checkliste. Netlify-Basisverzeichnis ist `courtside/` (`netlify.toml`).
 
+Live unter https://courtside-turniere.netlify.app (Netlify-Site-ID `5bae8eb4-f745-4e26-83f0-40e6d65e26ac`, nur die Produktion ist öffentlich, Vorschauen brauchen Netlify-Login). Neu veröffentlichen: Netlify-Connector `deploy-site` mit dieser `siteId`, den gelieferten Befehl im Ordner `courtside/` ausführen. Die Cloud-Umgebung darf Netlify nicht erreichen; der Befehl läuft deshalb in einer Sitzung auf dem Raspberry Pi des Nutzers.
+
 - `public/` – die App. `engine.js` ist reine Logik ohne DOM: vier Modi (Americano, Mexicano, King of the Court, Team-Turnier) auf zwei Motoren (`rotation`, `ladder`), Spielstärke (`LEVELS`, Playtomic 0–7 hat Vorrang), Teambildung (`buildTeams`: `similar` = gut mit gut, `balanced` = gut mit schwächer), Tabellen und `next()` = „Was kommt als Nächstes“.
 - `public/app.js` – Oberfläche, Speicher (`localStorage` `courtside.v1`, Spieler-Links in `courtside.me`), Undo per Snapshot, Timer, Navigation mit History-API. Turniere mit `status: 'draft'` sind offene Online-Anmeldungen; erst beim Start entsteht daraus ein Engine-Turnier.
 - Spielerseite: `?anmeldung=<eventId>` (gemeinsamer Link), persönlicher Link zusätzlich `&ich=<playerId>#k=<token>`.
