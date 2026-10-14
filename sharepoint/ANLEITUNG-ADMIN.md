@@ -31,6 +31,12 @@ Danach die Seite in der Navigation verlinken oder als Lesezeichen auf dem Rezept
 2. **Verwaltung** › Leitungs-PIN festlegen › Team anlegen › Dienstplan eintragen.
 3. Vorhandene Daten vom Mac übernehmen (optional): In der bisherigen Mac-Version unter Verwaltung › Datensicherung eine Sicherung herunterladen, dann in SharePoint unter Verwaltung › Datenspeicher › **Sicherung übernehmen** einspielen.
 
+## PDF-Import des Arbeitsplans (optional)
+
+Unter Dienstplan › Bearbeiten › „Arbeitsplan einlesen“ liest die App Arbeitspläne als **Excel (.xlsx)** oder **PDF**.
+- Excel funktioniert ohne weitere Einstellung.
+- Für PDF lädt die App beim Import den PDF-Leser pdf.js von `https://cdn.jsdelivr.net`. Blockiert SharePoint das (Meldung „PDF-Leser konnte nicht geladen werden“), im SharePoint Admin Center unter **Erweitert › Vertrauenswürdige Skriptquellen** `https://cdn.jsdelivr.net` eintragen – oder weiter die Excel-Datei verwenden.
+
 ## Empfohlen
 
 - Bibliothek **RezeptionDaten** › Einstellungen › Versionsverwaltung: Hauptversionen behalten (Standard 500 ist ausreichend).

@@ -764,18 +764,38 @@ export function mount(container, opts = {}) {
     pinStage: null,      // { mode: "unlock"|"set", first?: string, next: view }
     rosterWeek: null,    // Montag der angezeigten Dienstplan-Woche
     rosterEdit: false,
+    importPreview: null, // eingelesener Arbeitsplan vor dem Übernehmen
   };
   let db = null, user = null, myId = null, unsubDay = null, unsubMonth = null, unsubCfg = null, monthKey = null;
   let writeChain = Promise.resolve();
   let renderPending = false;
   let scrolledOnce = false;
 
-  function resolvePlan(date, dayPlan) {
-    if (dayPlan) return { plan: dayPlan, source: "day" };
-    const wd = String(parseIso(date).getDay());
-    if (state.cfg.weekday[wd]) return { plan: state.cfg.weekday[wd], source: "weekday" };
-    if (state.cfg.base) return { plan: state.cfg.base, source: "base" };
-    return { plan: DEFAULT, source: "default" };
+  // raw = ohne Schichtzeiten aus dem Dienstplan (für den Plan-Editor).
+  function resolvePlan(date, dayPlan, raw) {
+    let r;
+    if (dayPlan) r = { plan: dayPlan, source: "day" };
+    else {
+      const wd = String(parseIso(date).getDay());
+      if (state.cfg.weekday[wd]) r = { plan: state.cfg.weekday[wd], source: "weekday" };
+      else if (state.cfg.base) r = { plan: state.cfg.base, source: "base" };
+      else r = { plan: DEFAULT, source: "default" };
+    }
+    return raw ? r : { ...r, plan: withRosterTimes(r.plan, date) };
+  }
+  // Schichtbeginn/-ende des Tages aus dem eingelesenen Arbeitsplan übernehmen (Abschnitte bleiben unverändert).
+  const timesCache = new Map();
+  function withRosterTimes(plan, date) {
+    const t = state.cfg.roster[date] && state.cfg.roster[date].times;
+    if (!t) return plan;
+    const key = date + JSON.stringify(t);
+    const hit = timesCache.get(key);
+    if (hit && hit.src === plan) return hit.plan;
+    const out = { ...plan };
+    for (const k of KEYS) if (t[k]) { const [a, b] = t[k].split("-"); out[k] = { ...plan[k], start: a, end: b }; }
+    if (timesCache.size > 200) timesCache.clear();
+    timesCache.set(key, { src: plan, plan: out });
+    return out;
   }
   const P = () => resolvePlan(state.date, state.dayPlan).plan;
 
@@ -825,6 +845,17 @@ export function mount(container, opts = {}) {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !v || typeof v !== "object") continue;
         const e = {};
         for (const k of KEYS) e[k] = Array.isArray(v[k]) ? v[k].filter(id => typeof id === "string" && ID_RE.test(id)).slice(0, 10) : [];
+        // Schichtzeiten des Tages aus dem Arbeitsplan ("08:45-16:00") und Anmerkungen pro Person ("Ab 17 Uhr").
+        if (v.times && typeof v.times === "object") {
+          const t = {};
+          for (const k of KEYS) if (typeof v.times[k] === "string" && /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(v.times[k])) t[k] = v.times[k];
+          if (Object.keys(t).length) e.times = t;
+        }
+        if (v.info && typeof v.info === "object") {
+          const inf = {};
+          for (const [pid, txt] of Object.entries(v.info)) if (ID_RE.test(pid) && typeof txt === "string" && txt.trim()) inf[pid] = txt.trim().slice(0, 60);
+          if (Object.keys(inf).length) e.info = inf;
+        }
         roster[d] = e;
       }
     }
@@ -1154,7 +1185,7 @@ export function mount(container, opts = {}) {
 
   function dutyLine(date) {
     const r = rosterFor(date);
-    const names = (k) => r[k].map(personName).filter(Boolean).join(", ") || "–";
+    const names = (k) => r[k].map(id => { const n = personName(id); return n && r.info && r.info[id] ? `${n} (${r.info[id]})` : n; }).filter(Boolean).join(", ") || "–";
     if (!state.cfg.people.length) return `<div class="duty">Team und Dienstplan unter <b>Verwaltung</b> anlegen.</div>`;
     return `<div class="duty"><span>Dienst Früh: <b>${esc(names("frueh"))}</b></span><span>Spät: <b>${esc(names("spaet"))}</b></span></div>`;
   }
@@ -1284,23 +1315,231 @@ export function mount(container, opts = {}) {
     const row = (k) => days.map(d => {
       const ids = rosterFor(d)[k];
       if (edit) return `<td><div class="cell">${state.cfg.people.map(p => `<button class="chip${ids.includes(p.id) ? "" : " off"}" data-roster="${d}" data-shift="${k}" data-pid="${esc(p.id)}" aria-pressed="${ids.includes(p.id)}">${esc(p.name)}</button>`).join("") || '<span class="empty">Kein Team</span>'}</div></td>`;
-      const names = ids.map(personName).filter(Boolean);
-      return `<td><div class="cell">${names.map(n => `<span class="chip">${esc(n)}</span>`).join("") || '<span class="empty">–</span>'}</div></td>`;
+      const entry = rosterFor(d);
+      const time = entry.times && entry.times[k] ? `<div class="rtime">${esc(entry.times[k].replace("-", "–"))}</div>` : "";
+      const chips = ids.filter(id => personName(id)).map(id => `<span class="chip">${esc(personName(id))}${entry.info && entry.info[id] ? ` <small>${esc(entry.info[id])}</small>` : ""}</span>`).join("");
+      return `<td>${time}<div class="cell">${chips || '<span class="empty">–</span>'}</div></td>`;
     }).join("");
     const e = parseIso(days[6]), m = parseIso(mon);
     return `<div class="monthhead">
         <button class="iconbtn" id="wprev" aria-label="Vorherige Woche">‹</button>
         <h2>Dienstplan ${pad(m.getDate())}.${pad(m.getMonth() + 1)}. – ${pad(e.getDate())}.${pad(e.getMonth() + 1)}.</h2>
         <button class="iconbtn" id="wnext" aria-label="Nächste Woche">›</button>
-        ${edit ? `<button class="btn${state.confirm === "copy-week" ? " danger" : ""}" data-act2="copy-week">${state.confirm === "copy-week" ? "Woche überschreiben?" : "Vorwoche übernehmen"}</button><button class="btn primary" data-act2="roster-done">Fertig</button>`
+        ${edit ? `<label class="btn" style="cursor:pointer">Arbeitsplan einlesen (PDF/Excel)<input type="file" id="planfile" accept=".pdf,.xlsx,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></label><button class="btn${state.confirm === "copy-week" ? " danger" : ""}" data-act2="copy-week">${state.confirm === "copy-week" ? "Woche überschreiben?" : "Vorwoche übernehmen"}</button><button class="btn primary" data-act2="roster-done">Fertig</button>`
                : `<button class="btn" data-act2="roster-edit">Bearbeiten</button>`}
       </div>
+      ${edit ? renderImportPreview() : ""}
       <div class="roster"><table>
         <thead><tr><th class="rowh"></th>${head}</tr></thead>
         <tbody><tr><th class="rowh" scope="row">Früh</th>${row("frueh")}</tr><tr><th class="rowh" scope="row">Spät</th>${row("spaet")}</tr></tbody>
       </table></div>
       <div class="legend">${edit ? "Namen antippen, um sie für die Schicht einzutragen oder auszutragen." : "Bearbeiten braucht die Leitungs-PIN."}</div>`;
   }
+  // ---------- Arbeitsplan einlesen (PDF oder Excel) ----------
+  // Erwartet pro Zeile: [Wochentag] Tag | Vormittags (Ja/-) | Uhrzeit | Anmerkung | Nachmittags (Ja/-) | Uhrzeit | Anmerkung.
+  // Ausgewertet wird der Zeileninhalt, nicht die Spaltenposition – so funktionieren auch abgeschnittene PDF-Spalten.
+  const MONTH_NAMES = ["jan", "feb", "mär|mar|maer", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "dez"];
+  const PDFJS = opts.pdfjsUrl || "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.mjs";
+  const TIME_RANGE = /(\d{1,2})[:.](\d{2})\s*[-–]\s*(\d{1,2})[:.](\d{2})/;
+  async function unzipEntries(buf) {
+    const dv = new DataView(buf), u8 = new Uint8Array(buf);
+    let eocd = -1;
+    for (let i = buf.byteLength - 22; i >= Math.max(0, buf.byteLength - 66000); i--) if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    if (eocd < 0) throw new Error("Keine gültige Excel-Datei");
+    const count = dv.getUint16(eocd + 10, true);
+    let p = dv.getUint32(eocd + 16, true);
+    const out = {};
+    for (let n = 0; n < count; n++) {
+      if (dv.getUint32(p, true) !== 0x02014b50) break;
+      const method = dv.getUint16(p + 10, true), csize = dv.getUint32(p + 20, true);
+      const nlen = dv.getUint16(p + 28, true), xlen = dv.getUint16(p + 30, true), clen = dv.getUint16(p + 32, true), off = dv.getUint32(p + 42, true);
+      const name = new TextDecoder().decode(u8.subarray(p + 46, p + 46 + nlen));
+      p += 46 + nlen + xlen + clen;
+      if (!/^xl\/(sharedStrings\.xml|workbook\.xml|worksheets\/sheet\d+\.xml)$/.test(name)) continue;
+      const start = off + 30 + dv.getUint16(off + 26, true) + dv.getUint16(off + 28, true);
+      const data = u8.subarray(start, start + csize);
+      if (method === 0) out[name] = new TextDecoder().decode(data);
+      else if (method === 8) out[name] = await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).text();
+    }
+    return out;
+  }
+  async function xlsxRows(file) {
+    const files = await unzipEntries(await file.arrayBuffer());
+    const xml = (t) => new DOMParser().parseFromString(t, "application/xml");
+    const shared = files["xl/sharedStrings.xml"] ? [...xml(files["xl/sharedStrings.xml"]).getElementsByTagName("si")].map(si => [...si.getElementsByTagName("t")].map(t => t.textContent).join("")) : [];
+    const sheetName = Object.keys(files).filter(n => n.startsWith("xl/worksheets/")).sort()[0];
+    if (!sheetName) throw new Error("Kein Tabellenblatt gefunden");
+    const rows = [];
+    for (const r of xml(files[sheetName]).getElementsByTagName("row")) {
+      const cells = [];
+      for (const c of r.getElementsByTagName("c")) {
+        const v = c.getElementsByTagName("v")[0], is = c.getElementsByTagName("is")[0], t = c.getAttribute("t");
+        let val = t === "s" && v ? shared[Number(v.textContent)] : t === "inlineStr" && is ? is.textContent : v ? v.textContent : "";
+        // Uhrzeit als Excel-Zahl (Tagesbruchteil) → HH:MM
+        if (!t && val && /^0?\.\d+$/.test(val)) { const m = Math.round(Number(val) * 1440); val = `${Math.floor(m / 60)}:${pad(m % 60)}`; }
+        cells.push(String(val ?? "").trim());
+      }
+      rows.push(cells.join(" | "));
+    }
+    return rows;
+  }
+  async function pdfRows(file) {
+    let lib;
+    try { lib = await import(/* webpackIgnore: true */ PDFJS); }
+    catch { throw new Error("PDF-Leser konnte nicht geladen werden (Internet bzw. in SharePoint die Freigabe für cdn.jsdelivr.net nötig). Excel-Datei funktioniert immer."); }
+    lib.GlobalWorkerOptions.workerSrc = PDFJS.replace(/pdf\.min\.mjs$/, "pdf.worker.min.mjs");
+    const doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+    const rows = [], pages = [];
+    for (let i = 1; i <= doc.numPages; i++) {
+      const items = (await (await doc.getPage(i)).getTextContent()).items.filter(it => it.str && it.str.trim());
+      const lines = [];
+      for (const it of items) {
+        const y = it.transform[5], x = it.transform[4];
+        let line = lines.find(l => Math.abs(l.y - y) < 3);
+        if (!line) { line = { y, parts: [] }; lines.push(line); }
+        line.parts.push({ x, s: it.str.trim() });
+      }
+      lines.sort((a, b) => b.y - a.y).forEach(l => { l.text = l.parts.sort((a, b) => a.x - b.x).map(p => p.s).join(" | "); });
+      // Zu breite Tabellen bricht der PDF-Export auf eine Folgeseite um (z. B. Spalte „Anmerkung“).
+      // Seite ohne Uhrzeiten → Zeilen über die gleiche Höhe an die vorige Seite anhängen.
+      if (pages.length && !lines.some(l => TIME_RANGE.test(l.text))) {
+        const prev = pages[pages.length - 1];
+        for (const l of lines) { const m = prev.find(q => Math.abs(q.y - l.y) < 3); if (m) m.text += " | " + l.text; }
+        continue;
+      }
+      pages.push(lines);
+    }
+    for (const pg of pages) pg.forEach(l => rows.push(l.text));
+    return rows;
+  }
+  function parsePlanRows(rows) {
+    const isYes = (s) => /(^|\|)\s*(ja|j|x|✓|✔)\s*(\||$)/i.test(s);
+    const clean = (s) => s.split("|").map(x => x.trim()).filter(x => x && !/^(ja|j|nein|n|-|–|x|✓|✔)$/i.test(x) && !/^\(?o\.?\s*e\.?\)?$/i.test(x)).join(" ").trim();
+    const fmt = (m) => `${pad(Number(m[1]))}:${m[2]}-${pad(Number(m[3]))}:${m[4]}`;
+    const out = [], seen = new Set();
+    for (const raw of rows) {
+      const row = raw.replace(/\s+/g, " ");
+      const dm = row.match(/^\s*(?:[A-Za-zÄÖÜäöü]{2,3}\.?\s*\|?\s*)?(\d{1,2})(?=\D|$)/);
+      if (!dm) continue;
+      const day = Number(dm[1]);
+      if (day < 1 || day > 31 || seen.has(day)) continue;
+      const rest = row.slice(dm[0].length);
+      const t1 = rest.match(TIME_RANGE);
+      if (!t1) continue;
+      const afterT1 = rest.slice(t1.index + t1[0].length);
+      const t2 = afterT1.match(TIME_RANGE);
+      if (!t2) continue;
+      const seg1 = rest.slice(0, t1.index), seg2 = afterT1.slice(0, t2.index), seg3 = afterT1.slice(t2.index + t2[0].length).replace(/\(\s*o\.?\s*e\.?\s*\)/i, "");
+      // Zwischen den Uhrzeiten: Anmerkung Vormittag, danach die Ja/–-Markierung für den Nachmittag.
+      const parts2 = seg2.split("|").map(x => x.trim()).filter(Boolean);
+      const lastFlag = parts2.length && /^(ja|j|x|✓|✔|-|–|nein|n)$/i.test(parts2[parts2.length - 1]) ? parts2.pop() : "";
+      seen.add(day);
+      out.push({
+        day,
+        early: isYes(seg1), late: /^(ja|j|x|✓|✔)$/i.test(lastFlag),
+        tEarly: fmt(t1), tLate: fmt(t2),
+        noteEarly: clean(parts2.join(" | ")), noteLate: clean(seg3),
+      });
+    }
+    return out.sort((a, b) => a.day - b.day);
+  }
+  function guessMonth(text) {
+    const t = text.toLowerCase();
+    for (let i = 0; i < 12; i++) if (new RegExp("(^|[^a-zäöü])(" + MONTH_NAMES[i] + ")").test(t)) return i;
+    return null;
+  }
+  async function readPlanFile(file) {
+    const isPdf = /\.pdf$/i.test(file.name) || file.type === "application/pdf";
+    const rows = isPdf ? await pdfRows(file) : await xlsxRows(file);
+    const entries = parsePlanRows(rows);
+    if (!entries.length) throw new Error("In der Datei wurden keine Tageszeilen mit Uhrzeiten gefunden.");
+    const now = new Date();
+    let month = guessMonth(file.name.replace(/\.(pdf|xlsx)$/i, "")) ?? guessMonth(rows.slice(0, 3).join(" ")) ?? now.getMonth();
+    // Jahr: das Vorkommen des Monats, das am nächsten an heute liegt.
+    let year = now.getFullYear();
+    if (month - now.getMonth() > 6) year--; else if (now.getMonth() - month > 6) year++;
+    // Person aus dem Dateinamen, z. B. „ArbeitsplanMJ-Oktober“ → „MJ“
+    const nm = file.name.replace(/\.(pdf|xlsx)$/i, "").replace(/arbeitsplan|dienstplan|schichtplan/ig, "").split(/[-_ .]+/).filter(w => w && guessMonth(w) === null && !/^\d+$/.test(w))[0] || "";
+    const lc = nm.toLowerCase();
+    const person = state.cfg.people.find(p => p.name.toLowerCase() === lc || initials(p.name).toLowerCase() === lc || p.name.toLowerCase().startsWith(lc + " "));
+    return { fileName: file.name, entries, month, year, personId: person ? person.id : (nm ? "new" : ""), newName: nm };
+  }
+  function renderImportPreview() {
+    const ip = state.importPreview;
+    if (!ip) return "";
+    if (ip.error) return `<section class="card imp"><div class="chead"><h2>Arbeitsplan einlesen</h2></div><div class="cbody"><p class="err">${esc(ip.error)}</p><div class="row"><button class="btn" data-act2="import-cancel">Schließen</button></div></div></section>`;
+    const daysIn = new Date(ip.year, ip.month + 1, 0).getDate();
+    const valid = ip.entries.filter(e => e.day <= daysIn);
+    const opts2 = state.cfg.people.map(p => `<option value="${esc(p.id)}"${ip.personId === p.id ? " selected" : ""}>${esc(p.name)}</option>`).join("");
+    const rowsHtml = valid.map(e => {
+      const d = new Date(ip.year, ip.month, e.day);
+      const cell = (on, t, note) => `<td class="${on ? "on" : ""}">${on ? "✓ " : ""}${esc(t.replace("-", "–"))}${on && note ? `<small>${esc(note)}</small>` : ""}</td>`;
+      return `<tr><th>${WD[d.getDay()].slice(0, 2)} ${pad(e.day)}.</th>${cell(e.early, e.tEarly, e.noteEarly)}${cell(e.late, e.tLate, e.noteLate)}</tr>`;
+    }).join("");
+    const nE = valid.filter(e => e.early).length, nL = valid.filter(e => e.late).length;
+    return `<section class="card imp"><div class="chead"><h2>Arbeitsplan einlesen</h2><span class="hint">${esc(ip.fileName)}</span></div>
+      <div class="cbody">
+        <div class="impform">
+          <label>Person <select id="imp-person">${opts2}<option value="new"${ip.personId === "new" ? " selected" : ""}>+ neu anlegen…</option></select></label>
+          ${ip.personId === "new" ? `<label>Name <input class="in" id="imp-newname" value="${esc(ip.newName)}" maxlength="40"></label>` : ""}
+          <label>Monat <select id="imp-month">${MONTHS.map((m, i) => `<option value="${i}"${i === ip.month ? " selected" : ""}>${m}</option>`).join("")}</select></label>
+          <label>Jahr <input class="in time" id="imp-year" value="${ip.year}" inputmode="numeric" maxlength="4"></label>
+        </div>
+        <p>${valid.length} Tage erkannt · ${nE}× Früh · ${nL}× Spät. Übernommen werden die Einteilung dieser Person, ihre Anmerkungen und die Schichtzeiten jedes Tages. Einträge anderer Personen bleiben unverändert.</p>
+        <div class="impscroll"><table class="imptab"><thead><tr><th></th><th>Früh</th><th>Spät</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>
+        <div class="row"><button class="btn ghost" data-act2="import-cancel">Abbrechen</button><button class="btn primary" data-act2="import-apply">Übernehmen</button></div>
+      </div></section>`;
+  }
+  async function applyImport() {
+    const ip = state.importPreview;
+    if (!ip || ip.error) return;
+    let pid = ip.personId;
+    if (pid === "new" || !pid) {
+      const name = (ip.newName || "").trim().slice(0, 40);
+      if (!name) { setStatus("Bitte einen Namen für die neue Person eingeben", true); return; }
+      const ex = state.cfg.people.find(p => p.name.toLowerCase() === name.toLowerCase());
+      if (ex) pid = ex.id;
+      else {
+        pid = newId("u");
+        const people = [...state.cfg.people, { id: pid, name }];
+        state.cfg = { ...state.cfg, people };
+        await persistCfg({ people });
+      }
+    }
+    const daysIn = new Date(ip.year, ip.month + 1, 0).getDate();
+    const roster = { ...state.cfg.roster }, patch = {};
+    for (const e of ip.entries) {
+      if (e.day > daysIn) continue;
+      const date = `${ip.year}-${pad(ip.month + 1)}-${pad(e.day)}`;
+      const cur = clone(roster[date] || { frueh: [], spaet: [] });
+      for (const [k, on] of [["frueh", e.early], ["spaet", e.late]]) {
+        cur[k] = cur[k].filter(x => x !== pid);
+        if (on) cur[k].push(pid);
+      }
+      cur.times = { ...(cur.times || {}), frueh: e.tEarly, spaet: e.tLate };
+      const note = [e.early && e.noteEarly, e.late && e.noteLate].filter(Boolean).join(" · ");
+      const info = { ...(cur.info || {}) };
+      if (note) info[pid] = note; else delete info[pid];
+      cur.info = info;
+      roster[date] = cur;
+      // Beim Zusammenführen in SharePoint entfernt null eine alte Anmerkung.
+      patch[date] = { ...cur, info: note ? info : { ...info, [pid]: null } };
+    }
+    state.cfg = { ...state.cfg, roster };
+    state.importPreview = null;
+    state.rosterWeek = mondayOf(`${ip.year}-${pad(ip.month + 1)}-01`);
+    render();
+    const ok = await persistCfg({ roster: patch });
+    setStatus(ok ? `Arbeitsplan ${MONTHS[ip.month]} für ${personName(pid)} übernommen` : "Arbeitsplan konnte nicht gespeichert werden", !ok);
+  }
+  async function onPlanFile(file) {
+    state.importPreview = { fileName: file.name, entries: [], loading: true };
+    setStatus("Lese " + file.name + " …");
+    try { state.importPreview = await readPlanFile(file); setStatus(statusLine()); }
+    catch (e) { state.importPreview = { fileName: file.name, error: (e && e.message) || "Datei konnte nicht gelesen werden" }; }
+    render();
+  }
+
   function toggleRoster(date, shift, pid) {
     const cur = rosterFor(date);
     const ids = cur[shift].includes(pid) ? cur[shift].filter(x => x !== pid) : [...cur[shift], pid];
@@ -1314,7 +1553,7 @@ export function mount(container, opts = {}) {
     const roster = { ...state.cfg.roster }, patch = {};
     for (let i = 0; i < 7; i++) {
       const src = rosterFor(addDays(mon, i - 7)), d = addDays(mon, i);
-      roster[d] = { frueh: [...src.frueh], spaet: [...src.spaet] };
+      roster[d] = clone(src);
       patch[d] = roster[d];
     }
     state.cfg = { ...state.cfg, roster };
@@ -1600,7 +1839,8 @@ export function mount(container, opts = {}) {
     const shift = focusShift(plan, nowMin());
     const sched = rosterFor(today)[shift];
     const people = state.cfg.people;
-    const btn = (p, cls) => `<button class="namebtn ${cls}" data-pick="${esc(p.id)}"><span class="av">${esc(initials(p.name))}</span>${esc(p.name)}</button>`;
+    const info = rosterFor(today).info || {};
+    const btn = (p, cls) => `<button class="namebtn ${cls}" data-pick="${esc(p.id)}"><span class="av">${esc(initials(p.name))}</span><span>${esc(p.name)}${info[p.id] ? `<small class="ninfo">${esc(info[p.id])}</small>` : ""}</span></button>`;
     const inSched = people.filter(p => sched.includes(p.id)), others = people.filter(p => !sched.includes(p.id));
     el.hidden = false;
     el.innerHTML = `<div class="overlay" role="dialog" aria-modal="true" aria-labelledby="pick-title"><div class="dialog">
@@ -1649,7 +1889,7 @@ export function mount(container, opts = {}) {
   const SOURCE_LABEL = { day: "Tagesanpassung", weekday: "Wochentag-Vorlage", base: "Standard", default: "Standard (Aushang)" };
 
   function ensureDraft() {
-    if (!state.draft || state.draft.date !== state.date) { state.draft = { date: state.date, plan: clone(P()) }; state.draftDirty = false; }
+    if (!state.draft || state.draft.date !== state.date) { state.draft = { date: state.date, plan: clone(resolvePlan(state.date, state.dayPlan, true).plan) }; state.draftDirty = false; }
     return state.draft.plan;
   }
 
@@ -1922,6 +2162,8 @@ export function mount(container, opts = {}) {
       if (a === "open-plan") return setView("plan");
       if (a === "open-roster") { state.view = "dienst"; state.rosterWeek = mondayOf(state.date); state.rosterEdit = true; render(); return; }
       if (a === "export") return downloadBackup();
+      if (a === "import-cancel") { state.importPreview = null; render(); return; }
+      if (a === "import-apply") { if (isUnlocked()) applyImport(); return; }
       if (a === "backup-dir") return chooseBackupDir();
       if (a === "backup-now") return writeBackup("manual");
       if (a === "backup-forget") return forgetBackupDir();
@@ -1991,6 +2233,14 @@ export function mount(container, opts = {}) {
     const el = e.target;
     if (el.dataset.person) return renamePerson(el.dataset.person, el.value);
     if (el.id === "importfile" && el.files && el.files[0]) return importBackup(el.files[0]);
+    if (el.id === "planfile" && el.files && el.files[0]) return onPlanFile(el.files[0]);
+    if (state.importPreview && !state.importPreview.error) {
+      const ip = state.importPreview;
+      if (el.id === "imp-person") { ip.personId = el.value; render(); return; }
+      if (el.id === "imp-month") { ip.month = Number(el.value); render(); return; }
+      if (el.id === "imp-year") { const y = parseInt(el.value, 10); if (y >= 2020 && y <= 2100) ip.year = y; render(); return; }
+      if (el.id === "imp-newname") { ip.newName = el.value; return; }
+    }
   });
   main.addEventListener("focusout", () => setTimeout(() => { if (renderPending) render(); }, 0));
   $("whoBtn").addEventListener("click", () => openPicker(true));

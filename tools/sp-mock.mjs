@@ -43,8 +43,13 @@ const host = document.getElementById("wp");
 const root = host.attachShadow({ mode: "open" });
 const st = document.createElement("style"); st.textContent = css; root.appendChild(st);
 const c = document.createElement("div"); c.className = "rz-root"; root.appendChild(c);
-window.__unmount = mount(c, { root, mode: "sharepoint", webAbsoluteUrl: location.origin + "${WEB}", webServerRelativeUrl: "${WEB}", library: "RezeptionDaten", pollMs: 1000, fitViewport: true });
+window.__unmount = mount(c, { root, mode: "sharepoint", webAbsoluteUrl: location.origin + "${WEB}", webServerRelativeUrl: "${WEB}", library: "RezeptionDaten", pollMs: 1000, fitViewport: true${process.env.PDFJS_DIR ? ', pdfjsUrl: location.origin + "/pdfjs/pdf.min.mjs"' : ""} });
 </script>`);
+  }
+  // Optional: pdf.js lokal ausliefern (PDFJS_DIR=…/pdfjs-dist/build), sonst lädt die App es vom CDN.
+  if (path.startsWith("/pdfjs/") && process.env.PDFJS_DIR) {
+    try { res.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8" }); return res.end(readFileSync(join(process.env.PDFJS_DIR, path.slice(7).replace(/\.\./g, "")))); }
+    catch { return send(res, 404, { error: "pdfjs" }); }
   }
   if (path === "/app.js" || path === "/app.css") {
     res.writeHead(200, { "Content-Type": path.endsWith(".js") ? "text/javascript; charset=utf-8" : "text/css; charset=utf-8" });
