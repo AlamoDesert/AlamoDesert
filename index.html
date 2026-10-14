@@ -228,6 +228,54 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
 .mini.del.confirm { width: auto; padding: 0 6px; background: var(--warn); color: #fff; border-color: var(--warn) }
 .addrow { border: 0; border-top: 1px dashed var(--line); background: none; color: var(--accent); font-weight: 600; font-size: 13px; padding: 8px 12px; text-align: left; width: 100% }
 
+/* Person / Dienst */
+.whobtn { border: 1px solid var(--line); background: var(--surface); border-radius: 99px; height: 34px; padding: 0 12px 0 6px; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; white-space: nowrap }
+.whobtn .av { width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-size: 11px; font-weight: 700 }
+.whobtn.none { border-color: var(--warn); color: var(--warn) }
+.whobtn.none .av { background: var(--warn) }
+.whobtn small { font-weight: 500; color: var(--muted) }
+.duty { display: flex; gap: 6px 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); padding: 8px 12px; border-top: 1px solid var(--line) }
+.duty b { color: var(--ink) }
+.chip { display: inline-flex; align-items: center; gap: 4px; border-radius: 99px; padding: 2px 9px; font-size: 13px; font-weight: 600; background: var(--accent-soft); color: var(--accent); border: 1px solid transparent; white-space: nowrap }
+button.chip { cursor: pointer }
+button.chip.off { background: var(--surface); color: var(--muted); border-color: var(--line); font-weight: 500 }
+
+/* Namensauswahl */
+.overlay { position: fixed; inset: 0; z-index: 20; background: rgba(15, 22, 32, .55); display: grid; place-items: center; padding: 16px }
+.dialog { background: var(--surface); color: var(--ink); border-radius: 14px; width: min(640px, 100%); max-height: calc(100% - 32px); overflow: auto; padding: 20px; display: grid; gap: 14px; box-shadow: 0 20px 60px rgba(0, 0, 0, .3) }
+.dialog h2 { margin: 0; font-family: var(--f-display); font-size: 26px; text-transform: uppercase; letter-spacing: .03em }
+.dialog p { margin: 0; color: var(--muted) }
+.dialog .grp { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted) }
+.names { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px }
+.namebtn { border: 1px solid var(--line); background: var(--surface-2); border-radius: 10px; padding: 14px 12px; font-size: 17px; font-weight: 600; text-align: left; display: flex; gap: 10px; align-items: center }
+.namebtn .av { flex: none; width: 30px; height: 30px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font-size: 12px; font-weight: 700 }
+.namebtn.sched { border-color: var(--accent); background: var(--accent-soft) }
+.namebtn.sched .av { background: var(--accent); color: #fff }
+.dialog .row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end }
+
+/* Dienstplan */
+.roster { overflow-x: auto; margin-top: 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface) }
+.roster table { border-collapse: collapse; width: 100%; min-width: 760px }
+.roster th, .roster td { border-bottom: 1px solid var(--line); border-left: 1px solid var(--line); padding: 8px; vertical-align: top; text-align: left }
+.roster tr:last-child td, .roster tr:last-child th { border-bottom: 0 }
+.roster thead th { font-size: 13px; color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums }
+.roster thead th.today { color: var(--accent); background: var(--accent-soft) }
+.roster th.rowh { border-left: 0; font-family: var(--f-display); text-transform: uppercase; letter-spacing: .04em; font-size: 15px; white-space: nowrap; width: 90px }
+.roster td .cell { display: flex; flex-wrap: wrap; gap: 4px }
+.roster td .empty { padding: 0; font-size: 12px }
+
+/* Verwaltung */
+.admin { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-top: 12px; align-items: start }
+.admin .card .cbody { padding: 12px; display: grid; gap: 10px }
+.admin p { margin: 0; font-size: 13px; color: var(--muted) }
+.people { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px }
+.people li { display: flex; gap: 6px; align-items: center }
+.people .in { flex: 1 }
+.pinform { max-width: 360px; margin: 40px auto 0; display: grid; gap: 10px; text-align: center }
+.pinform h2 { margin: 0; font-family: var(--f-display); font-size: 24px; text-transform: uppercase }
+.pinform .in { font-size: 22px; text-align: center; letter-spacing: .3em; padding: 10px }
+.pinform p { margin: 0; color: var(--muted); font-size: 13px }
+
 /* Querformat: alles auf einen Bildschirm */
 @media (orientation: landscape) and (min-width: 900px) {
   html, body { height: 100% }
@@ -256,12 +304,14 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
   <header class="top">
     <h1 class="brand">Rezeption<small id="weekday">–</small></h1>
     <div class="clock" id="clock">--:--</div>
+    <button class="whobtn none" id="whoBtn" aria-label="Person wechseln"><span class="av" id="whoAv">?</span><span id="whoName">Name wählen</span></button>
     <div class="tabs" role="tablist">
       <button class="tab" role="tab" data-view="uebersicht"><b>Übersicht</b></button>
       <button class="tab" role="tab" data-view="frueh"><b>Früh</b><span class="meta" id="meta-frueh"></span></button>
       <button class="tab" role="tab" data-view="spaet"><b>Spät</b><span class="meta" id="meta-spaet"></span></button>
+      <button class="tab" role="tab" data-view="dienst"><b>Dienstplan</b></button>
       <button class="tab" role="tab" data-view="monat"><b>Monat</b></button>
-      <button class="tab" role="tab" data-view="plan"><b>Plan anpassen</b></button>
+      <button class="tab" role="tab" data-view="admin"><b>Verwaltung</b></button>
     </div>
     <div class="datenav">
       <button class="iconbtn" id="prev" aria-label="Vorheriger Tag">‹</button>
@@ -273,6 +323,7 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
   </header>
   <main id="main"></main>
 </div>
+<div id="picker" hidden></div>
 
 <script>
 (() => {
@@ -457,7 +508,7 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
     checks: {}, notes: {}, prevNotes: {},
     logs: {},            // Daueraufgaben: { frueh|spaet: { <id>: { <key>: {at, by} | null } } }
     dayPlan: null,       // Tagesanpassung (normalisiert) oder null
-    cfg: { base: null, weekday: {} }, // gespeicherter Standard + Wochentag-Vorlagen (normalisiert)
+    cfg: { base: null, weekday: {}, people: [], roster: {}, adminPin: null }, // Pläne, Team, Dienstplan, Leitungs-PIN
     docExists: false, cfgExists: false,
     month: {},           // date -> { checks, plan }
     names: {},
@@ -467,6 +518,12 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
     confirm: null,       // zweistufiges Löschen
     mode: "loading",
     readOnly: false,
+    who: null,           // { date, shift, id } – wer gerade an der Rezeption arbeitet (pro Gerät)
+    pickerOpen: false, pickerSnoozeUntil: 0,
+    unlockedUntil: 0,    // Leitungsbereich entsperrt bis (ms)
+    pinStage: null,      // { mode: "unlock"|"set", first?: string, next: view }
+    rosterWeek: null,    // Montag der angezeigten Dienstplan-Woche
+    rosterEdit: false,
   };
   let db = null, user = null, myId = null, unsubDay = null, unsubMonth = null, unsubCfg = null, monthKey = null;
   let writeChain = Promise.resolve();
@@ -502,7 +559,7 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
   function statusLine() {
     if (state.readOnly) return "Nur Lesezugriff.";
     if (state.mode === "shared") return "Live geteilt";
-    if (state.mode === "local") return "Nur auf diesem Gerät gespeichert";
+    if (state.mode === "local") return backupHint() || "Gespeichert auf diesem Mac";
     return "Verbinde…";
   }
 
@@ -517,7 +574,21 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
     if (data && data.weekday && typeof data.weekday === "object") {
       for (let i = 0; i < 7; i++) { const p = normalizePlan(data.weekday[String(i)]); if (p) weekday[String(i)] = p; }
     }
-    state.cfg = { base: data ? normalizePlan(data.base) : null, weekday };
+    const people = (data && Array.isArray(data.people) ? data.people : []).slice(0, 80).map(x => {
+      if (!x || typeof x !== "object" || !ID_RE.test(x.id)) return null;
+      const name = str(x.name, 40).trim();
+      return name ? { id: x.id, name } : null;
+    }).filter(Boolean);
+    const roster = {};
+    if (data && data.roster && typeof data.roster === "object") {
+      for (const [d, v] of Object.entries(data.roster)) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !v || typeof v !== "object") continue;
+        const e = {};
+        for (const k of KEYS) e[k] = Array.isArray(v[k]) ? v[k].filter(id => typeof id === "string" && ID_RE.test(id)).slice(0, 10) : [];
+        roster[d] = e;
+      }
+    }
+    state.cfg = { base: data ? normalizePlan(data.base) : null, weekday, people, roster, adminPin: data && typeof data.adminPin === "string" ? data.adminPin.slice(0, 64) : null };
   }
 
   function currentDayDoc() {
@@ -626,12 +697,13 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
   function cfgPayload() {
     const weekday = {};
     for (const k of Object.keys(state.cfg.weekday)) weekday[k] = state.cfg.weekday[k];
-    return { base: state.cfg.base, weekday };
+    return { base: state.cfg.base, weekday, people: state.cfg.people, roster: state.cfg.roster, adminPin: state.cfg.adminPin };
   }
   const persistCfg = (patch) => persistDoc("config/plan", patch, cfgPayload(), "rz2cfg", cfgPayload());
 
   function setCheck(id, value) {
     if (state.readOnly) { setStatus("Nur Lesezugriff – Änderungen werden nicht gespeichert", true); return; }
+    if (needPerson()) return;
     const next = { ...state.checks, [id]: value };
     if (!value) delete next[id];
     state.checks = next;
@@ -648,12 +720,38 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
     if (el) el.textContent = "Speichert…";
     noteTimers[shift] = setTimeout(async () => {
       if (date !== state.date) return;
-      const val = { text: text.slice(0, 4000), by: myId || null, at: new Date().toISOString() };
+      const val = { text: text.slice(0, 4000), by: actorId(), at: new Date().toISOString() };
       state.notes = { ...state.notes, [shift]: val };
       const ok = await persistDay(date, { notes: { [shift]: val } });
       const el2 = $("saved-" + shift);
       if (el2) el2.textContent = ok ? "Gespeichert " + fmtTime(val.at) : "Nicht gespeichert";
     }, 700);
+  }
+
+  // ---------- Personen ----------
+  const initials = (name) => name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join("").toUpperCase() || "?";
+  function personName(id) {
+    if (!id) return "";
+    const p = state.cfg.people.find(x => x.id === id);
+    if (p) return p.name;
+    return state.names[id] || (id === myId ? "dir" : "");
+  }
+  function loadWho() { state.who = LS.get("rz2who", null); }
+  // Aktive Person: gilt nur für heute und die aktuelle Schicht.
+  function currentPerson() {
+    const w = state.who, today = isoDate(new Date());
+    if (!w || w.date !== today) return null;
+    const plan = resolvePlan(today, today === state.date ? state.dayPlan : (state.month[today] && state.month[today].plan) || null).plan;
+    if (w.shift !== focusShift(plan, nowMin())) return null;
+    return state.cfg.people.find(p => p.id === w.id) || null;
+  }
+  const actorId = () => { const p = currentPerson(); return p ? p.id : (myId || null); };
+  function rosterFor(date) { return state.cfg.roster[date] || { frueh: [], spaet: [] }; }
+  // Abhaken braucht eine gewählte Person, sobald ein Team angelegt ist.
+  function needPerson() {
+    if (!state.cfg.people.length || currentPerson()) return false;
+    openPicker(true);
+    return true;
   }
 
   // ---------- Zeitlogik ----------
@@ -718,7 +816,7 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
 
   function whoLine(c) {
     if (!c) return "";
-    const name = (c.by && state.names[c.by]) || (c.by && c.by === myId ? "dir" : "");
+    const name = personName(c.by);
     const time = fmtTime(c.at);
     return `${c.s === "na" ? "entfällt" : "erledigt"}${time ? " " + time : ""}${name ? " · " + esc(name) : ""}`;
   }
@@ -749,7 +847,7 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
         sub = rhythm;
         if (info && info.due !== null) sub += info.state === "ok" ? ` · nächster um <b>${fmtMin(info.due)}</b>` : ` · <b>fällig seit ${fmtMin(info.due)}</b>`;
       } else if (a.s) sub = esc(a.s);
-      const name = last && ((last.by && state.names[last.by]) || (last.by && last.by === myId ? "dir" : ""));
+      const name = last && personName(last.by);
       const lastTxt = last ? `zuletzt ${fmtTime(last.at)}${name ? " · " + esc(name) : ""}` : "";
       const cls = [a.important ? "important" : "", info ? info.state : ""].join(" ");
       return `<li class="${cls}">
@@ -766,8 +864,9 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
   // Jeder Tipp = neuer Eintrag unter eigenem Schlüssel; gleichzeitige Tipps verschiedener Geräte überschreiben sich nicht.
   function logAlways(shift, id) {
     if (state.readOnly) { setStatus("Nur Lesezugriff – Änderungen werden nicht gespeichert", true); return; }
+    if (needPerson()) return;
     const k = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-    const val = { at: new Date().toISOString(), by: myId || null };
+    const val = { at: new Date().toISOString(), by: actorId() };
     const sh = { ...(state.logs[shift] || {}) };
     sh[id] = { ...(sh[id] || {}), [k]: val };
     state.logs = { ...state.logs, [shift]: sh };
@@ -788,7 +887,7 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
 
   function noteAuthor(n) {
     if (!n || !n.at) return "";
-    const name = (n.by && state.names[n.by]) || (n.by && n.by === myId ? "dir" : "");
+    const name = personName(n.by);
     return ` · ${fmtTime(n.at)}${name ? " · " + esc(name) : ""}`;
   }
   function noteEditor(shift, label) {
@@ -806,6 +905,13 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
     return key === "frueh"
       ? noteReader(state.prevNotes.spaet, "Von der Spätschicht (gestern)") + noteEditor("frueh", "Für die Spätschicht")
       : noteReader(state.notes.frueh, "Von der Frühschicht") + noteEditor("spaet", "Für die Frühschicht morgen");
+  }
+
+  function dutyLine(date) {
+    const r = rosterFor(date);
+    const names = (k) => r[k].map(personName).filter(Boolean).join(", ") || "–";
+    if (!state.cfg.people.length) return `<div class="duty">Team und Dienstplan unter <b>Verwaltung</b> anlegen.</div>`;
+    return `<div class="duty"><span>Dienst Früh: <b>${esc(names("frueh"))}</b></span><span>Spät: <b>${esc(names("spaet"))}</b></span></div>`;
   }
 
   // ---------- Übersicht ----------
@@ -857,6 +963,7 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
             <div class="shiftsum"><b>${meta.label}</b><span>${pr.done}/${pr.total}</span></div>
             <div class="bar"><i style="width:${pr.pct}%"></i></div>
             <ul class="plan">${rows}</ul>
+            ${dutyLine(state.date)}
             <button class="othersum" data-view-go="${other}">${SHIFT_META[other].label} ${plan[other].start}–${plan[other].end}: ${otherPr.done}/${otherPr.total}${otherOpen ? ` · <b>${otherOpen} offen geblieben</b>` : ""}</button>
           </div></section>
       </div>
@@ -920,6 +1027,256 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
         <tbody><tr><th class="rowh" scope="row">Früh</th>${row("frueh")}</tr><tr><th class="rowh" scope="row">Spät</th>${row("spaet")}</tr></tbody>
       </table></div>
       <div class="legend"><span><i class="lg-full"></i>vollständig</span><span><i class="lg-part"></i>teilweise</span><span>Tippe auf einen Tag, um ihn zu öffnen.</span></div>`;
+  }
+
+  // ---------- Dienstplan ----------
+  function mondayOf(iso) { const d = parseIso(iso); const wd = (d.getDay() + 6) % 7; d.setDate(d.getDate() - wd); return isoDate(d); }
+  function renderRoster() {
+    const mon = state.rosterWeek || mondayOf(state.date);
+    const days = Array.from({ length: 7 }, (_, i) => addDays(mon, i)), today = isoDate(new Date());
+    const edit = state.rosterEdit && isUnlocked();
+    const head = days.map(d => { const x = parseIso(d); return `<th class="${d === today ? "today" : ""}">${WD[x.getDay()].slice(0, 2)} ${pad(x.getDate())}.${pad(x.getMonth() + 1)}.</th>`; }).join("");
+    const row = (k) => days.map(d => {
+      const ids = rosterFor(d)[k];
+      if (edit) return `<td><div class="cell">${state.cfg.people.map(p => `<button class="chip${ids.includes(p.id) ? "" : " off"}" data-roster="${d}" data-shift="${k}" data-pid="${esc(p.id)}" aria-pressed="${ids.includes(p.id)}">${esc(p.name)}</button>`).join("") || '<span class="empty">Kein Team</span>'}</div></td>`;
+      const names = ids.map(personName).filter(Boolean);
+      return `<td><div class="cell">${names.map(n => `<span class="chip">${esc(n)}</span>`).join("") || '<span class="empty">–</span>'}</div></td>`;
+    }).join("");
+    const e = parseIso(days[6]), m = parseIso(mon);
+    return `<div class="monthhead">
+        <button class="iconbtn" id="wprev" aria-label="Vorherige Woche">‹</button>
+        <h2>Dienstplan ${pad(m.getDate())}.${pad(m.getMonth() + 1)}. – ${pad(e.getDate())}.${pad(e.getMonth() + 1)}.</h2>
+        <button class="iconbtn" id="wnext" aria-label="Nächste Woche">›</button>
+        ${edit ? `<button class="btn${state.confirm === "copy-week" ? " danger" : ""}" data-act2="copy-week">${state.confirm === "copy-week" ? "Woche überschreiben?" : "Vorwoche übernehmen"}</button><button class="btn primary" data-act2="roster-done">Fertig</button>`
+               : `<button class="btn" data-act2="roster-edit">Bearbeiten</button>`}
+      </div>
+      <div class="roster"><table>
+        <thead><tr><th class="rowh"></th>${head}</tr></thead>
+        <tbody><tr><th class="rowh" scope="row">Früh</th>${row("frueh")}</tr><tr><th class="rowh" scope="row">Spät</th>${row("spaet")}</tr></tbody>
+      </table></div>
+      <div class="legend">${edit ? "Namen antippen, um sie für die Schicht einzutragen oder auszutragen." : "Bearbeiten braucht die Leitungs-PIN."}</div>`;
+  }
+  function toggleRoster(date, shift, pid) {
+    const cur = rosterFor(date);
+    const ids = cur[shift].includes(pid) ? cur[shift].filter(x => x !== pid) : [...cur[shift], pid];
+    const entry = { ...cur, [shift]: ids };
+    state.cfg = { ...state.cfg, roster: { ...state.cfg.roster, [date]: entry } };
+    render();
+    persistCfg({ roster: { [date]: entry } });
+  }
+  function copyPrevWeek() {
+    const mon = state.rosterWeek || mondayOf(state.date);
+    const roster = { ...state.cfg.roster }, patch = {};
+    for (let i = 0; i < 7; i++) {
+      const src = rosterFor(addDays(mon, i - 7)), d = addDays(mon, i);
+      roster[d] = { frueh: [...src.frueh], spaet: [...src.spaet] };
+      patch[d] = roster[d];
+    }
+    state.cfg = { ...state.cfg, roster };
+    render();
+    persistCfg({ roster: patch });
+  }
+
+  // ---------- Leitungsbereich (PIN) ----------
+  // Einfacher Schutz gegen versehentliche Änderungen auf dem Gemeinschaftsrechner – keine echte Zugriffskontrolle.
+  function pinHash(pin) {
+    let h = 0x811c9dc5;
+    for (const ch of "rezeption:" + pin) { h ^= ch.charCodeAt(0); h = Math.imul(h, 0x01000193) >>> 0; }
+    return "f1:" + h.toString(16);
+  }
+  const isUnlocked = () => Date.now() < state.unlockedUntil;
+  function requireAdmin(next) {
+    if (isUnlocked()) { state.unlockedUntil = Date.now() + 10 * 60000; return true; }
+    state.pinStage = { mode: state.cfg.adminPin ? "unlock" : "set", next };
+    state.view = "pin";
+    render();
+    setTimeout(() => { const el = $("pin-in"); if (el) el.focus(); }, 0);
+    return false;
+  }
+  function renderPin() {
+    const st = state.pinStage || { mode: "unlock" };
+    const title = st.mode === "set" ? (st.first ? "PIN wiederholen" : "Leitungs-PIN festlegen") : "Leitungs-PIN";
+    const text = st.mode === "set" ? "Diese PIN schützt Team, Dienstplan und Aufgaben-Plan vor Änderungen. Mindestens 4 Ziffern." : "Nur für die Schichtleitung.";
+    return `<form class="pinform" id="pinform">
+      <h2>${title}</h2><p>${text}</p>
+      <input class="in" id="pin-in" type="password" inputmode="numeric" autocomplete="off" maxlength="8" aria-label="PIN">
+      <button class="btn primary" type="submit">${st.mode === "set" && !st.first ? "Weiter" : "Entsperren"}</button>
+      <button class="btn ghost" type="button" data-act2="pin-cancel">Abbrechen</button>
+      <p id="pin-msg"></p>
+    </form>`;
+  }
+  // Render wird während einer Eingabe aufgeschoben – bei Formular-Aktionen deshalb erst den Fokus lösen.
+  function blurActive() { const a = document.activeElement; if (a && a.blur) a.blur(); }
+  async function submitPin(val) {
+    const st = state.pinStage, msg = $("pin-msg");
+    blurActive();
+    if (!/^\d{4,8}$/.test(val)) { if (msg) msg.textContent = "Bitte 4 bis 8 Ziffern eingeben."; return; }
+    if (st.mode === "set") {
+      if (!st.first) { state.pinStage = { ...st, first: val }; render(); setTimeout(() => { const el = $("pin-in"); if (el) el.focus(); }, 0); return; }
+      if (st.first !== val) { state.pinStage = { ...st, first: null }; render(); setTimeout(() => { const m2 = $("pin-msg"); if (m2) m2.textContent = "Die PINs stimmen nicht überein. Bitte neu festlegen."; }, 0); return; }
+      state.cfg = { ...state.cfg, adminPin: pinHash(val) };
+      await persistCfg({ adminPin: state.cfg.adminPin });
+    } else if (pinHash(val) !== state.cfg.adminPin) {
+      if (msg) msg.textContent = "PIN falsch.";
+      const el = $("pin-in"); if (el) { el.value = ""; el.focus(); }
+      return;
+    }
+    state.unlockedUntil = Date.now() + 10 * 60000;
+    const next = st.next || "admin";
+    state.pinStage = null;
+    if (next === "dienst-edit") { state.view = "dienst"; state.rosterEdit = true; } else state.view = next;
+    render();
+  }
+
+  // ---------- Verwaltung ----------
+  function backupHint() {
+    if (state.mode !== "local") return "";
+    const last = LS.get("rz2meta", {}).lastBackup;
+    const days = last ? Math.floor((Date.now() - new Date(last)) / 86400000) : null;
+    if (days === null) return "Noch keine Sicherung (Verwaltung)";
+    return days >= 7 ? `Sicherung ${days} Tage alt (Verwaltung)` : "";
+  }
+  function renderAdmin() {
+    const people = state.cfg.people.map((p, i) => `<li>
+        <input class="in" id="pp-${esc(p.id)}" data-person="${esc(p.id)}" value="${esc(p.name)}" maxlength="40" aria-label="Name">
+        ${state.confirm === "p:" + p.id ? `<button class="mini del confirm" data-act2="person-del" data-pid="${esc(p.id)}">Löschen?</button>` : `<button class="mini del" data-act2="person-del" data-pid="${esc(p.id)}" aria-label="Entfernen">✕</button>`}
+      </li>`).join("");
+    const last = LS.get("rz2meta", {}).lastBackup;
+    return `<div class="admin">
+      <section class="card"><div class="chead"><h2>Team</h2><span class="hint">${state.cfg.people.length} Personen</span></div>
+        <div class="cbody">
+          <ul class="people">${people || "<p>Noch niemand angelegt.</p>"}</ul>
+          <form id="addperson" class="people"><li><input class="in" id="newperson" maxlength="40" placeholder="Name, z. B. Lisa" aria-label="Neuer Name"><button class="btn" type="submit">Hinzufügen</button></li></form>
+          <p>Namen erscheinen bei der Auswahl zu Schichtbeginn und im Dienstplan. Entfernte Personen bleiben in alten Einträgen als Kürzel unsichtbar.</p>
+        </div></section>
+      <section class="card"><div class="chead"><h2>Aufgaben &amp; Zeiten</h2></div>
+        <div class="cbody"><p>Abschnitte, Uhrzeiten, Reihenfolge und Daueraufgaben – für einen Tag, einen Wochentag oder als Standard.</p>
+          <button class="btn primary" data-act2="open-plan">Aufgaben-Plan bearbeiten</button>
+          <button class="btn" data-act2="open-roster">Dienstplan bearbeiten</button></div></section>
+      ${state.mode === "local" ? `<section class="card"><div class="chead"><h2>Datensicherung</h2></div>
+        <div class="cbody"><p>Alles liegt im Browser dieses Macs. Wird der Browserverlauf mit „Website-Daten“ gelöscht, ist es weg. Sichere deshalb regelmäßig.</p>
+          <p>Letzte Sicherung: <b>${last ? new Date(last).toLocaleDateString("de-DE") : "noch nie"}</b></p>
+          <button class="btn primary" data-act2="export">Sicherung herunterladen</button>
+          <label class="btn" style="text-align:center;cursor:pointer">Sicherung einspielen<input type="file" id="importfile" accept="application/json,.json" hidden></label>
+          <p id="import-msg"></p></div></section>` : ""}
+      <section class="card"><div class="chead"><h2>Leitungs-PIN</h2></div>
+        <div class="cbody"><p>Entsperrt für 10 Minuten nach der letzten Aktion.</p>
+          <button class="btn" data-act2="pin-change">PIN ändern</button>
+          <button class="btn ghost" data-act2="lock">Jetzt sperren</button></div></section>
+    </div>`;
+  }
+  function addPerson(name) {
+    name = name.trim().slice(0, 40);
+    if (!name) return;
+    if (state.cfg.people.some(p => p.name.toLowerCase() === name.toLowerCase())) { setStatus(`„${name}“ gibt es schon`, true); return; }
+    blurActive();
+    const people = [...state.cfg.people, { id: newId("u"), name }];
+    state.cfg = { ...state.cfg, people };
+    render();
+    persistCfg({ people });
+    setTimeout(() => { const el = $("newperson"); if (el) el.focus(); }, 0);
+  }
+  function renamePerson(id, name) {
+    name = name.trim().slice(0, 40);
+    if (!name) return;
+    const people = state.cfg.people.map(p => p.id === id ? { ...p, name } : p);
+    state.cfg = { ...state.cfg, people };
+    persistCfg({ people });
+  }
+  function deletePerson(id) {
+    if (state.confirm !== "p:" + id) { state.confirm = "p:" + id; render(); return; }
+    state.confirm = null;
+    const people = state.cfg.people.filter(p => p.id !== id);
+    state.cfg = { ...state.cfg, people };
+    render();
+    persistCfg({ people });
+  }
+  function exportBackup() {
+    const data = {};
+    try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith("rz2") && k !== "rz2who") data[k] = localStorage.getItem(k); } } catch { setStatus("Browser-Speicher blockiert", true); return; }
+    const blob = new Blob([JSON.stringify({ app: "rezeption-schichtcheck", version: 1, exportedAt: new Date().toISOString(), data }, null, 1)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `rezeption-sicherung-${isoDate(new Date())}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    LS.set("rz2meta", { ...LS.get("rz2meta", {}), lastBackup: new Date().toISOString() });
+    setStatus(statusLine());
+    render();
+  }
+  function importBackup(file) {
+    const msg = $("import-msg");
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const obj = JSON.parse(String(reader.result));
+        if (!obj || obj.app !== "rezeption-schichtcheck" || !obj.data || typeof obj.data !== "object") throw new Error("format");
+        const entries = Object.entries(obj.data).filter(([k, v]) => k.startsWith("rz2") && typeof v === "string");
+        if (!entries.length) throw new Error("leer");
+        for (const [k, v] of entries) localStorage.setItem(k, v);
+        if (msg) msg.textContent = `${entries.length} Einträge eingespielt. Seite lädt neu…`;
+        setTimeout(() => location.reload(), 800);
+      } catch {
+        if (msg) msg.textContent = "Diese Datei ist keine gültige Sicherung dieser App.";
+      }
+    };
+    reader.onerror = () => { if (msg) msg.textContent = "Datei konnte nicht gelesen werden."; };
+    reader.readAsText(file);
+  }
+
+  // ---------- Namensauswahl ----------
+  function openPicker(force) {
+    if (!force && Date.now() < state.pickerSnoozeUntil) return;
+    state.pickerOpen = true;
+    renderPicker();
+  }
+  function renderPicker() {
+    const el = $("picker");
+    if (!state.pickerOpen) { el.hidden = true; el.innerHTML = ""; return; }
+    const today = isoDate(new Date()), plan = resolvePlan(today, state.date === today ? state.dayPlan : null).plan;
+    const shift = focusShift(plan, nowMin());
+    const sched = rosterFor(today)[shift];
+    const people = state.cfg.people;
+    const btn = (p, cls) => `<button class="namebtn ${cls}" data-pick="${esc(p.id)}"><span class="av">${esc(initials(p.name))}</span>${esc(p.name)}</button>`;
+    const inSched = people.filter(p => sched.includes(p.id)), others = people.filter(p => !sched.includes(p.id));
+    el.hidden = false;
+    el.innerHTML = `<div class="overlay" role="dialog" aria-modal="true" aria-labelledby="pick-title"><div class="dialog">
+      <h2 id="pick-title">Wer arbeitet gerade?</h2>
+      <p>${SHIFT_META[shift].label} ${plan[shift].start}–${plan[shift].end}. Deine Haken und Notizen werden mit deinem Namen gespeichert.</p>
+      ${people.length ? `
+        ${inSched.length ? `<div class="grp">Laut Dienstplan</div><div class="names">${inSched.map(p => btn(p, "sched")).join("")}</div>` : ""}
+        ${others.length ? `<div class="grp">${inSched.length ? "Andere" : "Team"}</div><div class="names">${others.map(p => btn(p, "")).join("")}</div>` : ""}`
+        : `<p>Es ist noch kein Team angelegt. Die Schichtleitung legt Namen unter <b>Verwaltung › Team</b> an.</p>`}
+      <div class="row"><button class="btn ghost" data-pick-close="1">Nur ansehen</button></div>
+    </div></div>`;
+    const first = el.querySelector(".namebtn");
+    if (first) first.focus();
+  }
+  function pickPerson(id) {
+    const today = isoDate(new Date()), plan = resolvePlan(today, state.date === today ? state.dayPlan : null).plan;
+    state.who = { date: today, shift: focusShift(plan, nowMin()), id };
+    LS.set("rz2who", state.who);
+    state.pickerOpen = false;
+    renderPicker();
+    render();
+    const p = state.cfg.people.find(x => x.id === id);
+    setStatus(p ? `Hallo ${p.name}!` : statusLine());
+  }
+  $("picker").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (b.dataset.pick) return pickPerson(b.dataset.pick);
+    if (b.dataset.pickClose) { state.pickerOpen = false; state.pickerSnoozeUntil = Date.now() + 5 * 60000; renderPicker(); }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && state.pickerOpen) { state.pickerOpen = false; state.pickerSnoozeUntil = Date.now() + 5 * 60000; renderPicker(); }
+  });
+  // Zu Schichtbeginn bzw. bei Schichtwechsel automatisch nachfragen.
+  function maybeAskPerson() {
+    if (state.mode === "loading" || state.pickerOpen || !state.cfg.people.length) return;
+    if (!["uebersicht", "frueh", "spaet"].includes(state.view)) return;
+    if (state.date !== isoDate(new Date()) || currentPerson()) return;
+    openPicker(false);
   }
 
   // ---------- Plan-Editor ----------
@@ -1096,7 +1453,13 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
     const act = activeShift(plan, ctx);
     $("clock").innerHTML = `${fmtMin(nowMin())}${act ? `<small>${SHIFT_META[act].label} bis ${plan[act].end}</small>` : ""}`;
     for (const key of KEYS) { const p = progress(plan, key, state.checks); $("meta-" + key).textContent = `${p.done}/${p.total}`; }
-    document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", String(t.dataset.view === state.view)));
+    const tabView = state.view === "plan" || state.view === "pin" ? "admin" : state.view;
+    document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", String(t.dataset.view === tabView)));
+    const p = currentPerson(), wb = $("whoBtn");
+    wb.classList.toggle("none", !p);
+    wb.hidden = !state.cfg.people.length;
+    $("whoAv").textContent = p ? initials(p.name) : "?";
+    $("whoName").innerHTML = p ? `${esc(p.name)} <small>wechseln</small>` : "Name wählen";
   }
 
   function render() {
@@ -1106,8 +1469,11 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
     renderPending = false;
     renderHeader();
     const v = state.view, main = $("main");
-    main.className = v === "plan" || v === "monat" ? "scroll" : "";
-    main.innerHTML = v === "monat" ? renderMonth() : v === "uebersicht" ? renderOverview() : v === "plan" ? renderEditor() : renderShift(v);
+    if ((v === "plan" || v === "admin") && !isUnlocked()) { state.pinStage = { mode: state.cfg.adminPin ? "unlock" : "set", next: v }; state.view = "pin"; return render(); }
+    main.className = ["plan", "monat", "dienst", "admin", "pin"].includes(v) ? "scroll" : "";
+    main.innerHTML = v === "monat" ? renderMonth() : v === "uebersicht" ? renderOverview() : v === "plan" ? renderEditor()
+      : v === "dienst" ? renderRoster() : v === "admin" ? renderAdmin() : v === "pin" ? renderPin() : renderShift(v);
+    maybeAskPerson();
     if (v === "frueh" || v === "spaet") scrollToNow();
   }
   // Querformat: aktuelle Spalte ins Bild holen.
@@ -1147,6 +1513,9 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
   function setView(v) {
     if (state.view === "plan" && v !== "plan" && state.draftDirty && !confirmLeave()) return;
     if (v !== "plan") { state.draft = null; state.draftDirty = false; }
+    if (v === "admin" || v === "plan") { if (!requireAdmin(v)) return; }
+    if (v !== "dienst") state.rosterEdit = false;
+    if (v === "dienst") state.rosterWeek = mondayOf(state.date);
     state.view = v; state.confirm = null; scrolledOnce = false;
     window.scrollTo(0, 0); render();
   }
@@ -1172,6 +1541,26 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
       if (a === "reset-weekday") return resetScope("weekday");
       return editorAction(a, t.dataset.path);
     }
+    if (t.dataset.act2) {
+      const a = t.dataset.act2;
+      if (a === "roster-edit") { if (requireAdmin("dienst-edit")) { state.rosterEdit = true; render(); } return; }
+      if (a === "roster-done") { state.rosterEdit = false; render(); return; }
+      if (a === "copy-week") {
+        if (!isUnlocked()) return;
+        if (state.confirm !== "copy-week") { state.confirm = "copy-week"; render(); return; }
+        state.confirm = null; copyPrevWeek(); return;
+      }
+      if (a === "pin-cancel") { state.pinStage = null; state.view = "uebersicht"; render(); return; }
+      if (a === "open-plan") return setView("plan");
+      if (a === "open-roster") { state.view = "dienst"; state.rosterWeek = mondayOf(state.date); state.rosterEdit = true; render(); return; }
+      if (a === "export") return exportBackup();
+      if (a === "person-del") return deletePerson(t.dataset.pid);
+      if (a === "pin-change") { state.pinStage = { mode: "set", next: "admin" }; state.view = "pin"; render(); setTimeout(() => { const el = $("pin-in"); if (el) el.focus(); }, 0); return; }
+      if (a === "lock") { state.unlockedUntil = 0; state.view = "uebersicht"; render(); return; }
+      return;
+    }
+    if (t.dataset.roster) { if (isUnlocked()) { state.unlockedUntil = Date.now() + 10 * 60000; toggleRoster(t.dataset.roster, t.dataset.shift, t.dataset.pid); } else { state.rosterEdit = false; render(); } return; }
+    if (t.id === "wprev" || t.id === "wnext") { state.rosterWeek = addDays(state.rosterWeek || mondayOf(state.date), t.id === "wprev" ? -7 : 7); render(); return; }
     if (t.dataset.log) return logAlways(t.dataset.shift, t.dataset.log);
     if (t.dataset.unlog) return unlogAlways(t.dataset.shift, t.dataset.unlog);
     if (t.dataset.toggle) { const id = t.dataset.toggle; state.expanded.has(id) ? state.expanded.delete(id) : state.expanded.add(id); render(); return; }
@@ -1186,7 +1575,7 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
       if (el) el.scrollIntoView({ block: "nearest", inline: "start" });
       return;
     }
-    const stamp = (s) => ({ s, by: myId || null, at: new Date().toISOString() });
+    const stamp = (s) => ({ s, by: actorId(), at: new Date().toISOString() });
     if (t.dataset.id) { const c = state.checks[t.dataset.id]; setCheck(t.dataset.id, c && c.s === "done" ? null : stamp("done")); }
     else if (t.dataset.skip) { const c = state.checks[t.dataset.skip]; setCheck(t.dataset.skip, c && c.s === "na" ? null : stamp("na")); }
   });
@@ -1222,10 +1611,24 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
       markDirty(); render();
     }
   });
+  main.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (e.target.id === "pinform") return submitPin($("pin-in").value);
+    if (e.target.id === "addperson") return addPerson($("newperson").value);
+  });
+  main.addEventListener("change", (e) => {
+    const el = e.target;
+    if (el.dataset.person) return renamePerson(el.dataset.person, el.value);
+    if (el.id === "importfile" && el.files && el.files[0]) return importBackup(el.files[0]);
+  });
   main.addEventListener("focusout", () => setTimeout(() => { if (renderPending) render(); }, 0));
+  $("whoBtn").addEventListener("click", () => openPicker(true));
 
   // Uhr, Fälligkeiten und „mitlaufende" Spalten jede Minute aktualisieren (nur Anzeige).
-  setInterval(() => { if (state.view === "plan" || state.view === "monat") renderHeader(); else render(); }, 30000);
+  setInterval(() => {
+    if (["plan", "monat", "admin", "pin", "dienst"].includes(state.view)) { renderHeader(); maybeAskPerson(); }
+    else render();
+  }, 30000);
 
   // ---------- Start ----------
   render();
@@ -1240,7 +1643,8 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
     if (user && typeof user.can === "function") {
       try { if ((await user.can("data.write")) === false) state.readOnly = true; } catch { /* unbekannt */ }
     }
-    setStatus(statusLine(), state.readOnly);
+    loadWho();
+    setStatus(statusLine(), state.readOnly || !!backupHint());
     subscribeCfg();
     subscribeMonth();
     subscribeDay();
