@@ -3,6 +3,7 @@ import { getStore } from '@netlify/blobs';
 import type { Config } from '@netlify/functions';
 import { handle } from './core.mts';
 
-export default async (req: Request) => handle(req, getStore({ name: 'courtside', consistency: 'strong' }));
+// Anmeldungen enthalten Namen: Speicherort Frankfurt (EU) statt des US-Standards.
+export default async (req: Request) => handle(req, getStore({ name: 'courtside', consistency: 'strong', region: 'eu-central-1' }));
 
 export const config: Config = { path: '/api/*' };
