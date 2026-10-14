@@ -1,3 +1,5 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Rezeption Schichtcheck</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1138,6 +1140,7 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
     if (state.mode !== "local") return "";
     const last = LS.get("rz2meta", {}).lastBackup;
     const days = last ? Math.floor((Date.now() - new Date(last)) / 86400000) : null;
+    if (FS_OK && !backupDir) return "Sicherungsordner fehlt (Verwaltung)";
     if (days === null) return "Noch keine Sicherung (Verwaltung)";
     return days >= 7 ? `Sicherung ${days} Tage alt (Verwaltung)` : "";
   }
@@ -1160,9 +1163,17 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
           <button class="btn" data-act2="open-roster">Dienstplan bearbeiten</button></div></section>
       ${state.mode === "local" ? `<section class="card"><div class="chead"><h2>Datensicherung</h2></div>
         <div class="cbody"><p>Alles liegt im Browser dieses Macs. Wird der Browserverlauf mit „Website-Daten“ gelöscht, ist es weg. Sichere deshalb regelmäßig.</p>
-          <p>Automatisch: bei jedem Schichtbeginn (Namenswahl) und wenn der letzte Punkt der Spätschicht abgehakt ist. Chrome-Downloadordner auf den synchronisierten SharePoint-Ordner stellen.</p>
+          ${FS_OK ? (backupDir
+            ? `<p>Sicherungsordner: <b>${esc(backupDir.name)}</b>. Gesichert wird bei jedem Schichtbeginn und wenn der letzte Punkt der Spätschicht abgehakt ist – als „rezeption-sicherung-aktuell.json“ und eine Datei pro Tag.</p>
+               <button class="btn primary" data-act2="backup-now">Jetzt sichern</button>
+               <button class="btn" data-act2="backup-dir">Anderen Ordner wählen</button>
+               <button class="btn ghost danger" data-act2="backup-forget">Ordner trennen</button>`
+            : `<p>Wähle einmal den per OneDrive synchronisierten SharePoint-Ordner. Danach sichert die App automatisch dorthin – andere Downloads bleiben, wo sie sind.</p>
+               <button class="btn primary" data-act2="backup-dir">Sicherungsordner wählen</button>
+               <button class="btn" data-act2="export">Einmalig herunterladen</button>`)
+          : `<p>Dieser Browser kann nicht direkt in einen Ordner schreiben. Bitte Google Chrome verwenden.</p>
+             <button class="btn" data-act2="export">Einmalig herunterladen</button>`}
           <p>Letzte Sicherung: <b>${last ? new Date(last).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) : "noch nie"}</b></p>
-          <button class="btn primary" data-act2="export">Sicherung herunterladen</button>
           <label class="btn" style="text-align:center;cursor:pointer">Sicherung einspielen<input type="file" id="importfile" accept="application/json,.json" hidden></label>
           <p id="import-msg"></p></div></section>` : ""}
       <section class="card"><div class="chead"><h2>Leitungs-PIN</h2></div>
@@ -1197,32 +1208,96 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
     render();
     persistCfg({ people });
   }
-  // Muss aus einem Klick heraus laufen, sonst blockiert Chrome den Download.
-  // reason: "manual" | "shift" (Schichtbeginn) | "day" (Tagesabschluss)
-  function exportBackup(reason = "manual") {
-    if (state.mode !== "local") return false;
+  // ---------- Sicherung in einen gewählten Ordner (Chrome: File System Access API) ----------
+  // Der Ordner-Zugriff wird in IndexedDB gemerkt. Chrome fragt ggf. nach – dafür muss die Sicherung aus einem Klick starten.
+  const FS_OK = typeof window.showDirectoryPicker === "function";
+  let backupDir = null;
+  const idb = {
+    open() {
+      return new Promise((res, rej) => {
+        const r = indexedDB.open("rz2fs", 1);
+        r.onupgradeneeded = () => r.result.createObjectStore("h");
+        r.onsuccess = () => res(r.result);
+        r.onerror = () => rej(r.error);
+      });
+    },
+    async get(k) { const d = await this.open(); return new Promise((res, rej) => { const q = d.transaction("h").objectStore("h").get(k); q.onsuccess = () => res(q.result || null); q.onerror = () => rej(q.error); }); },
+    async set(k, v) { const d = await this.open(); return new Promise((res, rej) => { const t = d.transaction("h", "readwrite"); if (v === null) t.objectStore("h").delete(k); else t.objectStore("h").put(v, k); t.oncomplete = () => res(); t.onerror = () => rej(t.error); }); },
+  };
+  async function loadBackupDir() {
+    try { backupDir = await idb.get("backupDir"); } catch { backupDir = null; }
+    if (state.view === "admin") render();
+  }
+  async function chooseBackupDir() {
+    if (!FS_OK) return;
+    try {
+      const h = await window.showDirectoryPicker({ id: "rezeption-sicherung", mode: "readwrite" });
+      backupDir = h;
+      await idb.set("backupDir", h);
+      const ok = await writeBackup("manual");
+      setStatus(ok ? `Sicherungsordner „${h.name}“ eingerichtet` : "Ordner gewählt, aber kein Schreibzugriff", !ok);
+    } catch (e) {
+      if (!(e && e.name === "AbortError")) setStatus("Ordner konnte nicht gewählt werden", true);
+    }
+    render();
+  }
+  async function forgetBackupDir() {
+    backupDir = null;
+    try { await idb.set("backupDir", null); } catch { /* egal */ }
+    render();
+  }
+  function backupPayload() {
     const data = {};
-    try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith("rz2") && k !== "rz2who") data[k] = localStorage.getItem(k); } } catch { setStatus("Browser-Speicher blockiert", true); return false; }
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith("rz2") && k !== "rz2who") data[k] = localStorage.getItem(k); }
+    return JSON.stringify({ app: "rezeption-schichtcheck", version: 1, exportedAt: new Date().toISOString(), data }, null, 1);
+  }
+  async function writeFile(dir, name, text) {
+    const fh = await dir.getFileHandle(name, { create: true });
+    const w = await fh.createWritable();
+    await w.write(text);
+    await w.close();
+  }
+  // Schreibt „…-aktuell.json“ (immer neuester Stand) und „…-JJJJ-MM-TT.json“ (eine Datei pro Tag, wird überschrieben).
+  // reason: "manual" | "shift" (Schichtbeginn) | "day" (Tagesabschluss)
+  async function writeBackup(reason) {
+    if (state.mode !== "local" || !backupDir) return false;
+    let text;
+    try { text = backupPayload(); } catch { setStatus("Browser-Speicher blockiert", true); return false; }
+    try {
+      let perm = backupDir.queryPermission ? await backupDir.queryPermission({ mode: "readwrite" }) : "granted";
+      if (perm !== "granted" && backupDir.requestPermission) perm = await backupDir.requestPermission({ mode: "readwrite" });
+      if (perm !== "granted") { setStatus("Sicherung übersprungen – Ordnerzugriff nicht erlaubt (Verwaltung)", true); return false; }
+      const now = new Date();
+      await writeFile(backupDir, `rezeption-sicherung-${isoDate(now)}.json`, text);
+      await writeFile(backupDir, "rezeption-sicherung-aktuell.json", text);
+      LS.set("rz2meta", { ...LS.get("rz2meta", {}), lastBackup: now.toISOString(), ...(reason === "day" ? { lastDayBackup: isoDate(now) } : {}) });
+      setStatus(`Gesichert ${fmtMin(now.getHours() * 60 + now.getMinutes())}${reason === "day" ? " (Tagesabschluss)" : ""}`);
+      if (state.view === "admin") render();
+      return true;
+    } catch {
+      setStatus("Sicherung fehlgeschlagen – Ordner prüfen (Verwaltung › Datensicherung)", true);
+      return false;
+    }
+  }
+  // Manuell ohne Ordner: einmaliger Download in den normalen Download-Ordner.
+  function downloadBackup() {
+    let text;
+    try { text = backupPayload(); } catch { setStatus("Browser-Speicher blockiert", true); return; }
     const now = new Date();
-    const blob = new Blob([JSON.stringify({ app: "rezeption-schichtcheck", version: 1, exportedAt: new Date().toISOString(), data }, null, 1)], { type: "application/json" });
     const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    // Datum + Uhrzeit im Namen: Chrome überschreibt nichts, die neueste Datei ist am Namen erkennbar.
-    a.download = `rezeption-sicherung-${isoDate(now)}_${pad(now.getHours())}${pad(now.getMinutes())}${reason === "day" ? "_tagesabschluss" : ""}.json`;
+    a.href = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+    a.download = `rezeption-sicherung-${isoDate(now)}.json`;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-    LS.set("rz2meta", { ...LS.get("rz2meta", {}), lastBackup: now.toISOString(), ...(reason === "day" ? { lastDayBackup: isoDate(now) } : {}) });
-    setStatus(`Sicherung gespeichert ${fmtMin(now.getHours() * 60 + now.getMinutes())}${reason === "day" ? " (Tagesabschluss)" : ""}`);
-    if (reason === "manual") render();
-    return true;
+    LS.set("rz2meta", { ...LS.get("rz2meta", {}), lastBackup: now.toISOString() });
+    setStatus("Sicherung heruntergeladen");
+    render();
   }
-  // Automatisch: bei Schichtbeginn höchstens alle 2 Stunden, Tagesabschluss einmal pro Tag.
+  // Automatisch nur mit eingerichtetem Ordner: bei jedem Schichtbeginn und einmal zum Tagesabschluss.
   function autoBackup(reason) {
-    if (state.mode !== "local") return;
-    const meta = LS.get("rz2meta", {});
-    if (reason === "shift" && meta.lastBackup && Date.now() - new Date(meta.lastBackup) < 2 * 3600000) return;
-    if (reason === "day" && meta.lastDayBackup === isoDate(new Date())) return;
-    exportBackup(reason);
+    if (state.mode !== "local" || !backupDir) return;
+    if (reason === "day" && LS.get("rz2meta", {}).lastDayBackup === isoDate(new Date())) return;
+    writeBackup(reason);
   }
   function importBackup(file) {
     const msg = $("import-msg");
@@ -1574,7 +1649,10 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
       if (a === "pin-cancel") { state.pinStage = null; state.view = "uebersicht"; render(); return; }
       if (a === "open-plan") return setView("plan");
       if (a === "open-roster") { state.view = "dienst"; state.rosterWeek = mondayOf(state.date); state.rosterEdit = true; render(); return; }
-      if (a === "export") return exportBackup("manual");
+      if (a === "export") return downloadBackup();
+      if (a === "backup-dir") return chooseBackupDir();
+      if (a === "backup-now") return writeBackup("manual");
+      if (a === "backup-forget") return forgetBackupDir();
       if (a === "person-del") return deletePerson(t.dataset.pid);
       if (a === "pin-change") { state.pinStage = { mode: "set", next: "admin" }; state.view = "pin"; render(); setTimeout(() => { const el = $("pin-in"); if (el) el.focus(); }, 0); return; }
       if (a === "lock") { state.unlockedUntil = 0; state.view = "uebersicht"; render(); return; }
@@ -1665,6 +1743,7 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
       try { if ((await user.can("data.write")) === false) state.readOnly = true; } catch { /* unbekannt */ }
     }
     loadWho();
+    await loadBackupDir();
     setStatus(statusLine(), state.readOnly || !!backupHint());
     subscribeCfg();
     subscribeMonth();
