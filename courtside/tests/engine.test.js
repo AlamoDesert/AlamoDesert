@@ -173,3 +173,21 @@ test('Zusatzrunde nach Turnierende', () => {
   assert.equal(t.status, 'running');
   assert.equal(t.cur, 1);
 });
+
+test('Rundenzahl nachträglich ändern', () => {
+  const t = E.create(cfg({ mode: 'americano', format: 'p24', entrants: names(8), options: { rounds: 4 } }));
+  t.rounds[0].matches.forEach((m) => E.setResult(t, m.id, { a: 12, b: 12 }));
+  E.advance(t);
+  assert.ok(E.setPlannedRounds(t, 7).ok);
+  assert.equal(t.rounds.length, 7);
+  assert.equal(partnerRepeats(t), 0, 'Ergänzte Runden setzen die Rotation fort');
+  E.setPlannedRounds(t, 1);
+  assert.equal(t.options.rounds, 2, 'Gespielte und laufende Runden bleiben');
+  assert.equal(t.rounds.length, 2);
+  const k = E.create(cfg({ mode: 'kotc', format: 'win', entrants: names(4, 'T'), options: { rounds: 1, roundMinutes: 10 } }));
+  playOut(k);
+  assert.ok(E.setPlannedRounds(k, 3).ok);
+  assert.equal(k.status, 'running');
+  assert.equal(k.cur, 1);
+  assert.equal(E.setPlannedRounds(E.create(cfg({ mode: 'team', format: 'p24', entrants: names(4, 'T') })), 9).ok, false);
+});

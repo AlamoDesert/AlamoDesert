@@ -657,6 +657,7 @@
         ${players.length ? `<div class="list">${rows}</div>` : '<p class="foot">Noch niemand. Teile den Link in der Gruppe oder zeig den QR-Code.</p>'}
         <button class="btn tonal" type="button" data-act="d-add">${icon('plus', 'sm')}Person eintragen</button>
         <p class="foot">${sync.error ? esc(sync.error) : sync.at ? `Stand ${timeDE(sync.at)} · aktualisiert sich alle 15 Sekunden.` : 'Lädt …'}</p></section>
+      <section class="section"><div class="section-h"><h2>Einstellungen</h2></div><div class="list"><button type="button" class="cell tappable" data-act="t-settings"><span class="body"><span class="t1">${esc(info.name)} · ${esc((E.FORMATS[t.cfg.format] || {}).name || '')}</span><span class="t2">${t.cfg.courts} ${t.cfg.courts === 1 ? 'Platz' : 'Plätze'}${t.cfg.options.roundMinutes ? ` · Timer ${t.cfg.options.roundMinutes} Min.` : ''}${t.cfg.options.rounds ? ` · ${t.cfg.options.rounds} Runden` : ''}</span></span><span class="trail">Ändern${icon('chev', 'sm chev')}</span></button></div></section>
       <section class="section"><div class="list"><label class="cell"><span class="body"><span class="t1">Anmeldung offen</span><span class="t2">Geschlossen kannst nur du noch Personen eintragen</span></span><input type="checkbox" class="switch" data-on="d-open" ${t.reg.open ? 'checked' : ''}></label></div></section>`;
     return {
       title: t.name, large: false, body,
@@ -711,7 +712,8 @@
     if (ro) chips.push(ro.name);
     const serve = E.MODES[t.mode].engine === 'rotation' ? E.serveHint(fmt) : null;
     return `<div class="chips">${chips.map((c) => `<span class="chip static">${esc(c)}</span>`).join('')}</div>` +
-      `<p class="foot">${esc([ro && ro.hint, serve].filter(Boolean).join(' '))}</p>`;
+      `<p class="foot">${esc([ro && ro.hint, serve].filter(Boolean).join(' '))}</p>` +
+      `<button type="button" class="btn-text" data-act="t-settings">${icon('gear', 'sm')}Einstellungen ändern</button>`;
   }
 
   function timerBlock(t) {
@@ -995,6 +997,7 @@
 
   function tournamentMenu(anchor, t) {
     const items = [
+      { label: 'Einstellungen ändern', icon: 'gear', fn: () => openWizard({ edit: t }) },
       { label: 'Teilnehmende', icon: 'people', fn: () => openRoster(t) },
       { label: 'Umbenennen', icon: 'edit', fn: async () => {
         const n = await promptDialog('Turnier umbenennen', t.name);
@@ -1015,6 +1018,7 @@
 
   function draftMenu(anchor, t) {
     menu(anchor, [
+      { label: 'Einstellungen ändern', icon: 'gear', fn: () => openWizard({ edit: t }) },
       { label: 'Umbenennen', icon: 'edit', fn: async () => {
         const n = await promptDialog('Turnier umbenennen', t.name);
         if (!n || !n.trim()) return;
@@ -1194,6 +1198,27 @@
       if (m.engine === 'ladder') { W.options.roundMinutes = 12; W.options.ranking = 'position'; }
     };
     setMode(W.mode);
+    // Bearbeiten: vorhandenes Turnier oder offene Anmeldung übernehmen und beim Überblick einsteigen.
+    const edit = preset.edit || null;
+    const isDraft = !!edit && edit.status === 'draft';
+    let origPeople = '';
+    if (edit) {
+      const c = isDraft ? edit.cfg : edit;
+      Object.assign(W, {
+        step: 3, sport: edit.sport, mode: edit.mode, name: edit.name, discipline: c.discipline || 'doubles', format: c.format,
+        courts: isDraft ? c.courts : edit.courts.length, rules: Object.assign({}, c.rules), options: Object.assign({ byePoints: 'avg', roundMinutes: 0 }, c.options),
+        rounds: edit.mode !== 'team' && c.options.rounds ? c.options.rounds : null, signup: isDraft, when: isDraft ? edit.reg.when || '' : ''
+      });
+      if (!isDraft) {
+        const active = edit.entrants.filter((e) => e.active !== false);
+        const built = E.MODES[edit.mode].unit === 'team' && active.length && active.every((e) => Array.isArray(e.members) && e.members.length);
+        const person = (p) => Object.assign({ name: p.name }, p.level ? { level: p.level } : {}, typeof p.rating === 'number' ? { rating: p.rating } : {});
+        W.people = built ? active.flatMap((e) => e.members.map(person)) : active.map(person);
+        W.teamsFixed = E.MODES[edit.mode].unit === 'team' && !built;
+        origPeople = JSON.stringify([W.people, W.teamsFixed]);
+        if (edit.timer && edit.timer.dur) W.options.roundMinutes = Math.round(edit.timer.dur / 60);
+      }
+    }
     const m = () => E.MODES[W.mode];
     const fmt = () => E.FORMATS[W.format];
     const singles = () => W.discipline === 'singles';
@@ -1240,7 +1265,8 @@
 
     /* Schritt 2: Teilnehmende */
     const stepPeople = () => {
-      const signupSeg = online ? `<div class="seg"><button type="button" data-act="w-signup" data-v="1" aria-pressed="${W.signup}">Per Link anmelden</button><button type="button" data-act="w-signup" data-v="0" aria-pressed="${!W.signup}">Selbst eintragen</button></div>` : '';
+      if (isDraft) return section('Teilnehmende', '<div class="card"><p>Die Anmeldung läuft bereits. Wer dabei ist, siehst und änderst du in der Anmeldeliste.</p></div>');
+      const signupSeg = online && !edit ? `<div class="seg"><button type="button" data-act="w-signup" data-v="1" aria-pressed="${W.signup}">Per Link anmelden</button><button type="button" data-act="w-signup" data-v="0" aria-pressed="${!W.signup}">Selbst eintragen</button></div>` : '';
       if (W.signup) {
         return section('Wie kommen die Namen rein?', `${signupSeg}<div class="card"><p>Du bekommst einen Link und QR-Code. Jede Person trägt sich mit Name und Level ein${buildTeams() ? ', die App bildet daraus die Teams' : ''}. Du siehst die Liste live und startest, wenn alle da sind.</p>
           <div class="field"><label for="w-when">Termin (optional)</label><input class="input" id="w-when" value="${esc(W.when)}" placeholder="z. B. Fr 18:00, Halle 2" maxlength="60" autocomplete="off"></div></div>`);
@@ -1251,7 +1277,7 @@
         <button type="button" class="lvl-chip lv-${esc(p.level || 'none')}" data-act="w-lvl" data-i="${i}">${esc(E.levelLabel(p) || 'Level')}</button>
         <button type="button" class="iconbtn" data-act="w-del" data-i="${i}" aria-label="${esc(p.name)} entfernen">${icon('close', 'sm')}</button></div>`).join('');
       const placeholder = unitWord() === 'Teams' ? 'Teamname, z. B. Anna / Ben' : 'Name';
-      return section(online ? 'Wie kommen die Namen rein?' : 'Teilnehmende', signupSeg + fixedSeg)
+      return (signupSeg || fixedSeg ? section(signupSeg ? 'Wie kommen die Namen rein?' : 'Teilnehmende', signupSeg + fixedSeg) : '')
         + section(`${unitWord()} (${W.people.length})`, `<div class="addrow"><input class="input" id="w-add" placeholder="${placeholder}" autocomplete="off" autocapitalize="words" enterkeyhint="next">
           <button class="iconbtn tint" type="button" data-act="w-add" aria-label="Hinzufügen">${icon('plus')}</button></div>
           <div class="chips"><button class="chip" type="button" data-act="w-paste">${icon('list', 'sm')}Liste einfügen</button><button class="chip" type="button" data-act="w-fill">${icon('people', 'sm')}Mit Platzhaltern füllen</button></div>
@@ -1317,9 +1343,9 @@
     };
 
     const STEP_VIEWS = [stepMode, stepPeople, stepPlay, stepCheck];
-    const finalLabel = () => (W.signup ? 'Anmeldung öffnen' : buildTeams() ? 'Teams bilden' : 'Turnier starten');
-    const html = `<div class="scrim"></div><section class="page" role="dialog" aria-modal="true" aria-label="Neues Turnier">
-      <div class="sheet-h"><div class="l">${PLATFORM === 'ios' ? '<button class="btn-text" type="button" data-act="w-close">Abbrechen</button>' : ''}</div><div class="t">Neues Turnier</div>
+    const finalLabel = () => (edit ? 'Übernehmen' : W.signup ? 'Anmeldung öffnen' : buildTeams() ? 'Teams bilden' : 'Turnier starten');
+    const html = `<div class="scrim"></div><section class="page" role="dialog" aria-modal="true" aria-label="${edit ? 'Turnier einstellen' : 'Neues Turnier'}">
+      <div class="sheet-h"><div class="l">${PLATFORM === 'ios' ? '<button class="btn-text" type="button" data-act="w-close">Abbrechen</button>' : ''}</div><div class="t">${edit ? 'Einstellungen' : 'Neues Turnier'}</div>
       <div class="r">${PLATFORM === 'ios' ? '' : `<button class="iconbtn" type="button" data-act="w-close" aria-label="Schließen">${icon('close')}</button>`}</div></div>
       <div class="wsteps" id="w-steps"></div>
       <div class="page-scroll"><div class="page-b"><div class="inner" id="w-body"></div></div><button type="button" class="more-hint" id="w-more" hidden>${icon('chevd', 'sm')}Weitere Einstellungen</button></div>
@@ -1410,6 +1436,56 @@
       }
     };
 
+    // Änderungen übernehmen: offene Anmeldung direkt, laufendes Turnier ohne Neuauslosung, wenn möglich.
+    const applyEdit = async () => {
+      const c = cfg(buildTeams() ? null : W.people);
+      if (isDraft) {
+        if (!W.rounds) delete c.options.rounds;
+        try { await API.call('PATCH', `/events/${edit.reg.eventId}`, { name: c.name, sport: c.sport, mode: c.mode, when: W.when.trim() }, edit.reg.adminKey); }
+        catch (e) { toast(e.message); return; }
+        Object.assign(edit, { name: c.name, sport: c.sport, mode: c.mode, updatedAt: new Date().toISOString() });
+        edit.cfg = { discipline: c.discipline, format: c.format, courts: c.courts, rules: c.rules, options: c.options };
+        edit.reg.when = W.when.trim();
+        Store.save();
+        await closeLayer(o);
+        render();
+        toast('Einstellungen gespeichert');
+        return;
+      }
+      const t = edit;
+      const structural = c.sport !== t.sport || c.discipline !== t.discipline || c.mode !== t.mode || c.format !== t.format
+        || c.courts !== t.courts.length || JSON.stringify([W.people, W.teamsFixed]) !== origPeople;
+      if (!structural) {
+        await closeLayer(o);
+        mutate(t, 'Einstellungen', () => {
+          t.name = c.name;
+          t.rules = c.rules;
+          ['byePoints', 'balance', 'scheme', 'firstRound', 'ranking'].forEach((k) => { if (k in c.options) t.options[k] = c.options[k]; });
+          applyRoundMinutes(t, Number(c.options.roundMinutes) || (timerNeeded() ? 12 : 0));
+          if (t.mode !== 'team' && W.rounds && W.rounds !== t.options.rounds) return E.setPlannedRounds(t, W.rounds);
+          return { ok: true };
+        });
+        toast('Einstellungen gespeichert', { label: 'Rückgängig', fn: () => undo(getT(t.id)) });
+        return;
+      }
+      const played = t.rounds.some((r) => r.startedAt || r.matches.some((x) => x.score));
+      if (played && !(await confirmDialog('Neu auslosen?', 'Diese Änderung braucht eine neue Auslosung. Bisherige Ergebnisse werden gelöscht. Mit „Rückgängig“ kommst du zurück.', 'Neu auslosen', true))) return;
+      const rebuild = async (entrants) => {
+        await closeLayer(o);
+        const r = mutate(t, 'Neu ausgelost', () => {
+          const nt = E.create(cfg(entrants));
+          const keep = { id: t.id, createdAt: t.createdAt, reg: t.reg };
+          Object.keys(t).forEach((k) => { delete t[k]; });
+          Object.assign(t, nt, keep);
+          if (!keep.reg) delete t.reg;
+          return { ok: true };
+        });
+        if (r.ok) toast('Neu ausgelost', { label: 'Rückgängig', fn: () => undo(getT(t.id)) });
+      };
+      if (buildTeams()) openTeamBuilder({ people: W.people, mode: W.mode, onStart: rebuild });
+      else rebuild(W.people);
+    };
+
     el.addEventListener('keydown', (ev) => {
       if (ev.key === 'Enter' && ev.target.id === 'w-add') {
         ev.preventDefault();
@@ -1433,7 +1509,7 @@
       if (!b || !el.contains(b)) return;
       const a = b.dataset.act;
       if (a === 'w-close') {
-        if ((W.people.length || W.step > 0) && !(await confirmDialog('Verwerfen?', 'Die Eingaben gehen verloren.', 'Verwerfen', true))) return;
+        if (!edit && (W.people.length || W.step > 0) && !(await confirmDialog('Verwerfen?', 'Die Eingaben gehen verloren.', 'Verwerfen', true))) return;
         closeLayer(o);
       } else if (a === 'w-back') goStep(W.step - 1);
       else if (a === 'w-goto') goStep(Number(b.dataset.step));
@@ -1445,6 +1521,7 @@
         if (W.step < STEP_VIEWS.length - 1) { goStep(W.step + 1); return; }
         const err = check();
         if (err) { toast(err); return; }
+        if (edit) { applyEdit(); return; }
         if (W.signup) openSignup(b);
         else if (buildTeams()) openTeamBuilder({ people: W.people, mode: W.mode, onStart: launchLocal });
         else launchLocal(W.people);
@@ -1704,6 +1781,7 @@
     undo: () => undo(curT()),
     't-more': (b) => { const t = curT(); if (t) tournamentMenu(b, t); },
     'd-more': (b) => { const t = curT(); if (t) draftMenu(b, t); },
+    't-settings': () => { const t = curT(); if (t) openWizard({ edit: t }); },
     'd-start': async () => {
       const t = curT();
       if (!t) return;

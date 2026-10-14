@@ -641,6 +641,23 @@
     return roundDone(t.rounds[t.cur]) ? advance(t) : { ok: true };
   }
 
+  // Geplante Rundenzahl ändern: gespielte und laufende Runden bleiben, künftige werden ergänzt oder gestrichen.
+  function setPlannedRounds(t, n) {
+    const m = MODES[t.mode];
+    if (m.pairing === 'circle') return { ok: false, error: 'Beim Team-Turnier ergibt sich die Rundenzahl aus der Zahl der Teams.' };
+    n = clamp(Math.round(Number(n) || 0), t.cur + 1, 40);
+    if (m.pairing === 'fixed' && n > t.rounds.length) t.rounds.push(...genAmericanoRounds(t, t.rounds, n - t.rounds.length, 200));
+    if (t.rounds.length > n) t.rounds = t.rounds.slice(0, n);
+    t.options.rounds = n;
+    if (t.status === 'finished' && n > t.cur + 1) {
+      t.status = 'running';
+      t.finishedAt = null;
+      if (roundDone(t.rounds[t.cur])) return advance(t);
+    }
+    touch(t);
+    return { ok: true };
+  }
+
   function startRound(t) {
     const r = currentRound(t);
     if (r && !r.startedAt) r.startedAt = new Date().toISOString();
@@ -863,7 +880,7 @@
     fmtOf, roundTimed, allowDraw, hasStrength,
     nameOf, sideName, ent,
     findMatch, canEdit, setResult, clearResult,
-    advance, addRound, startRound, finish, currentRound, roundDone,
+    advance, addRound, setPlannedRounds, startRound, finish, currentRound, roundDone,
     rename, rosterEditable, addEntrant, setActive,
     standings, podium, next, shareText,
     _internal: { circlePairs, genAmericanoRounds }
