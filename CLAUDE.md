@@ -4,7 +4,9 @@
 
 Digitale Abhak-Checkliste für Früh- und Spätschicht an der Rezeption (Vorlage: Papier-Aushang „Checkliste neue Rezeption").
 
-- `index.html` – komplette App, kein Build. Hauptnutzung: lokal auf dem Rezeptions-MacBook (Chrome, `file://`), Daten in `localStorage` (Schlüssel `rz2*`). Automatische Sicherung per File System Access API in einen einmal gewählten Ordner (Handle in IndexedDB `rz2fs`; Ziel: per OneDrive synchronisierter SharePoint-Ordner): `rezeption-sicherung-aktuell.json` + eine Datei pro Tag, bei jeder Namenswahl und beim letzten Spätschicht-Haken. Ohne Ordner nur manueller Download. Import in der Verwaltung. Als claude.ai-Artifact (Capabilities `db` + `user`) läuft derselbe Code mit geteilter DB.
+- Quellcode in `app/app.js` (+ `app/app.css`): `mount(container, opts)` rendert die App in einen Shadow-Root, `createSpDb(opts)` ist der SharePoint-Speicher. **Nicht `index.html` bearbeiten** – `node tools/build.mjs` erzeugt daraus `index.html` (eigenständig: Mac lokal / claude.ai-Artifact) und `sharepoint/src/webparts/rezeption/app.gen.ts`.
+- Speicher-Modi (`opts.mode`): `auto` (claude.ai-DB falls vorhanden, sonst `localStorage` `rz2*` mit Sicherung per File System Access in einen gewählten Ordner), `sharepoint` (JSON-Dateien in der Dokumentbibliothek `RezeptionDaten`: `config/plan.json`, `days/JJJJ-MM/JJJJ-MM-TT.json`; Schreiben per Lesen-Mergen-Schreiben mit ETag/If-Match, Abgleich per Abfrage alle 15 s; Versionsverlauf der Bibliothek = Sicherung). Import einer lokalen Sicherung schreibt in SharePoint und überschreibt vorhandenes Team/PIN nicht.
+- SharePoint-Webpart: `sharepoint/` (SPFx 1.23.2, ohne Framework). Bauen: `node tools/build.mjs && cd sharepoint && npm install && npm run build` → `sharepoint/sharepoint/solution/rezeption-checkliste.sppkg` (wird committet). Admin-Anleitung: `sharepoint/ANLEITUNG-ADMIN.md`. Neue Version: `version` in `sharepoint/config/package-solution.json` erhöhen.
 - Personen ohne Login: Team (`cfg.people`) und Dienstplan (`cfg.roster[datum] = {frueh, spaet}`) in der Konfiguration; zu Schichtbeginn Namensauswahl, aktive Person pro Gerät in `rz2who`. `by` in Haken/Notizen/Logs = Personen-ID.
 - Verwaltung, Aufgaben-Plan und Dienstplan-Bearbeitung hinter Leitungs-PIN (`cfg.adminPin`, FNV-Hash) – nur Schutz vor versehentlichen Änderungen, keine echte Zugriffskontrolle.
 - `DEFAULT_PLAN` im Script ist der Ausgangsplan (Aushang). Unter Verwaltung › Aufgaben-Plan lässt er sich ändern; welcher Plan gilt, entscheidet `resolvePlan`: Tagesanpassung (`days/<datum>.plan`) > Wochentag-Vorlage (`config/plan.weekday["0"-"6"]`, 0 = Sonntag) > Standard (`config/plan.base`) > `DEFAULT_PLAN`. Alles aus der DB läuft durch `normalizePlan`.
@@ -28,6 +30,6 @@ Live unter https://courtside-turniere.netlify.app (Netlify-Site-ID `5bae8eb4-f74
 
 ## Testen
 
-Checkliste: kein Test-Setup. `index.html` direkt im Browser öffnen (lokaler Modus) und Früh/Spät/Monat durchklicken.
+Checkliste: kein automatisiertes Test-Setup. Lokal: `index.html` im Browser öffnen. SharePoint ohne Tenant: `node tools/sp-mock.mjs 8899` startet einen Nachbau der genutzten REST-Endpunkte und liefert `http://localhost:8899/sites/rez/test.html` (App im SharePoint-Modus, Abgleich jede Sekunde). `/__dump` zeigt die gespeicherten Dateien, `/__fail?n=3` lässt die nächsten Schreibzugriffe scheitern.
 
 Courtside (im Ordner `courtside/`): `npm test` prüft Engine und API. `npm run dev` startet `dev/server.mjs` auf Port 8888: liefert `public/` aus und beantwortet `/api/*` mit einem Speicher im Arbeitsspeicher, so lässt sich die Online-Anmeldung lokal mit mehreren Browserfenstern durchspielen.

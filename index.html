@@ -1,420 +1,676 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Rezeption Schichtcheck</title>
+<!-- GENERIERT von tools/build.mjs aus app/app.js und app/app.css – nicht direkt bearbeiten. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
 <style>
-/* Layout: Querformat = ein Bildschirm ohne Seiten-Scroll (Kopfzeile + Spalten, die nur intern scrollen).
-   Hochformat/Handy = normale Seite. Ansichten: Übersicht, Früh, Spät (Phasen als Spalten), Monat, Plan (Editor). */
-:root {
-  --bg: #eef2f6; --surface: #ffffff; --surface-2: #f6f8fb; --ink: #142130; --muted: #5a6879; --line: #d7dee7;
-  --accent: #1d5bb8; --accent-soft: #e2ecfa; --done: #23804f; --done-soft: #e1f2e8;
-  --warn: #c0392b; --warn-soft: #fbe6e3; --na: #8a96a5; --now: #b8700a; --now-soft: #fdf1dc;
-  --f-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
-  --f-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --r: 10px;
-}
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #0f1620; --surface: #17212d; --surface-2: #1c2836; --ink: #e6edf5; --muted: #95a3b4; --line: #2b3a4b;
-  --accent: #6aa2f2; --accent-soft: #1d3150; --done: #4cc184; --done-soft: #173627;
-  --warn: #f07a6c; --warn-soft: #3d1f1c; --na: #6d7a8a; --now: #f0b04f; --now-soft: #3a2c14; color-scheme: dark } }
-:root[data-theme="dark"] {
-  --bg: #0f1620; --surface: #17212d; --surface-2: #1c2836; --ink: #e6edf5; --muted: #95a3b4; --line: #2b3a4b;
-  --accent: #6aa2f2; --accent-soft: #1d3150; --done: #4cc184; --done-soft: #173627;
-  --warn: #f07a6c; --warn-soft: #3d1f1c; --na: #6d7a8a; --now: #f0b04f; --now-soft: #3a2c14; color-scheme: dark }
-
-* { box-sizing: border-box }
-body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.35 }
-button, input, select, textarea { font: inherit; color: inherit }
-button { cursor: pointer }
-button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, [role="button"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
-.wrap { padding-inline: 16px; padding-block: 0 24px; max-width: 1100px; margin: 0 auto }
-h2, h3 { text-wrap: balance }
-
-/* Kopfzeile */
-header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 10px 8px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap }
-.brand { font-family: var(--f-display); font-weight: 700; font-size: 20px; letter-spacing: .02em; text-transform: uppercase; margin: 0; line-height: 1.05 }
-.brand small { display: block; font-family: var(--f-body); font-weight: 500; font-size: 12px; letter-spacing: .02em; color: var(--muted); text-transform: none }
-.clock { font-family: var(--f-display); font-weight: 700; font-size: 34px; line-height: 1; font-variant-numeric: tabular-nums }
-.clock small { font-family: var(--f-body); font-size: 13px; font-weight: 500; color: var(--muted); margin-left: 6px }
-.tabs { display: flex; gap: 4px; overflow-x: auto; max-width: 100% }
-.tab { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 11px; display: inline-flex; gap: 7px; align-items: baseline; white-space: nowrap }
-.tab b { font-family: var(--f-display); font-size: 16px; letter-spacing: .03em; text-transform: uppercase }
-.tab .meta { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums }
-.tab[aria-selected="true"] { border-color: var(--accent); background: var(--accent-soft) }
-.tab[aria-selected="true"] b { color: var(--accent) }
-.datenav { display: flex; align-items: center; gap: 4px; margin-left: auto }
-.iconbtn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; width: 34px; height: 34px; font-size: 18px; line-height: 1 }
-.datebtn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; height: 34px; padding: 0 10px; font-weight: 600; font-variant-numeric: tabular-nums; position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: 6px }
-.datebtn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100% }
-.datebtn .src { font-size: 11px; font-weight: 600; color: var(--now) }
-.todaybtn { border: 0; background: none; color: var(--accent); font-weight: 600; padding: 0 4px; height: 34px }
-.status { font-size: 12px; color: var(--muted); width: 100% }
-.status.err { color: var(--warn) }
-
-/* Karten */
-.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); min-width: 0; overflow: hidden; display: flex; flex-direction: column }
-.chead { display: flex; align-items: baseline; gap: 8px; padding: 9px 12px 7px; border-bottom: 1px solid var(--line); background: var(--surface-2); flex-wrap: wrap; flex: none }
-.chead h2 { margin: 0; font-family: var(--f-display); font-size: 17px; letter-spacing: .04em; text-transform: uppercase; flex: 1; min-width: 0 }
-.chead .hint { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums }
-.cbody { min-height: 0 }
-.pill { font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; padding: 2px 8px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); white-space: nowrap }
-.pill.now { background: var(--now-soft); color: var(--now) }
-.pill.late { background: var(--warn-soft); color: var(--warn) }
-.pill.done { background: var(--done-soft); color: var(--done) }
-.pill.later { background: var(--surface-2); color: var(--muted); box-shadow: inset 0 0 0 1px var(--line) }
-.empty { color: var(--muted); padding: 12px }
-.sublabel { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 9px 12px 3px; border-top: 1px solid var(--line); list-style: none }
-.sublabel:first-child { border-top: 0 }
-.sublabel.late { color: var(--warn) }
-.sublabel.now { color: var(--now) }
-
-/* Abhak-Zeilen */
-ul.items { list-style: none; margin: 0; padding: 0 }
-ul.items li { display: flex; align-items: stretch; border-top: 1px solid var(--line) }
-ul.items li:first-child { border-top: 0 }
-.check { flex: 1; min-width: 0; display: flex; gap: 10px; align-items: flex-start; text-align: left; background: none; border: 0; padding: 9px 12px; min-height: 44px }
-.box { flex: none; width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--line); display: grid; place-items: center; transition: background .15s, border-color .15s }
-.box svg { width: 14px; height: 14px; opacity: 0 }
-.txt { min-width: 0 }
-.txt .label { font-weight: 500 }
-.txt .sub { display: block; font-size: 12.5px; color: var(--muted); margin-top: 1px }
-.txt .who { display: block; font-size: 12px; color: var(--done); margin-top: 2px; font-variant-numeric: tabular-nums }
-.txt .tag { font-size: 11px; font-weight: 600; color: var(--warn); margin-left: 6px; white-space: nowrap }
-li.important .label { color: var(--warn) }
-li.done .box { background: var(--done); border-color: var(--done) }
-li.done .box svg { opacity: 1 }
-li.done .label { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line) }
-li.na .box { border-style: dashed; border-color: var(--na) }
-li.na .label, li.na .who { color: var(--na) }
-li.upcoming .label { color: var(--muted) }
-.skip { flex: none; border: 0; border-left: 1px solid var(--line); background: none; color: var(--muted); font-size: 12px; font-weight: 600; padding: 0 10px }
-li.na .skip { color: var(--ink); background: var(--surface-2) }
-
-/* Daueraufgaben */
-.always { list-style: none; margin: 0; padding: 0 }
-.always li { border-top: 1px solid var(--line); display: flex; align-items: stretch }
-.always li:first-child { border-top: 0 }
-.always .tap { flex: 1; min-width: 0; display: flex; gap: 10px; align-items: flex-start; border: 0; background: none; text-align: left; padding: 8px 12px; min-height: 44px }
-.always .tap:disabled { cursor: default }
-.always .ic { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; transition: transform .2s }
-.always .ic svg { width: 14px; height: 14px }
-.always .tap:not(:disabled):active .ic { transform: rotate(-120deg) }
-.always .important .label { color: var(--warn) }
-.always .label { font-weight: 500 }
-.always .sub { display: block; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums }
-.always .last { display: block; font-size: 12px; color: var(--done); font-variant-numeric: tabular-nums }
-.always .cnt { flex: none; align-self: center; margin-left: auto; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--done); background: var(--done-soft); border-radius: 99px; padding: 2px 8px }
-.always .cnt.zero { color: var(--muted); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line) }
-.always li.due { background: var(--now-soft) }
-.always li.due .ic { background: var(--now); color: #fff }
-.always li.due .sub b { color: var(--now) }
-.always li.over { background: var(--warn-soft) }
-.always li.over .ic { background: var(--warn); color: #fff }
-.always li.over .sub b { color: var(--warn) }
-.always li.ok .ic { background: var(--done-soft); color: var(--done) }
-.always .undo { flex: none; border: 0; border-left: 1px solid var(--line); background: none; color: var(--muted); font-size: 12px; font-weight: 600; padding: 0 10px }
-
-/* Schichtplan */
-.plan { list-style: none; margin: 0; padding: 0 }
-.plan li { border-top: 1px solid var(--line) }
-.plan li:first-child { border-top: 0 }
-.plan button { width: 100%; border: 0; background: none; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 7px 12px; text-align: left }
-.plan .t { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--muted) }
-.plan .n small { color: var(--muted); font-variant-numeric: tabular-nums; margin-left: 6px }
-.plan li.cur { background: var(--now-soft) }
-.plan li.cur .t { color: var(--now) }
-.shiftsum { display: flex; align-items: center; gap: 10px; padding: 9px 12px 4px }
-.shiftsum b { font-family: var(--f-display); font-size: 16px; text-transform: uppercase; letter-spacing: .04em }
-.shiftsum span { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; margin-left: auto }
-.bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin: 0 12px 8px }
-.bar i { display: block; height: 100%; background: var(--done); transition: width .3s }
-.othersum { border-top: 1px solid var(--line); padding: 9px 12px; font-size: 13px; color: var(--muted); background: none; border-left: 0; border-right: 0; border-bottom: 0; width: 100%; text-align: left }
-.othersum b { color: var(--warn) }
-
-/* Übergabe */
-.note { padding: 9px 12px; display: grid; gap: 5px }
-.note + .note { border-top: 1px solid var(--line) }
-.note label { font-size: 12px; font-weight: 600; color: var(--muted) }
-.note textarea { width: 100%; min-height: 60px; resize: vertical; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); padding: 7px 9px }
-.note .read { background: var(--now-soft); border-radius: 8px; padding: 7px 9px; white-space: pre-wrap; overflow-wrap: anywhere }
-.note .read.none { background: var(--surface-2); color: var(--muted) }
-.note .saved { font-size: 11px; color: var(--muted); min-height: 14px }
-
-/* Übersicht */
-.dash { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-top: 12px }
-.dash > .col { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0 }
-
-/* Schichtansicht: Fahrplan */
-.shiftview { display: grid; grid-template-columns: minmax(200px, 250px) minmax(0, 1fr); gap: 12px; margin-top: 12px }
-.side { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0 }
-.board { min-width: 0 }
-.board-in { display: grid; gap: 8px }
-.stop { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; break-inside: avoid; margin-bottom: 8px }
-.stop-head { display: grid; grid-template-columns: 22px 92px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 12px; width: 100%; border: 0; background: none; text-align: left }
-.stop-head .mark { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; background: var(--surface-2); color: var(--muted); box-shadow: inset 0 0 0 1px var(--line) }
-.stop-head .time { font-family: var(--f-display); font-weight: 700; font-size: 17px; font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap }
-.stop-head .ttl { font-family: var(--f-display); font-weight: 700; font-size: 17px; letter-spacing: .03em; text-transform: uppercase; min-width: 0 }
-.stop-head .ttl small { font-family: var(--f-body); font-weight: 500; font-size: 12px; letter-spacing: 0; text-transform: none; color: var(--muted); margin-left: 8px }
-.stop.is-done { background: transparent; border-style: dashed }
-.stop.is-done .mark { background: var(--done); color: #fff; box-shadow: none }
-.stop.is-done .ttl, .stop.is-done .time { color: var(--muted) }
-.stop.is-done .stop-head { padding-block: 5px }
-.stop.is-now { border-color: var(--now); box-shadow: 0 0 0 1px var(--now) }
-.stop.is-now .stop-head { background: var(--now-soft) }
-.stop.is-now .mark { background: var(--now); color: #fff; box-shadow: none }
-.stop.is-now .time { color: var(--now) }
-.stop.is-late { border-color: var(--warn) }
-.stop.is-late .stop-head { background: var(--warn-soft) }
-.stop.is-late .mark { background: var(--warn); color: #fff; box-shadow: none }
-.stop.is-late .time { color: var(--warn) }
-.stop .items { border-top: 1px solid var(--line) }
-.stop.is-later .check { padding-block: 5px; min-height: 34px }
-.stop.is-later .box { width: 18px; height: 18px; border-radius: 5px }
-.stop.is-later .txt .label { color: var(--muted); font-weight: 400 }
-.stop.is-later .txt .sub { display: none }
-.stop .phint { font-size: 12px; color: var(--muted); padding: 0 12px 6px 146px }
-.stop.is-now .phint { background: var(--now-soft) }
-.stop.is-late .phint { background: var(--warn-soft) }
-@media (max-width: 480px) { .stop .phint { padding-left: 44px } .stop-head { grid-template-columns: 22px 80px minmax(0, 1fr) auto; gap: 8px } }
-
-/* Monat */
-.monthhead { display: flex; align-items: center; gap: 8px; margin-top: 14px }
-.monthhead h2 { margin: 0; font-family: var(--f-display); font-size: 22px; text-transform: uppercase; letter-spacing: .03em; flex: 1 }
-.mscroll { overflow-x: auto; margin-top: 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface) }
-table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 13px; width: 100% }
-.mgrid th, .mgrid td { padding: 0; border-bottom: 1px solid var(--line); text-align: center }
-.mgrid thead th { font-weight: 600; color: var(--muted); padding: 8px 4px; font-size: 12px }
-.mgrid th.rowh { text-align: left; padding: 8px 12px; white-space: nowrap; font-family: var(--f-display); text-transform: uppercase; letter-spacing: .04em; font-size: 14px; position: sticky; left: 0; background: var(--surface) }
-.mgrid tr:last-child td, .mgrid tr:last-child th { border-bottom: 0 }
-.mcell { border: 0; background: none; width: 100%; min-width: 34px; height: 36px; font-size: 12px; font-weight: 600 }
-.mcell.full { background: var(--done-soft); color: var(--done) }
-.mcell.part { background: var(--now-soft); color: var(--now) }
-.mcell.none, .mcell.future { color: var(--line) }
-.mcell.sel { box-shadow: inset 0 0 0 2px var(--accent) }
-.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 10px }
-.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 4px }
-.legend .lg-full { background: var(--done-soft); box-shadow: inset 0 0 0 1px var(--done) }
-.legend .lg-part { background: var(--now-soft); box-shadow: inset 0 0 0 1px var(--now) }
-
-/* Plan-Editor */
-.edbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 12px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r) }
-.edbar .info { flex: 1; min-width: 220px; font-size: 13px; color: var(--muted) }
-.edbar .info b { color: var(--ink) }
-.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 7px 12px; font-weight: 600; font-size: 14px; white-space: nowrap }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff }
-.btn.ghost { border-color: transparent; background: none; color: var(--accent) }
-.btn.danger { color: var(--warn) }
-.btn:disabled { opacity: .5; cursor: default }
-.editor { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px }
-.edshift { display: grid; gap: 10px; align-content: start; min-width: 0 }
-.edshift > h2 { margin: 0; font-family: var(--f-display); font-size: 20px; text-transform: uppercase; letter-spacing: .03em; display: flex; gap: 10px; align-items: center; flex-wrap: wrap }
-.edshift > h2 label { font-family: var(--f-body); font-size: 13px; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--muted); display: inline-flex; gap: 6px; align-items: center }
-.ed-phase .chead { gap: 6px; align-items: center }
-.in { border: 1px solid var(--line); background: var(--surface-2); border-radius: 6px; padding: 5px 8px; min-width: 0 }
-.in.title { font-weight: 600; flex: 1 1 140px }
-.in.time { width: 64px; text-align: center; font-variant-numeric: tabular-nums }
-.ed-items { list-style: none; margin: 0; padding: 0 }
-.ed-items li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px 8px; padding: 7px 10px; border-top: 1px solid var(--line); align-items: start }
-.ed-items li:first-child { border-top: 0 }
-.ed-items .fields { display: grid; gap: 4px; min-width: 0 }
-.ed-items .fields .in.sub { font-size: 13px }
-.ed-items .opts { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--muted); align-items: center }
-.ed-items .opts label { display: inline-flex; gap: 4px; align-items: center }
-.ed-items .opts select { font-size: 12px; padding: 2px 4px }
-.order { display: grid; gap: 2px }
-.mini { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; width: 28px; height: 24px; font-size: 12px; line-height: 1; padding: 0 }
-.mini:disabled { opacity: .35; cursor: default }
-.mini.del { color: var(--warn) }
-.mini.del.confirm { width: auto; padding: 0 6px; background: var(--warn); color: #fff; border-color: var(--warn) }
-.addrow { border: 0; border-top: 1px dashed var(--line); background: none; color: var(--accent); font-weight: 600; font-size: 13px; padding: 8px 12px; text-align: left; width: 100% }
-
-/* Person / Dienst */
-.whobtn { border: 1px solid var(--line); background: var(--surface); border-radius: 99px; height: 34px; padding: 0 12px 0 6px; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; white-space: nowrap }
-.whobtn .av { width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-size: 11px; font-weight: 700 }
-.whobtn.none { border-color: var(--warn); color: var(--warn) }
-.whobtn.none .av { background: var(--warn) }
-.whobtn small { font-weight: 500; color: var(--muted) }
-.duty { display: flex; gap: 6px 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); padding: 8px 12px; border-top: 1px solid var(--line) }
-.duty b { color: var(--ink) }
-.chip { display: inline-flex; align-items: center; gap: 4px; border-radius: 99px; padding: 2px 9px; font-size: 13px; font-weight: 600; background: var(--accent-soft); color: var(--accent); border: 1px solid transparent; white-space: nowrap }
-button.chip { cursor: pointer }
-button.chip.off { background: var(--surface); color: var(--muted); border-color: var(--line); font-weight: 500 }
-
-/* Namensauswahl */
-.overlay { position: fixed; inset: 0; z-index: 20; background: rgba(15, 22, 32, .55); display: grid; place-items: center; padding: 16px }
-.dialog { background: var(--surface); color: var(--ink); border-radius: 14px; width: min(640px, 100%); max-height: calc(100% - 32px); overflow: auto; padding: 20px; display: grid; gap: 14px; box-shadow: 0 20px 60px rgba(0, 0, 0, .3) }
-.dialog h2 { margin: 0; font-family: var(--f-display); font-size: 26px; text-transform: uppercase; letter-spacing: .03em }
-.dialog p { margin: 0; color: var(--muted) }
-.dialog .grp { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted) }
-.names { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px }
-.namebtn { border: 1px solid var(--line); background: var(--surface-2); border-radius: 10px; padding: 14px 12px; font-size: 17px; font-weight: 600; text-align: left; display: flex; gap: 10px; align-items: center }
-.namebtn .av { flex: none; width: 30px; height: 30px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font-size: 12px; font-weight: 700 }
-.namebtn.sched { border-color: var(--accent); background: var(--accent-soft) }
-.namebtn.sched .av { background: var(--accent); color: #fff }
-.dialog .row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end }
-
-/* Dienstplan */
-.roster { overflow-x: auto; margin-top: 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface) }
-.roster table { border-collapse: collapse; width: 100%; min-width: 760px }
-.roster th, .roster td { border-bottom: 1px solid var(--line); border-left: 1px solid var(--line); padding: 8px; vertical-align: top; text-align: left }
-.roster tr:last-child td, .roster tr:last-child th { border-bottom: 0 }
-.roster thead th { font-size: 13px; color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums }
-.roster thead th.today { color: var(--accent); background: var(--accent-soft) }
-.roster th.rowh { border-left: 0; font-family: var(--f-display); text-transform: uppercase; letter-spacing: .04em; font-size: 15px; white-space: nowrap; width: 90px }
-.roster td .cell { display: flex; flex-wrap: wrap; gap: 4px }
-.roster td .empty { padding: 0; font-size: 12px }
-
-/* Verwaltung */
-.admin { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-top: 12px; align-items: start }
-.admin .card .cbody { padding: 12px; display: grid; gap: 10px }
-.admin p { margin: 0; font-size: 13px; color: var(--muted) }
-.people { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px }
-.people li { display: flex; gap: 6px; align-items: center }
-.people .in { flex: 1 }
-.pinform { max-width: 360px; margin: 40px auto 0; display: grid; gap: 10px; text-align: center }
-.pinform h2 { margin: 0; font-family: var(--f-display); font-size: 24px; text-transform: uppercase }
-.pinform .in { font-size: 22px; text-align: center; letter-spacing: .3em; padding: 10px }
-.pinform p { margin: 0; color: var(--muted); font-size: 13px }
-
-/* Querformat: alles auf einen Bildschirm */
-@media (orientation: landscape) and (min-width: 900px) {
-  html, body { height: 100% }
-  .wrap { max-width: none; height: 100%; display: flex; flex-direction: column; padding-block: 0 12px }
-  header.top { position: static }
-  .status { width: auto; max-width: 220px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
-  main { flex: 1; min-height: 0; display: flex; flex-direction: column }
-  main.scroll { overflow: auto }
-  .dash, .shiftview { flex: 1; min-height: 0; grid-template-rows: minmax(0, 1fr) }
-  .dash > .col > .card, .side > .card { min-height: 0 }
-  .dash > .col > .card.grow, .side > .card.grow { flex: 1 }
-  .card .cbody { overflow-y: auto; flex: 1 }
-  .board { min-height: 0; overflow-y: auto }
-  .board-in { display: block; columns: 2 320px; column-gap: 12px }
-}
-@media (orientation: portrait), (max-width: 899px) {
-  .dash { grid-template-columns: minmax(0, 1fr) }
-  .shiftview { grid-template-columns: minmax(0, 1fr) }
-  .clock { font-size: 28px }
-}
-@media (max-width: 760px) { .editor { grid-template-columns: minmax(0, 1fr) } .datenav { margin-left: 0 } }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important } }
+html, body { margin: 0; background: #eef2f6 }
+@media (prefers-color-scheme: dark) { html:not([data-theme="light"]) body { background: #0f1620 } }
+html[data-theme="dark"] body { background: #0f1620 }
+#rz-host { display: block }
 </style>
-
-<div class="wrap">
-  <header class="top">
-    <h1 class="brand">Rezeption<small id="weekday">–</small></h1>
-    <div class="clock" id="clock">--:--</div>
-    <button class="whobtn none" id="whoBtn" aria-label="Person wechseln"><span class="av" id="whoAv">?</span><span id="whoName">Name wählen</span></button>
-    <div class="tabs" role="tablist">
-      <button class="tab" role="tab" data-view="uebersicht"><b>Übersicht</b></button>
-      <button class="tab" role="tab" data-view="frueh"><b>Früh</b><span class="meta" id="meta-frueh"></span></button>
-      <button class="tab" role="tab" data-view="spaet"><b>Spät</b><span class="meta" id="meta-spaet"></span></button>
-      <button class="tab" role="tab" data-view="dienst"><b>Dienstplan</b></button>
-      <button class="tab" role="tab" data-view="monat"><b>Monat</b></button>
-      <button class="tab" role="tab" data-view="admin"><b>Verwaltung</b></button>
-    </div>
-    <div class="datenav">
-      <button class="iconbtn" id="prev" aria-label="Vorheriger Tag">‹</button>
-      <label class="datebtn"><span id="datelabel">–</span><span class="src" id="datesrc"></span><input type="date" id="datepick" aria-label="Datum wählen"></label>
-      <button class="iconbtn" id="next" aria-label="Nächster Tag">›</button>
-      <button class="todaybtn" id="today">Heute</button>
-    </div>
-    <div class="status" id="status">Verbinde…</div>
-  </header>
-  <main id="main"></main>
-</div>
-<div id="picker" hidden></div>
-
+<div id="rz-host"></div>
 <script>
 (() => {
-  "use strict";
+"use strict";
+const APP_CSS = "/* Wird in einen Shadow-Root geladen (eigenständig und in SharePoint). :host = Wurzel.\n   Layout: Querformat = ein Bildschirm ohne Seiten-Scroll (Kopfzeile + Spalten, die nur intern scrollen).\n   Hochformat/Handy = normale Seite. Ansichten: Übersicht, Früh, Spät (Phasen als Spalten), Monat, Plan (Editor). */\n[hidden] { display: none !important }\n:host {\n  --bg: #eef2f6; --surface: #ffffff; --surface-2: #f6f8fb; --ink: #142130; --muted: #5a6879; --line: #d7dee7;\n  --accent: #1d5bb8; --accent-soft: #e2ecfa; --done: #23804f; --done-soft: #e1f2e8;\n  --warn: #c0392b; --warn-soft: #fbe6e3; --na: #8a96a5; --now: #b8700a; --now-soft: #fdf1dc;\n  --f-display: \"Barlow Condensed\", \"Arial Narrow\", system-ui, sans-serif;\n  --f-body: \"Barlow\", system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  --r: 10px;\n}\n@media (prefers-color-scheme: dark) { :host(:not([data-theme=\"light\"])) {\n  --bg: #0f1620; --surface: #17212d; --surface-2: #1c2836; --ink: #e6edf5; --muted: #95a3b4; --line: #2b3a4b;\n  --accent: #6aa2f2; --accent-soft: #1d3150; --done: #4cc184; --done-soft: #173627;\n  --warn: #f07a6c; --warn-soft: #3d1f1c; --na: #6d7a8a; --now: #f0b04f; --now-soft: #3a2c14; color-scheme: dark } }\n:host([data-theme=\"dark\"]) {\n  --bg: #0f1620; --surface: #17212d; --surface-2: #1c2836; --ink: #e6edf5; --muted: #95a3b4; --line: #2b3a4b;\n  --accent: #6aa2f2; --accent-soft: #1d3150; --done: #4cc184; --done-soft: #173627;\n  --warn: #f07a6c; --warn-soft: #3d1f1c; --na: #6d7a8a; --now: #f0b04f; --now-soft: #3a2c14; color-scheme: dark }\n\n* { box-sizing: border-box }\n:host { display: block; background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.35; -webkit-text-size-adjust: 100% }\n.rz-root { min-height: 100% }\nbutton, input, select, textarea { font: inherit; color: inherit }\nbutton { cursor: pointer }\nbutton:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, [role=\"button\"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }\n.wrap { padding-inline: 16px; padding-block: 0 24px; max-width: 1100px; margin: 0 auto }\nh2, h3 { text-wrap: balance }\n\n/* Kopfzeile */\nheader.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 10px 8px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap }\n.brand { font-family: var(--f-display); font-weight: 700; font-size: 20px; letter-spacing: .02em; text-transform: uppercase; margin: 0; line-height: 1.05 }\n.brand small { display: block; font-family: var(--f-body); font-weight: 500; font-size: 12px; letter-spacing: .02em; color: var(--muted); text-transform: none }\n.clock { font-family: var(--f-display); font-weight: 700; font-size: 34px; line-height: 1; font-variant-numeric: tabular-nums }\n.clock small { font-family: var(--f-body); font-size: 13px; font-weight: 500; color: var(--muted); margin-left: 6px }\n.tabs { display: flex; gap: 4px; overflow-x: auto; max-width: 100% }\n.tab { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 11px; display: inline-flex; gap: 7px; align-items: baseline; white-space: nowrap }\n.tab b { font-family: var(--f-display); font-size: 16px; letter-spacing: .03em; text-transform: uppercase }\n.tab .meta { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums }\n.tab[aria-selected=\"true\"] { border-color: var(--accent); background: var(--accent-soft) }\n.tab[aria-selected=\"true\"] b { color: var(--accent) }\n.datenav { display: flex; align-items: center; gap: 4px; margin-left: auto }\n.iconbtn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; width: 34px; height: 34px; font-size: 18px; line-height: 1 }\n.datebtn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; height: 34px; padding: 0 10px; font-weight: 600; font-variant-numeric: tabular-nums; position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: 6px }\n.datebtn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100% }\n.datebtn .src { font-size: 11px; font-weight: 600; color: var(--now) }\n.todaybtn { border: 0; background: none; color: var(--accent); font-weight: 600; padding: 0 4px; height: 34px }\n.status { font-size: 12px; color: var(--muted); width: 100% }\n.status.err { color: var(--warn) }\n\n/* Karten */\n.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); min-width: 0; overflow: hidden; display: flex; flex-direction: column }\n.chead { display: flex; align-items: baseline; gap: 8px; padding: 9px 12px 7px; border-bottom: 1px solid var(--line); background: var(--surface-2); flex-wrap: wrap; flex: none }\n.chead h2 { margin: 0; font-family: var(--f-display); font-size: 17px; letter-spacing: .04em; text-transform: uppercase; flex: 1; min-width: 0 }\n.chead .hint { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums }\n.cbody { min-height: 0 }\n.pill { font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; padding: 2px 8px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); white-space: nowrap }\n.pill.now { background: var(--now-soft); color: var(--now) }\n.pill.late { background: var(--warn-soft); color: var(--warn) }\n.pill.done { background: var(--done-soft); color: var(--done) }\n.pill.later { background: var(--surface-2); color: var(--muted); box-shadow: inset 0 0 0 1px var(--line) }\n.empty { color: var(--muted); padding: 12px }\n.sublabel { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 9px 12px 3px; border-top: 1px solid var(--line); list-style: none }\n.sublabel:first-child { border-top: 0 }\n.sublabel.late { color: var(--warn) }\n.sublabel.now { color: var(--now) }\n\n/* Abhak-Zeilen */\nul.items { list-style: none; margin: 0; padding: 0 }\nul.items li { display: flex; align-items: stretch; border-top: 1px solid var(--line) }\nul.items li:first-child { border-top: 0 }\n.check { flex: 1; min-width: 0; display: flex; gap: 10px; align-items: flex-start; text-align: left; background: none; border: 0; padding: 9px 12px; min-height: 44px }\n.box { flex: none; width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--line); display: grid; place-items: center; transition: background .15s, border-color .15s }\n.box svg { width: 14px; height: 14px; opacity: 0 }\n.txt { min-width: 0 }\n.txt .label { font-weight: 500 }\n.txt .sub { display: block; font-size: 12.5px; color: var(--muted); margin-top: 1px }\n.txt .who { display: block; font-size: 12px; color: var(--done); margin-top: 2px; font-variant-numeric: tabular-nums }\n.txt .tag { font-size: 11px; font-weight: 600; color: var(--warn); margin-left: 6px; white-space: nowrap }\nli.important .label { color: var(--warn) }\nli.done .box { background: var(--done); border-color: var(--done) }\nli.done .box svg { opacity: 1 }\nli.done .label { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line) }\nli.na .box { border-style: dashed; border-color: var(--na) }\nli.na .label, li.na .who { color: var(--na) }\nli.upcoming .label { color: var(--muted) }\n.skip { flex: none; border: 0; border-left: 1px solid var(--line); background: none; color: var(--muted); font-size: 12px; font-weight: 600; padding: 0 10px }\nli.na .skip { color: var(--ink); background: var(--surface-2) }\n\n/* Daueraufgaben */\n.always { list-style: none; margin: 0; padding: 0 }\n.always li { border-top: 1px solid var(--line); display: flex; align-items: stretch }\n.always li:first-child { border-top: 0 }\n.always .tap { flex: 1; min-width: 0; display: flex; gap: 10px; align-items: flex-start; border: 0; background: none; text-align: left; padding: 8px 12px; min-height: 44px }\n.always .tap:disabled { cursor: default }\n.always .ic { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; transition: transform .2s }\n.always .ic svg { width: 14px; height: 14px }\n.always .tap:not(:disabled):active .ic { transform: rotate(-120deg) }\n.always .important .label { color: var(--warn) }\n.always .label { font-weight: 500 }\n.always .sub { display: block; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums }\n.always .last { display: block; font-size: 12px; color: var(--done); font-variant-numeric: tabular-nums }\n.always .cnt { flex: none; align-self: center; margin-left: auto; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--done); background: var(--done-soft); border-radius: 99px; padding: 2px 8px }\n.always .cnt.zero { color: var(--muted); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line) }\n.always li.due { background: var(--now-soft) }\n.always li.due .ic { background: var(--now); color: #fff }\n.always li.due .sub b { color: var(--now) }\n.always li.over { background: var(--warn-soft) }\n.always li.over .ic { background: var(--warn); color: #fff }\n.always li.over .sub b { color: var(--warn) }\n.always li.ok .ic { background: var(--done-soft); color: var(--done) }\n.always .undo { flex: none; border: 0; border-left: 1px solid var(--line); background: none; color: var(--muted); font-size: 12px; font-weight: 600; padding: 0 10px }\n\n/* Schichtplan */\n.plan { list-style: none; margin: 0; padding: 0 }\n.plan li { border-top: 1px solid var(--line) }\n.plan li:first-child { border-top: 0 }\n.plan button { width: 100%; border: 0; background: none; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 7px 12px; text-align: left }\n.plan .t { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--muted) }\n.plan .n small { color: var(--muted); font-variant-numeric: tabular-nums; margin-left: 6px }\n.plan li.cur { background: var(--now-soft) }\n.plan li.cur .t { color: var(--now) }\n.shiftsum { display: flex; align-items: center; gap: 10px; padding: 9px 12px 4px }\n.shiftsum b { font-family: var(--f-display); font-size: 16px; text-transform: uppercase; letter-spacing: .04em }\n.shiftsum span { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; margin-left: auto }\n.bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin: 0 12px 8px }\n.bar i { display: block; height: 100%; background: var(--done); transition: width .3s }\n.othersum { border-top: 1px solid var(--line); padding: 9px 12px; font-size: 13px; color: var(--muted); background: none; border-left: 0; border-right: 0; border-bottom: 0; width: 100%; text-align: left }\n.othersum b { color: var(--warn) }\n\n/* Übergabe */\n.note { padding: 9px 12px; display: grid; gap: 5px }\n.note + .note { border-top: 1px solid var(--line) }\n.note label { font-size: 12px; font-weight: 600; color: var(--muted) }\n.note textarea { width: 100%; min-height: 60px; resize: vertical; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); padding: 7px 9px }\n.note .read { background: var(--now-soft); border-radius: 8px; padding: 7px 9px; white-space: pre-wrap; overflow-wrap: anywhere }\n.note .read.none { background: var(--surface-2); color: var(--muted) }\n.note .saved { font-size: 11px; color: var(--muted); min-height: 14px }\n\n/* Übersicht */\n.dash { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-top: 12px }\n.dash > .col { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0 }\n\n/* Schichtansicht: Fahrplan */\n.shiftview { display: grid; grid-template-columns: minmax(200px, 250px) minmax(0, 1fr); gap: 12px; margin-top: 12px }\n.side { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0 }\n.board { min-width: 0 }\n.board-in { display: grid; gap: 8px }\n.stop { scroll-margin-top: var(--rz-head, 150px); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; break-inside: avoid; margin-bottom: 8px }\n.stop-head { display: grid; grid-template-columns: 22px 92px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 12px; width: 100%; border: 0; background: none; text-align: left }\n.stop-head .mark { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; background: var(--surface-2); color: var(--muted); box-shadow: inset 0 0 0 1px var(--line) }\n.stop-head .time { font-family: var(--f-display); font-weight: 700; font-size: 17px; font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap }\n.stop-head .ttl { font-family: var(--f-display); font-weight: 700; font-size: 17px; letter-spacing: .03em; text-transform: uppercase; min-width: 0 }\n.stop-head .ttl small { font-family: var(--f-body); font-weight: 500; font-size: 12px; letter-spacing: 0; text-transform: none; color: var(--muted); margin-left: 8px }\n.stop.is-done { background: transparent; border-style: dashed }\n.stop.is-done .mark { background: var(--done); color: #fff; box-shadow: none }\n.stop.is-done .ttl, .stop.is-done .time { color: var(--muted) }\n.stop.is-done .stop-head { padding-block: 5px }\n.stop.is-now { border-color: var(--now); box-shadow: 0 0 0 1px var(--now) }\n.stop.is-now .stop-head { background: var(--now-soft) }\n.stop.is-now .mark { background: var(--now); color: #fff; box-shadow: none }\n.stop.is-now .time { color: var(--now) }\n.stop.is-late { border-color: var(--warn) }\n.stop.is-late .stop-head { background: var(--warn-soft) }\n.stop.is-late .mark { background: var(--warn); color: #fff; box-shadow: none }\n.stop.is-late .time { color: var(--warn) }\n.stop .items { border-top: 1px solid var(--line) }\n.stop.is-later .check { padding-block: 5px; min-height: 34px }\n.stop.is-later .box { width: 18px; height: 18px; border-radius: 5px }\n.stop.is-later .txt .label { color: var(--muted); font-weight: 400 }\n.stop.is-later .txt .sub { display: none }\n.stop .phint { font-size: 12px; color: var(--muted); padding: 0 12px 6px 146px }\n.stop.is-now .phint { background: var(--now-soft) }\n.stop.is-late .phint { background: var(--warn-soft) }\n@media (max-width: 480px) { .stop .phint { padding-left: 44px } .stop-head { grid-template-columns: 22px 80px minmax(0, 1fr) auto; gap: 8px } }\n\n/* Monat */\n.monthhead { display: flex; align-items: center; gap: 8px; margin-top: 14px }\n.monthhead h2 { margin: 0; font-family: var(--f-display); font-size: 22px; text-transform: uppercase; letter-spacing: .03em; flex: 1 }\n.mscroll { overflow-x: auto; margin-top: 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface) }\ntable.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 13px; width: 100% }\n.mgrid th, .mgrid td { padding: 0; border-bottom: 1px solid var(--line); text-align: center }\n.mgrid thead th { font-weight: 600; color: var(--muted); padding: 8px 4px; font-size: 12px }\n.mgrid th.rowh { text-align: left; padding: 8px 12px; white-space: nowrap; font-family: var(--f-display); text-transform: uppercase; letter-spacing: .04em; font-size: 14px; position: sticky; left: 0; background: var(--surface) }\n.mgrid tr:last-child td, .mgrid tr:last-child th { border-bottom: 0 }\n.mcell { border: 0; background: none; width: 100%; min-width: 34px; height: 36px; font-size: 12px; font-weight: 600 }\n.mcell.full { background: var(--done-soft); color: var(--done) }\n.mcell.part { background: var(--now-soft); color: var(--now) }\n.mcell.none, .mcell.future { color: var(--line) }\n.mcell.sel { box-shadow: inset 0 0 0 2px var(--accent) }\n.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 10px }\n.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 4px }\n.legend .lg-full { background: var(--done-soft); box-shadow: inset 0 0 0 1px var(--done) }\n.legend .lg-part { background: var(--now-soft); box-shadow: inset 0 0 0 1px var(--now) }\n\n/* Plan-Editor */\n.edbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 12px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r) }\n.edbar .info { flex: 1; min-width: 220px; font-size: 13px; color: var(--muted) }\n.edbar .info b { color: var(--ink) }\n.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 7px 12px; font-weight: 600; font-size: 14px; white-space: nowrap }\n.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff }\n.btn.ghost { border-color: transparent; background: none; color: var(--accent) }\n.btn.danger { color: var(--warn) }\n.btn:disabled { opacity: .5; cursor: default }\n.editor { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px }\n.edshift { display: grid; gap: 10px; align-content: start; min-width: 0 }\n.edshift > h2 { margin: 0; font-family: var(--f-display); font-size: 20px; text-transform: uppercase; letter-spacing: .03em; display: flex; gap: 10px; align-items: center; flex-wrap: wrap }\n.edshift > h2 label { font-family: var(--f-body); font-size: 13px; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--muted); display: inline-flex; gap: 6px; align-items: center }\n.ed-phase .chead { gap: 6px; align-items: center }\n.in { border: 1px solid var(--line); background: var(--surface-2); border-radius: 6px; padding: 5px 8px; min-width: 0 }\n.in.title { font-weight: 600; flex: 1 1 140px }\n.in.time { width: 64px; text-align: center; font-variant-numeric: tabular-nums }\n.ed-items { list-style: none; margin: 0; padding: 0 }\n.ed-items li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px 8px; padding: 7px 10px; border-top: 1px solid var(--line); align-items: start }\n.ed-items li:first-child { border-top: 0 }\n.ed-items .fields { display: grid; gap: 4px; min-width: 0 }\n.ed-items .fields .in.sub { font-size: 13px }\n.ed-items .opts { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--muted); align-items: center }\n.ed-items .opts label { display: inline-flex; gap: 4px; align-items: center }\n.ed-items .opts select { font-size: 12px; padding: 2px 4px }\n.order { display: grid; gap: 2px }\n.mini { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; width: 28px; height: 24px; font-size: 12px; line-height: 1; padding: 0 }\n.mini:disabled { opacity: .35; cursor: default }\n.mini.del { color: var(--warn) }\n.mini.del.confirm { width: auto; padding: 0 6px; background: var(--warn); color: #fff; border-color: var(--warn) }\n.addrow { border: 0; border-top: 1px dashed var(--line); background: none; color: var(--accent); font-weight: 600; font-size: 13px; padding: 8px 12px; text-align: left; width: 100% }\n\n/* Person / Dienst */\n.whobtn { border: 1px solid var(--line); background: var(--surface); border-radius: 99px; height: 34px; padding: 0 12px 0 6px; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; white-space: nowrap }\n.whobtn .av { width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-size: 11px; font-weight: 700 }\n.whobtn.none { border-color: var(--warn); color: var(--warn) }\n.whobtn.none .av { background: var(--warn) }\n.whobtn small { font-weight: 500; color: var(--muted) }\n.duty { display: flex; gap: 6px 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); padding: 8px 12px; border-top: 1px solid var(--line) }\n.duty b { color: var(--ink) }\n.chip { display: inline-flex; align-items: center; gap: 4px; border-radius: 99px; padding: 2px 9px; font-size: 13px; font-weight: 600; background: var(--accent-soft); color: var(--accent); border: 1px solid transparent; white-space: nowrap }\nbutton.chip { cursor: pointer }\nbutton.chip.off { background: var(--surface); color: var(--muted); border-color: var(--line); font-weight: 500 }\n\n/* Namensauswahl */\n.overlay { position: fixed; inset: 0; z-index: 20; background: rgba(15, 22, 32, .55); display: grid; place-items: center; padding: 16px }\n.dialog { background: var(--surface); color: var(--ink); border-radius: 14px; width: min(640px, 100%); max-height: calc(100% - 32px); overflow: auto; padding: 20px; display: grid; gap: 14px; box-shadow: 0 20px 60px rgba(0, 0, 0, .3) }\n.dialog h2 { margin: 0; font-family: var(--f-display); font-size: 26px; text-transform: uppercase; letter-spacing: .03em }\n.dialog p { margin: 0; color: var(--muted) }\n.dialog .grp { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted) }\n.names { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px }\n.namebtn { border: 1px solid var(--line); background: var(--surface-2); border-radius: 10px; padding: 14px 12px; font-size: 17px; font-weight: 600; text-align: left; display: flex; gap: 10px; align-items: center }\n.namebtn .av { flex: none; width: 30px; height: 30px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font-size: 12px; font-weight: 700 }\n.namebtn.sched { border-color: var(--accent); background: var(--accent-soft) }\n.namebtn.sched .av { background: var(--accent); color: #fff }\n.dialog .row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end }\n\n/* Dienstplan */\n.roster { overflow-x: auto; margin-top: 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface) }\n.roster table { border-collapse: collapse; width: 100%; min-width: 760px }\n.roster th, .roster td { border-bottom: 1px solid var(--line); border-left: 1px solid var(--line); padding: 8px; vertical-align: top; text-align: left }\n.roster tr:last-child td, .roster tr:last-child th { border-bottom: 0 }\n.roster thead th { font-size: 13px; color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums }\n.roster thead th.today { color: var(--accent); background: var(--accent-soft) }\n.roster th.rowh { border-left: 0; font-family: var(--f-display); text-transform: uppercase; letter-spacing: .04em; font-size: 15px; white-space: nowrap; width: 90px }\n.roster td .cell { display: flex; flex-wrap: wrap; gap: 4px }\n.roster td .empty { padding: 0; font-size: 12px }\n\n/* Verwaltung */\n.admin { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-top: 12px; align-items: start }\n.admin .card .cbody { padding: 12px; display: grid; gap: 10px }\n.admin p { margin: 0; font-size: 13px; color: var(--muted) }\n.people { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px }\n.people li { display: flex; gap: 6px; align-items: center }\n.people .in { flex: 1 }\n.pinform { max-width: 360px; margin: 40px auto 0; display: grid; gap: 10px; text-align: center }\n.pinform h2 { margin: 0; font-family: var(--f-display); font-size: 24px; text-transform: uppercase }\n.pinform .in { font-size: 22px; text-align: center; letter-spacing: .3em; padding: 10px }\n.pinform p { margin: 0; color: var(--muted); font-size: 13px }\n\n/* Querformat: alles auf einen Bildschirm */\n@media (orientation: landscape) and (min-width: 900px) {\n  :host { height: var(--rz-h, 100dvh) }\n  .rz-root { height: 100% }\n  .wrap { max-width: none; height: 100%; display: flex; flex-direction: column; padding-block: 0 12px }\n  header.top { position: static }\n  .status { width: auto; max-width: 220px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }\n  main { flex: 1; min-height: 0; display: flex; flex-direction: column }\n  main.scroll { overflow: auto }\n  .dash, .shiftview { flex: 1; min-height: 0; grid-template-rows: minmax(0, 1fr) }\n  .dash > .col > .card, .side > .card { min-height: 0 }\n  .dash > .col > .card.grow, .side > .card.grow { flex: 1 }\n  .card .cbody { overflow-y: auto; flex: 1 }\n  .board { min-height: 0; overflow-y: auto }\n  .board-in { display: block; columns: 2 320px; column-gap: 12px }\n}\n@media (orientation: portrait), (max-width: 899px) {\n  .dash { grid-template-columns: minmax(0, 1fr) }\n  .shiftview { grid-template-columns: minmax(0, 1fr) }\n  .clock { font-size: 28px }\n}\n@media (max-width: 760px) { .editor { grid-template-columns: minmax(0, 1fr) } .datenav { margin-left: 0 } }\n@media (prefers-reduced-motion: reduce) { * { transition: none !important } }\n";
+const MARKUP = "<div class=\"wrap\">\n  <header class=\"top\">\n    <h1 class=\"brand\">Rezeption<small id=\"weekday\">–</small></h1>\n    <div class=\"clock\" id=\"clock\">--:--</div>\n    <button class=\"whobtn none\" id=\"whoBtn\" aria-label=\"Person wechseln\"><span class=\"av\" id=\"whoAv\">?</span><span id=\"whoName\">Name wählen</span></button>\n    <div class=\"tabs\" role=\"tablist\">\n      <button class=\"tab\" role=\"tab\" data-view=\"uebersicht\"><b>Übersicht</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"frueh\"><b>Früh</b><span class=\"meta\" id=\"meta-frueh\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"spaet\"><b>Spät</b><span class=\"meta\" id=\"meta-spaet\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"dienst\"><b>Dienstplan</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"monat\"><b>Monat</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"admin\"><b>Verwaltung</b></button>\n    </div>\n    <div class=\"datenav\">\n      <button class=\"iconbtn\" id=\"prev\" aria-label=\"Vorheriger Tag\">‹</button>\n      <label class=\"datebtn\"><span id=\"datelabel\">–</span><span class=\"src\" id=\"datesrc\"></span><input type=\"date\" id=\"datepick\" aria-label=\"Datum wählen\"></label>\n      <button class=\"iconbtn\" id=\"next\" aria-label=\"Nächster Tag\">›</button>\n      <button class=\"todaybtn\" id=\"today\">Heute</button>\n    </div>\n    <div class=\"status\" id=\"status\">Verbinde…</div>\n  </header>\n  <main id=\"main\"></main>\n</div>\n<div id=\"picker\" hidden></div>";
+
+/* Rezeption Schichtcheck – App-Kern.
+   Wird von tools/build.mjs in index.html (eigenständig) und in das SharePoint-Webpart (app.gen.ts) eingebaut.
+   mount(container, opts) rendert die App in `container` (liegt in einem Shadow-Root) und gibt eine Aufräumfunktion zurück.
+   opts.mode: "auto" (claude.ai-Datenbank falls vorhanden, sonst Browser-Speicher) | "local" | "sharepoint". */
+
+// ---------- SharePoint-Speicher ----------
+// Jedes Dokument ist eine JSON-Datei in einer Dokumentbibliothek (Versionsverlauf = Sicherung).
+// Bietet dieselbe Schnittstelle wie die claude.ai-Datenbank, soweit die App sie nutzt:
+// doc(path).get/set/update/onSnapshot und collection("days").where("month", "==", ym).onSnapshot.
+// Änderungen anderer Geräte kommen per Abfrage alle POLL_MS an.
+function createSpDb(opts) {
+  const POLL_MS = opts.pollMs || 15000;
+  const web = String(opts.webAbsoluteUrl || "").replace(/\/$/, "");
+  const webRel = String(opts.webServerRelativeUrl || "/").replace(/\/$/, "");
+  const title = opts.library || "RezeptionDaten";
+  let libUrl = null;                 // server-relativ, z. B. /sites/team/RezeptionDaten
+  let digest = null, digestUntil = 0;
+  const knownFolders = new Set();
+
+  const q = (v) => encodeURIComponent(String(v).replace(/'/g, "''"));
+  class SpError extends Error { constructor(code, message, status) { super(message); this.code = code; this.status = status; } }
+  async function http(url, init = {}) {
+    let res;
+    try { res = await fetch(url, { credentials: "same-origin", cache: "no-store", ...init }); }
+    catch { throw new SpError("unavailable", "Keine Verbindung zu SharePoint"); }
+    if (res.status === 401 || res.status === 403) throw new SpError("not_granted", "Keine Berechtigung in SharePoint", res.status);
+    return res;
+  }
+  async function getDigest() {
+    if (digest && Date.now() < digestUntil) return digest;
+    const res = await http(`${web}/_api/contextinfo`, { method: "POST", headers: { Accept: "application/json;odata=nometadata" } });
+    if (!res.ok) throw new SpError("unavailable", `contextinfo ${res.status}`, res.status);
+    const j = await res.json();
+    digest = j.FormDigestValue;
+    digestUntil = Date.now() + Math.max(60, (j.FormDigestTimeoutSeconds || 1800) - 120) * 1000;
+    return digest;
+  }
+  async function post(url, body, headers = {}) {
+    const d = await getDigest();
+    return http(url, { method: "POST", body, headers: { Accept: "application/json;odata=nometadata", "X-RequestDigest": d, ...headers } });
+  }
+  // Bibliothek finden oder anlegen (BaseTemplate 101 = Dokumentbibliothek).
+  async function ensureLibrary() {
+    if (libUrl) return libUrl;
+    const url = `${web}/_api/web/lists/GetByTitle('${q(title)}')?$select=Id&$expand=RootFolder`;
+    let res = await http(url, { headers: { Accept: "application/json;odata=nometadata" } });
+    if (res.status === 404) {
+      const c = await post(`${web}/_api/web/lists`, JSON.stringify({ __metadata: { type: "SP.List" }, BaseTemplate: 101, Title: title, Description: "Daten der Rezeptions-Checkliste (nicht manuell bearbeiten)" }),
+        { Accept: "application/json;odata=verbose", "Content-Type": "application/json;odata=verbose" });
+      if (!c.ok) throw new SpError("unavailable", `Bibliothek „${title}“ konnte nicht angelegt werden (${c.status})`, c.status);
+      res = await http(url, { headers: { Accept: "application/json;odata=nometadata" } });
+    }
+    if (!res.ok) throw new SpError("unavailable", `Bibliothek „${title}“ nicht lesbar (${res.status})`, res.status);
+    const j = await res.json();
+    libUrl = (j.RootFolder && j.RootFolder.ServerRelativeUrl) || `${webRel}/${title}`;
+    return libUrl;
+  }
+  // Pfad → Ordner + Dateiname. Tage liegen in Monatsordnern: days/2026-10/2026-10-14.json
+  function locate(path) {
+    const parts = path.split("/");
+    const name = parts.pop() + ".json";
+    if (parts[0] === "days" && parts.length === 1 && /^\d{4}-\d{2}-\d{2}/.test(name)) parts.push(name.slice(0, 7));
+    return { dir: parts, name };
+  }
+  async function ensureFolder(dirParts) {
+    const lib = await ensureLibrary();
+    let cur = lib;
+    for (const p of dirParts) {
+      cur += "/" + p;
+      if (knownFolders.has(cur)) continue;
+      const res = await post(`${web}/_api/web/folders/AddUsingPath(DecodedUrl='${q(cur)}',Overwrite=false)`, null);
+      if (!res.ok && res.status !== 409) {
+        // Ältere Variante als Rückfall
+        const r2 = await post(`${web}/_api/web/folders/add('${q(cur)}')`, null);
+        if (!r2.ok) throw new SpError("unavailable", `Ordner ${cur} (${r2.status})`, r2.status);
+      }
+      knownFolders.add(cur);
+    }
+    return cur;
+  }
+  async function readFile(path) {
+    const lib = await ensureLibrary();
+    const { dir, name } = locate(path);
+    const fileUrl = [lib, ...dir, name].join("/");
+    const res = await http(`${web}/_api/web/GetFileByServerRelativePath(DecodedUrl='${q(fileUrl)}')/$value`);
+    if (res.status === 404) return { exists: false, data: undefined, etag: null, fileUrl };
+    if (!res.ok) throw new SpError("unavailable", `Lesen ${path} (${res.status})`, res.status);
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch { throw new SpError("unavailable", `Datei ${name} ist beschädigt`); }
+    return { exists: true, data, etag: res.headers.get("ETag"), fileUrl };
+  }
+  async function writeFile(path, data, etag) {
+    const { dir, name } = locate(path);
+    const body = JSON.stringify(data);
+    if (etag !== undefined && etag !== null) {
+      const lib = await ensureLibrary();
+      const fileUrl = [lib, ...dir, name].join("/");
+      const res = await post(`${web}/_api/web/GetFileByServerRelativePath(DecodedUrl='${q(fileUrl)}')/$value`, body, { "X-HTTP-Method": "PUT", "IF-MATCH": etag });
+      if (res.status === 412) throw new SpError("conflict", "Gleichzeitige Änderung", 412);
+      if (!res.ok) throw new SpError("unavailable", `Schreiben ${path} (${res.status})`, res.status);
+      return;
+    }
+    const folder = await ensureFolder(dir);
+    const res = await post(`${web}/_api/web/GetFolderByServerRelativePath(DecodedUrl='${q(folder)}')/Files/AddUsingPath(DecodedUrl='${q(name)}',Overwrite=true)`, body);
+    if (!res.ok) throw new SpError("unavailable", `Speichern ${path} (${res.status})`, res.status);
+  }
+  const isObj = (v) => v && typeof v === "object" && !Array.isArray(v);
+  function merge(base, patch) {
+    const out = isObj(base) ? { ...base } : {};
+    for (const [k, v] of Object.entries(patch)) out[k] = isObj(v) && isObj(out[k]) ? merge(out[k], v) : (isObj(v) ? merge({}, v) : v);
+    return out;
+  }
+  const freeze = (o) => { if (o && typeof o === "object") { Object.values(o).forEach(freeze); Object.freeze(o); } return o; };
+  const snap = (id, exists, data) => ({ id, exists, data: () => data, metadata: { fromCache: false, hasPendingWrites: false } });
+
+  // Beobachter: nach eigenen Schreibvorgängen sofort neu lesen.
+  const watchers = new Set();
+  const poke = () => watchers.forEach((w) => w());
+
+  function doc(path) {
+    const id = path.split("/").pop();
+    return {
+      id, path,
+      async get() { const r = await readFile(path); return snap(id, r.exists, r.exists ? freeze(r.data) : undefined); },
+      async set(data) { await writeFile(path, data); poke(); },
+      async update(patch) {
+        for (let attempt = 0; attempt < 4; attempt++) {
+          const r = await readFile(path);
+          if (!r.exists) throw new SpError("invalid_argument", "Dokument existiert nicht");
+          try { await writeFile(path, merge(r.data, patch), r.etag || null); poke(); return; }
+          catch (e) { if (e.code !== "conflict") throw e; }
+        }
+        throw new SpError("unavailable", "Zu viele gleichzeitige Änderungen");
+      },
+      onSnapshot(next, error) {
+        let last = Symbol("none"), stopped = false, busy = false;
+        const run = async () => {
+          if (stopped || busy) return;
+          busy = true;
+          try {
+            const r = await readFile(path);
+            const key = r.exists ? JSON.stringify(r.data) : null;
+            if (key !== last) { last = key; next(snap(id, r.exists, r.exists ? freeze(r.data) : undefined)); }
+          } catch (e) { if (e.code === "not_granted" && error) { error(e); stopped = true; } }
+          finally { busy = false; }
+        };
+        run();
+        const t = setInterval(run, POLL_MS);
+        watchers.add(run);
+        return () => { stopped = true; clearInterval(t); watchers.delete(run); };
+      },
+    };
+  }
+  function collection(name) {
+    let monthEq = null;
+    const api = {
+      where(field, op, value) { if (name === "days" && field === "month" && op === "==") monthEq = String(value); return api; },
+      onSnapshot(next, error) {
+        let stopped = false, busy = false, lastKey = null;
+        const cache = new Map(); // Dateiname -> { etag, data }
+        const run = async () => {
+          if (stopped || busy || !monthEq) return;
+          busy = true;
+          try {
+            const lib = await ensureLibrary();
+            const folder = `${lib}/days/${monthEq}`;
+            const res = await http(`${web}/_api/web/GetFolderByServerRelativePath(DecodedUrl='${q(folder)}')/Files?$select=Name,ETag`, { headers: { Accept: "application/json;odata=nometadata" } });
+            let files = [];
+            if (res.ok) files = ((await res.json()).value || []).filter((f) => /\.json$/.test(f.Name));
+            else if (res.status !== 404) throw new SpError("unavailable", `Monat ${monthEq} (${res.status})`, res.status);
+            for (const f of files) {
+              const c = cache.get(f.Name);
+              if (c && c.etag === f.ETag) continue;
+              const r = await readFile("days/" + f.Name.replace(/\.json$/, ""));
+              if (r.exists) cache.set(f.Name, { etag: f.ETag, data: freeze(r.data) });
+            }
+            for (const k of [...cache.keys()]) if (!files.some((f) => f.Name === k)) cache.delete(k);
+            const key = files.map((f) => f.Name + f.ETag).sort().join("|");
+            if (key !== lastKey) {
+              lastKey = key;
+              const docs = [...cache.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([n, v]) => snap(n.replace(/\.json$/, ""), true, v.data));
+              next({ docs, size: docs.length, empty: !docs.length, docChanges: () => [], metadata: { fromCache: false, hasPendingWrites: false } });
+            }
+          } catch (e) { if (e.code === "not_granted" && error) { error(e); stopped = true; } }
+          finally { busy = false; }
+        };
+        run();
+        const t = setInterval(run, POLL_MS);
+        watchers.add(run);
+        return () => { stopped = true; clearInterval(t); watchers.delete(run); };
+      },
+    };
+    return api;
+  }
+  return { doc, collection, ready: ensureLibrary };
+}
+
+// ---------- App ----------
+function mount(container, opts = {}) {
+  opts = { mode: "auto", ...opts };
+  const root = opts.root || document;
+  const host = root.host || container;
+  const timers = [], cleanups = [];
+  let disposed = false;
+  container.innerHTML = MARKUP;
+  // Farbschema: in SharePoint immer hell, sonst wie die einbettende Seite (claude.ai setzt data-theme).
+  if (opts.mode === "sharepoint") host.setAttribute("data-theme", "light");
+  else if (root.host) {
+    const syncTheme = () => { const t = document.documentElement.getAttribute("data-theme"); if (t) host.setAttribute("data-theme", t); else host.removeAttribute("data-theme"); };
+    syncTheme();
+    const mo = new MutationObserver(syncTheme);
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    cleanups.push(() => mo.disconnect());
+  }
+  // Querformat: Höhe bis zum unteren Fensterrand, damit alles auf einen Bildschirm passt.
+  if (opts.fitViewport) {
+    const fit = () => { const top = Math.max(0, host.getBoundingClientRect().top + (window.scrollY || 0)); host.style.setProperty("--rz-h", Math.max(480, window.innerHeight - top - 8) + "px"); };
+    fit();
+    window.addEventListener("resize", fit);
+    cleanups.push(() => window.removeEventListener("resize", fit));
+    timers.push(setTimeout(fit, 500));
+  }
+
 
   // ---------- Standardplan (Vorlage: Aushang „Checkliste neue Rezeption") ----------
   // Pro Tag gilt: Tagesanpassung > Wochentag-Vorlage > gespeicherter Standard > DEFAULT_PLAN.
   // Item-IDs sind Datenbank-Schlüssel: nie umbenennen.
+  // Stand: von der Rezeption angepasster Plan (Testversion, 10.10.2026).
   const DEFAULT_PLAN = {
-    frueh: {
-      start: "07:30", end: "15:00",
-      phases: [
-        { id: "open", title: "Öffnen", from: "07:30", to: "08:00", hint: "direkt bei Schichtbeginn", items: [
-          { id: "f_lager", t: "Lager (hinter Rezeption) aufschließen" },
-          { id: "f_ruf", t: "Rufweiterleitung deaktivieren" },
-          { id: "f_nubsi", t: "Neue Eingangstür „Nubsi“ verstellen" },
-          { id: "f_kuehl_auf", t: "Kühlschränke aufschließen + Licht an" },
-          { id: "f_kaffee", t: "Kaffeemaschine anstellen", s: "rechts hinter dem Display" },
-          { id: "f_musik", t: "Musik an über Sonos" },
-          { id: "f_tv", t: "Beide Fernseher anmachen" },
-        ]},
-        { id: "setup", title: "Rezeption einrichten", from: "08:00", to: "09:00", hint: "vor den ersten Buchungen", items: [
-          { id: "f_spint", t: "Schläger/Bälle vom Vorabend aus dem Rückgabespint nehmen", s: "Schläger-Nr. korrekt hinterlegt? Auf Schäden prüfen." },
-          { id: "f_merch", t: "Merch und Testschläger vorne an die Wand hängen" },
-          { id: "f_rezeption", t: "Rezeption aufbauen", s: "Aufsteller, Kaffeebecher + Extras, Spendenbox, Preisliste, Eisliste, Snickers, Müsliriegel, Griffbänder" },
-          { id: "f_kuehl_fuell", t: "Kühlschränke auffüllen" },
-        ]},
-        { id: "orga", title: "Orga", from: "09:00", to: "11:00", hint: "am Vormittag", items: [
-          { id: "f_excel", t: "Neuerungen in der Excel (SharePoint) prüfen" },
-          { id: "f_bestand", t: "Bestand Schläger + Bälle prüfen → sortieren" },
-        ]},
+    "frueh": {
+      "end": "15:30",
+      "phases": [
+        {
+          "from": "08:00",
+          "hint": "direkt bei Schichtbeginn",
+          "id": "open",
+          "items": [
+            {
+              "id": "f_lager",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Lager (hinter Rezeption) aufschließen"
+            },
+            {
+              "id": "f_ruf",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Rufweiterleitung deaktivieren"
+            },
+            {
+              "id": "f_nubsi",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Neue Eingangstür „Nubsi“ verstellen"
+            },
+            {
+              "id": "f_kuehl_auf",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Kühlschränke aufschließen + Licht an"
+            },
+            {
+              "id": "f_kaffee",
+              "important": false,
+              "optional": false,
+              "s": "rechts hinter dem Display",
+              "t": "Kaffeemaschine anstellen"
+            },
+            {
+              "id": "f_musik",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Musik an über Sonos"
+            },
+            {
+              "id": "f_tv",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Beide Fernseher anmachen"
+            }
+          ],
+          "title": "Öffnen",
+          "to": "08:30"
+        },
+        {
+          "from": "08:00",
+          "hint": "vor den ersten Buchungen",
+          "id": "setup",
+          "items": [
+            {
+              "id": "f_spint",
+              "important": false,
+              "optional": false,
+              "s": "Schläger-Nr. korrekt hinterlegt? Auf Schäden prüfen.",
+              "t": "Schläger/Bälle vom Vorabend aus dem Rückgabespint nehmen"
+            },
+            {
+              "id": "f_merch",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Merch und Testschläger vorne an die Wand hängen"
+            },
+            {
+              "id": "f_rezeption",
+              "important": false,
+              "optional": false,
+              "s": "Aufsteller, Kaffeebecher + Extras, Spendenbox, Preisliste, Eisliste, Snickers, Müsliriegel, Griffbänder",
+              "t": "Rezeption aufbauen"
+            },
+            {
+              "id": "f_kuehl_fuell",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Kühlschränke auffüllen"
+            }
+          ],
+          "title": "Rezeption einrichten",
+          "to": "09:00"
+        },
+        {
+          "from": "09:00",
+          "hint": "am Vormittag",
+          "id": "orga",
+          "items": [
+            {
+              "id": "f_excel",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Neuerungen in der Excel (SharePoint) prüfen"
+            },
+            {
+              "id": "f_bestand",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Bestand Schläger + Bälle prüfen → sortieren"
+            }
+          ],
+          "title": "Orga",
+          "to": "11:00"
+        }
       ],
+      "start": "08:00"
     },
-    spaet: {
-      start: "15:00", end: "23:00",
-      phases: [
-        { id: "start", title: "Schichtstart", from: "15:00", to: "15:30", hint: "Übergabe-Notiz lesen", items: [
-          { id: "s_excel", t: "Neuerungen in der Excel (SharePoint) prüfen" },
-        ]},
-        { id: "licht", title: "Licht an", from: "18:30", to: "19:30", hint: "je nach Dunkelheit", items: [
-          { id: "s_flutlicht_an", t: "Tennis-Flutlicht anstellen", s: "ab ca. 18:30, je nach Dunkelheit", important: true },
-          { id: "s_plejd", t: "Outdoor-Plätze: Licht über Plejd anmachen", s: "geht automatisch um 22:10 Uhr aus" },
-        ]},
-        { id: "kunden", title: "Kunden informieren", from: "20:00", to: "21:00", items: [
-          { id: "s_kunden", t: "Kunden für abends ab 22 Uhr und morgens (8–10 Uhr) anschreiben und informieren" },
-        ]},
-        { id: "plaetze", title: "Plätze", from: "21:00", to: "21:30", hint: "nach den Buchungen", items: [
-          { id: "s_flutlicht_aus", t: "Tennis-Flutlicht ausstellen", s: "spätestens 21:10 Uhr", important: true },
-          { id: "s_waessern", t: "Tennisplätze 3× hintereinander wässern", s: "nur wenn es sehr trocken ist, nach 21 Uhr", optional: true },
-        ]},
-        { id: "abbau", title: "Abbau", from: "22:00", to: "22:30", hint: "nach der letzten Buchung", items: [
-          { id: "s_merch", t: "Merch + Testschläger hinten in den Raum wegräumen" },
-          { id: "s_rezeption", t: "Rezeption abbauen", s: "Aufsteller alter Tresen 2×, neuer Tresen 1×, Kaffeebecher + Extras, Spendenbox, Preisliste, Eisliste, Snickers, Müsliriegel, Griffbänder" },
-          { id: "s_spinte", t: "Rückgabe-Spinte mit LE füllen", s: "Notiz in der Buchung: Schläger-Nr. + evtl. Bälle", important: true },
-          { id: "s_kaffee", t: "Kaffeemaschine reinigen" },
-          { id: "s_kuehl", t: "Kühlschränke auffüllen + Licht aus + abschließen" },
-        ]},
-        { id: "close", title: "Abschließen", from: "22:30", to: "23:00", hint: "in dieser Reihenfolge", items: [
-          { id: "s_musik", t: "Musik aus über Sonos/Spotify" },
-          { id: "s_tv", t: "Fernseher ausmachen" },
-          { id: "s_laden", t: "Laptop + Handy laden" },
-          { id: "s_schiebe", t: "Schiebefenster abschließen", s: "roter Punkt" },
-          { id: "s_ruf", t: "Rufweiterleitung aktivieren, Info an G/D/D/J" },
-          { id: "s_nubsi", t: "Neue Eingangstür „Nubsi“ verstellen" },
-          { id: "s_alte", t: "„Alte“ Eingangstür (mit Code) abschließen", s: "Gummiband abmachen, prüfen ob abgeschlossen" },
-        ]},
+    "spaet": {
+      "end": "23:00",
+      "phases": [
+        {
+          "from": "15:30",
+          "hint": "Übergabe-Notiz lesen",
+          "id": "start",
+          "items": [
+            {
+              "id": "s_excel",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Neuerungen in der Excel (SharePoint) prüfen"
+            },
+            {
+              "id": "s_xmv2uktvfpcm8",
+              "important": false,
+              "optional": true,
+              "s": "",
+              "t": "Check-ins erledigen, wenn noch offen"
+            }
+          ],
+          "title": "Schichtstart",
+          "to": "16:00"
+        },
+        {
+          "from": "18:30",
+          "hint": "je nach Dunkelheit",
+          "id": "licht",
+          "items": [
+            {
+              "id": "s_flutlicht_an",
+              "important": false,
+              "optional": true,
+              "s": "ab ca. 18:30, je nach Dunkelheit",
+              "t": "bei Bedarf: Tennis-Flutlicht anstellen"
+            },
+            {
+              "id": "s_plejd",
+              "important": false,
+              "optional": false,
+              "s": "geht automatisch 30 min vor Sonnenuntergang ein und um 22:10 Uhr aus",
+              "t": "Outdoor-Plätze: Licht über Plejd anmachen"
+            }
+          ],
+          "title": "Licht an",
+          "to": "19:30"
+        },
+        {
+          "from": "20:00",
+          "hint": "",
+          "id": "kunden",
+          "items": [
+            {
+              "id": "s_kunden",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Kunden für abends ab 22 Uhr und morgens (8–10 Uhr) anschreiben und informieren"
+            }
+          ],
+          "title": "Kunden informieren",
+          "to": "21:00"
+        },
+        {
+          "from": "21:00",
+          "hint": "nach den Buchungen",
+          "id": "plaetze",
+          "items": [
+            {
+              "id": "s_flutlicht_aus",
+              "important": false,
+              "optional": true,
+              "s": "spätestens 22:10 Uhr",
+              "t": "Tennis-Flutlicht ausstellen"
+            },
+            {
+              "id": "s_waessern",
+              "important": false,
+              "optional": true,
+              "s": "nur wenn es sehr trocken ist, nach 21 Uhr // aktuell nicht notwendig wegen Tau",
+              "t": "Tennisplätze 3× hintereinander wässern"
+            }
+          ],
+          "title": "Plätze",
+          "to": "21:30"
+        },
+        {
+          "from": "21:30",
+          "hint": "nach der letzten Buchung",
+          "id": "abbau",
+          "items": [
+            {
+              "id": "s_kaffee",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Kaffeemaschine reinigen"
+            },
+            {
+              "id": "s_merch",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Merch + Testschläger hinten in den Raum wegräumen"
+            },
+            {
+              "id": "s_rezeption",
+              "important": false,
+              "optional": false,
+              "s": "Aufsteller alter Tresen 2×, neuer Tresen 1×, Kaffeebecher + Extras, Spendenbox, Preisliste, Eisliste, Snickers, Müsliriegel, Griffbänder",
+              "t": "Rezeption abbauen"
+            },
+            {
+              "id": "s_spinte",
+              "important": false,
+              "optional": false,
+              "s": "Notiz in der Buchung: Schläger-Nr. + evtl. Bälle",
+              "t": "Rückgabe-Spinte mit LE füllen"
+            },
+            {
+              "id": "s_kuehl",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Kühlschränke auffüllen + Licht aus + abschließen"
+            }
+          ],
+          "title": "Abbau",
+          "to": "22:00"
+        },
+        {
+          "from": "22:30",
+          "hint": "in dieser Reihenfolge",
+          "id": "close",
+          "items": [
+            {
+              "id": "s_musik",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Musik aus über Sonos/Spotify"
+            },
+            {
+              "id": "s_tv",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Fernseher ausmachen"
+            },
+            {
+              "id": "s_schiebe",
+              "important": false,
+              "optional": false,
+              "s": "roter Punkt",
+              "t": "Schiebefenster abschließen"
+            },
+            {
+              "id": "s_ruf",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Rufweiterleitung aktivieren, Info an G/D/D/J"
+            },
+            {
+              "id": "s_xmv2j3h7wo0pc",
+              "important": false,
+              "optional": true,
+              "s": "wenn voll",
+              "t": "Müll rausbringen"
+            },
+            {
+              "id": "s_nubsi",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Neue Eingangstür „Nubsi“ verstellen"
+            },
+            {
+              "id": "s_alte",
+              "important": false,
+              "optional": false,
+              "s": "Gummiband abmachen, prüfen ob abgeschlossen",
+              "t": "„Alte“ Eingangstür (mit Code) abschließen"
+            }
+          ],
+          "title": "Abschließen",
+          "to": "23:00"
+        }
       ],
+      "start": "15:30"
     },
-    always: {
-      frueh: [
-        { id: "rund", t: "Rundgang Halle / draußen", every: 60 },
-        { id: "wasser", t: "Wasserspender regelmäßig wischen", important: true },
-        { id: "spuel", t: "Spülbecken (Lager) sauberhalten", important: true },
-        { id: "checkin", t: "Check-ins erledigen", s: "nicht geschafft? → Übergabe-Notiz" },
-        { id: "whatsapp", t: "WhatsApp-Chats abarbeiten" },
-        { id: "muell", t: "Müll rausbringen, wenn voll" },
-        { id: "fenster", t: "Fenster öffnen/schließen", s: "je nach Wetter" },
+    "always": {
+      "frueh": [
+        {
+          "every": 60,
+          "id": "rund",
+          "important": false,
+          "s": "",
+          "t": "Rundgang Halle / draußen"
+        },
+        {
+          "every": 60,
+          "id": "wasser",
+          "important": false,
+          "s": "",
+          "t": "Wasserspender regelmäßig wischen"
+        },
+        {
+          "every": 0,
+          "id": "spuel",
+          "important": false,
+          "s": "",
+          "t": "Spülbecken (Lager) sauberhalten"
+        },
+        {
+          "every": 0,
+          "id": "checkin",
+          "important": false,
+          "s": "nicht geschafft? → Übergabe-Notiz",
+          "t": "Check-ins erledigen"
+        },
+        {
+          "every": 0,
+          "id": "whatsapp",
+          "important": false,
+          "s": "",
+          "t": "WhatsApp-Chats abarbeiten"
+        },
+        {
+          "every": 0,
+          "id": "a_xmv2j2g67uihk",
+          "important": false,
+          "s": "",
+          "t": "Laptop + Handy laden"
+        },
+        {
+          "every": 0,
+          "id": "fenster",
+          "important": false,
+          "s": "je nach Wetter",
+          "t": "Fenster öffnen/schließen"
+        },
+        {
+          "every": 0,
+          "id": "a_xmv2j6qsr3cnv",
+          "important": false,
+          "s": "",
+          "t": "Müll rausbringen, wenn voll"
+        }
       ],
-      spaet: [
-        { id: "rund", t: "Rundgang Halle / draußen", every: 60 },
-        { id: "wasser", t: "Wasserspender regelmäßig wischen", important: true },
-        { id: "spuel", t: "Spülbecken (Lager) sauberhalten", important: true },
-        { id: "checkin", t: "Check-ins erledigen, wenn noch offen" },
-        { id: "whatsapp", t: "WhatsApp-Chats abarbeiten" },
-        { id: "muell", t: "Müll rausbringen, wenn voll" },
-        { id: "fenster", t: "Fenster öffnen/schließen", s: "je nach Wetter" },
-      ],
-    },
+      "spaet": [
+        {
+          "every": 60,
+          "id": "rund",
+          "important": false,
+          "s": "",
+          "t": "Rundgang Halle / draußen"
+        },
+        {
+          "every": 60,
+          "id": "wasser",
+          "important": false,
+          "s": "",
+          "t": "Wasserspender regelmäßig wischen"
+        },
+        {
+          "every": 0,
+          "id": "spuel",
+          "important": false,
+          "s": "",
+          "t": "Spülbecken (Lager) sauberhalten"
+        },
+        {
+          "every": 0,
+          "id": "whatsapp",
+          "important": false,
+          "s": "",
+          "t": "WhatsApp-Chats abarbeiten"
+        },
+        {
+          "every": 0,
+          "id": "fenster",
+          "important": false,
+          "s": "je nach Wetter",
+          "t": "Fenster öffnen/schließen"
+        },
+        {
+          "every": 0,
+          "id": "a_xmv2j69560uh4",
+          "important": false,
+          "s": "",
+          "t": "Laptop + Handy laden"
+        }
+      ]
+    }
   };
+
   const SHIFT_META = {
     frueh: { label: "Frühschicht", short: "Früh", prefix: "f" },
     spaet: { label: "Spätschicht", short: "Spät", prefix: "s" },
@@ -422,7 +678,7 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
   const KEYS = ["frueh", "spaet"];
 
   // ---------- Helfer ----------
-  const $ = (id) => document.getElementById(id);
+  const $ = (id) => root.getElementById(id);
   const esc = (v) => String(v).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const pad = (n) => String(n).padStart(2, "0");
   const isoDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -560,7 +816,7 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
   function setStatus(text, err = false) { const el = $("status"); el.textContent = text; el.title = text; el.classList.toggle("err", err); }
   function statusLine() {
     if (state.readOnly) return "Nur Lesezugriff.";
-    if (state.mode === "shared") return "Live geteilt";
+    if (state.mode === "shared") return opts.mode === "sharepoint" ? "Gespeichert in SharePoint" : "Live geteilt";
     if (state.mode === "local") return backupHint() || "Gespeichert auf diesem Mac";
     return "Verbinde…";
   }
@@ -628,9 +884,9 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
     );
   }
 
-  function subscribeMonth() {
+  function subscribeMonth(force) {
     const ym = state.date.slice(0, 7);
-    if (ym === monthKey && (unsubMonth || state.mode === "local")) return;
+    if (!force && ym === monthKey && (unsubMonth || state.mode === "local")) return;
     monthKey = ym;
     if (unsubMonth) { unsubMonth(); unsubMonth = null; }
     if (state.mode !== "shared") { state.month = LS.month(ym); return; }
@@ -1113,7 +1369,7 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
     </form>`;
   }
   // Render wird während einer Eingabe aufgeschoben – bei Formular-Aktionen deshalb erst den Fokus lösen.
-  function blurActive() { const a = document.activeElement; if (a && a.blur) a.blur(); }
+  function blurActive() { const a = root.activeElement; if (a && a.blur) a.blur(); }
   async function submitPin(val) {
     const st = state.pinStage, msg = $("pin-msg");
     blurActive();
@@ -1175,6 +1431,10 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
              <button class="btn" data-act2="export">Einmalig herunterladen</button>`}
           <p>Letzte Sicherung: <b>${last ? new Date(last).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) : "noch nie"}</b></p>
           <label class="btn" style="text-align:center;cursor:pointer">Sicherung einspielen<input type="file" id="importfile" accept="application/json,.json" hidden></label>
+          <p id="import-msg"></p></div></section>` : opts.mode === "sharepoint" ? `<section class="card"><div class="chead"><h2>Datenspeicher</h2></div>
+        <div class="cbody"><p>Alle Daten liegen in der SharePoint-Bibliothek <b>${esc(opts.library || "RezeptionDaten")}</b> dieser Website. SharePoint speichert jede Änderung im Versionsverlauf – ein früherer Stand lässt sich dort wiederherstellen.</p>
+          <p>Daten aus der bisherigen Mac-Version übernehmen: dort unter Verwaltung › Datensicherung eine Sicherung herunterladen und hier einspielen.</p>
+          <label class="btn" style="text-align:center;cursor:pointer">Sicherung übernehmen<input type="file" id="importfile" accept="application/json,.json" hidden></label>
           <p id="import-msg"></p></div></section>` : ""}
       <section class="card"><div class="chead"><h2>Leitungs-PIN</h2></div>
         <div class="cbody"><p>Entsperrt für 10 Minuten nach der letzten Aktion.</p>
@@ -1299,6 +1559,31 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
     if (reason === "day" && LS.get("rz2meta", {}).lastDayBackup === isoDate(new Date())) return;
     writeBackup(reason);
   }
+  // Übernimmt eine lokale Sicherung (localStorage-Schlüssel) in den geteilten Speicher (SharePoint).
+  async function migrateToShared(entries, msg) {
+    const docs = [];
+    for (const [k, v] of entries) {
+      let val; try { val = JSON.parse(v); } catch { continue; }
+      if (!val || typeof val !== "object") continue;
+      if (k === "rz2cfg") docs.push(["config/plan", val, true]);
+      else if (/^rz2:\d{4}-\d{2}-\d{2}$/.test(k)) docs.push(["days/" + k.slice(4), { ...val, month: k.slice(4, 11) }]);
+    }
+    if (!docs.length) { if (msg) msg.textContent = "Die Sicherung enthält keine Daten."; return; }
+    let done = 0;
+    // Leere Felder (kein Team, kein Dienstplan, keine PIN) überschreiben vorhandene Einstellungen nicht.
+    const prune = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== null && v !== undefined && !(Array.isArray(v) && !v.length) && !(typeof v === "object" && !Array.isArray(v) && !Object.keys(v).length)));
+    for (const [path, val, mergeCfg] of docs) {
+      try {
+        const ref = db.doc(path);
+        const cur = mergeCfg ? await ref.get() : null;
+        if (cur && cur.exists) await ref.update(prune(val)); else await ref.set(val);
+        done++;
+      } catch (e) { if (msg) msg.textContent = `Abbruch bei ${path}: ${(e && e.message) || "Fehler"}. ${done} von ${docs.length} übernommen.`; return; }
+      if (msg) msg.textContent = `Übernehme… ${done}/${docs.length}`;
+    }
+    if (msg) msg.textContent = `${done} Einträge übernommen.`;
+    subscribeMonth(true); subscribeDay();
+  }
   function importBackup(file) {
     const msg = $("import-msg");
     const reader = new FileReader();
@@ -1308,6 +1593,7 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
         if (!obj || obj.app !== "rezeption-schichtcheck" || !obj.data || typeof obj.data !== "object") throw new Error("format");
         const entries = Object.entries(obj.data).filter(([k, v]) => k.startsWith("rz2") && typeof v === "string");
         if (!entries.length) throw new Error("leer");
+        if (state.mode === "shared") { migrateToShared(entries, msg); return; }
         for (const [k, v] of entries) localStorage.setItem(k, v);
         if (msg) msg.textContent = `${entries.length} Einträge eingespielt. Seite lädt neu…`;
         setTimeout(() => location.reload(), 800);
@@ -1364,9 +1650,11 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
     if (b.dataset.pick) return pickPerson(b.dataset.pick);
     if (b.dataset.pickClose) { state.pickerOpen = false; state.pickerSnoozeUntil = Date.now() + 5 * 60000; renderPicker(); }
   });
-  document.addEventListener("keydown", (e) => {
+  const onKey = (e) => {
     if (e.key === "Escape" && state.pickerOpen) { state.pickerOpen = false; state.pickerSnoozeUntil = Date.now() + 5 * 60000; renderPicker(); }
-  });
+  };
+  document.addEventListener("keydown", onKey);
+  cleanups.push(() => document.removeEventListener("keydown", onKey));
   // Zu Schichtbeginn bzw. bei Schichtwechsel automatisch nachfragen.
   function maybeAskPerson() {
     if (state.mode === "loading" || state.pickerOpen || !state.cfg.people.length) return;
@@ -1472,7 +1760,7 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
     for (const p of parts) obj = obj[/^\d+$/.test(p) ? Number(p) : p];
     return { parent: obj, key: /^\d+$/.test(last) ? Number(last) : last };
   }
-  function markDirty() { state.draftDirty = true; const b = document.querySelectorAll('[data-act^="save-"],[data-act="discard"]'); b.forEach(x => { x.disabled = false; }); }
+  function markDirty() { state.draftDirty = true; const b = root.querySelectorAll('[data-act^="save-"],[data-act="discard"]'); b.forEach(x => { x.disabled = false; }); }
 
   function editorAction(act, path) {
     const plan = state.draft.plan;
@@ -1550,7 +1838,7 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
     $("clock").innerHTML = `${fmtMin(nowMin())}${act ? `<small>${SHIFT_META[act].label} bis ${plan[act].end}</small>` : ""}`;
     for (const key of KEYS) { const p = progress(plan, key, state.checks); $("meta-" + key).textContent = `${p.done}/${p.total}`; }
     const tabView = state.view === "plan" || state.view === "pin" ? "admin" : state.view;
-    document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", String(t.dataset.view === tabView)));
+    root.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", String(t.dataset.view === tabView)));
     const p = currentPerson(), wb = $("whoBtn");
     wb.classList.toggle("none", !p);
     wb.hidden = !state.cfg.people.length;
@@ -1559,7 +1847,7 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
   }
 
   function render() {
-    const active = document.activeElement;
+    const active = root.activeElement;
     const typing = active && $("main").contains(active) && (active.tagName === "TEXTAREA" || (active.tagName === "INPUT" && active.type !== "checkbox"));
     if (typing) { renderPending = true; renderHeader(); return; }
     renderPending = false;
@@ -1575,17 +1863,18 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
   // Querformat: aktuelle Spalte ins Bild holen.
   function scrollToNow() {
     // Erster offener Abschnitt (überfällig oder aktuell) in Zeitreihenfolge.
-    const el = document.querySelector(".stop.is-late, .stop.is-now");
+    const el = root.querySelector(".stop.is-late, .stop.is-now");
     if (!el) return;
-    const board = document.querySelector(".board");
+    const board = root.querySelector(".board");
     if (board && board.scrollHeight > board.clientHeight) board.scrollTop = Math.max(0, el.offsetTop - board.offsetTop - 8);
-    else if (window.innerHeight < document.documentElement.scrollHeight && !scrolledOnce) {
-      const head = document.querySelector("header.top");
-      const offset = head && getComputedStyle(head).position === "sticky" ? head.offsetHeight : 0;
-      window.scrollTo(0, Math.max(0, el.getBoundingClientRect().top + window.scrollY - offset - 8));
+    else if (!scrolledOnce) {
+      const head = root.querySelector("header.top");
+      if (head) host.style.setProperty("--rz-head", head.offsetHeight + 8 + "px");
+      el.scrollIntoView({ block: "start" });
       scrolledOnce = true;
     }
   }
+
 
 
   // ---------- Interaktion ----------
@@ -1613,7 +1902,8 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
     if (v !== "dienst") state.rosterEdit = false;
     if (v === "dienst") state.rosterWeek = mondayOf(state.date);
     state.view = v; state.confirm = null; scrolledOnce = false;
-    window.scrollTo(0, 0); render();
+    if (opts.standalone) window.scrollTo(0, 0);
+    render();
   }
   function shiftMonths(n) { const d = parseIso(state.date); d.setDate(1); d.setMonth(d.getMonth() + n); goDate(isoDate(d)); }
 
@@ -1621,7 +1911,7 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
   $("next").addEventListener("click", () => goDate(addDays(state.date, 1)));
   $("today").addEventListener("click", () => goDate(isoDate(new Date())));
   $("datepick").addEventListener("change", (e) => goDate(e.target.value));
-  document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => setView(t.dataset.view)));
+  root.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => setView(t.dataset.view)));
 
   const main = $("main");
   main.addEventListener("click", (e) => {
@@ -1670,7 +1960,7 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
     if (t.dataset.goto) {
       state.expanded.add(t.dataset.phase);
       setView(t.dataset.goto);
-      const el = document.getElementById("phase-" + t.dataset.phase);
+      const el = $("phase-" + t.dataset.phase);
       if (el) el.scrollIntoView({ block: "nearest", inline: "start" });
       return;
     }
@@ -1724,16 +2014,20 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
   $("whoBtn").addEventListener("click", () => openPicker(true));
 
   // Uhr, Fälligkeiten und „mitlaufende" Spalten jede Minute aktualisieren (nur Anzeige).
-  setInterval(() => {
+  timers.push(setInterval(() => {
     if (["plan", "monat", "admin", "pin", "dienst"].includes(state.view)) { renderHeader(); maybeAskPerson(); }
     else render();
-  }, 30000);
+  }, 30000));
 
   // ---------- Start ----------
   render();
   (async () => {
-    const api = window.claude && typeof window.claude.use === "function" ? window.claude : null;
-    if (api) {
+    const api = opts.mode === "auto" && window.claude && typeof window.claude.use === "function" ? window.claude : null;
+    if (opts.mode === "sharepoint") {
+      db = createSpDb(opts);
+      try { await db.ready(); }
+      catch (e) { setStatus("SharePoint-Speicher nicht erreichbar: " + ((e && e.message) || "Fehler"), true); state.readOnly = true; }
+    } else if (api) {
       try { db = await api.use("db"); } catch { db = null; }
       try { user = await api.use("user"); } catch { user = null; }
     }
@@ -1743,11 +2037,31 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
       try { if ((await user.can("data.write")) === false) state.readOnly = true; } catch { /* unbekannt */ }
     }
     loadWho();
-    await loadBackupDir();
+    if (state.mode === "local") await loadBackupDir();
     setStatus(statusLine(), state.readOnly || !!backupHint());
+    if (disposed) return;
     subscribeCfg();
     subscribeMonth();
     subscribeDay();
   })();
+
+  return () => {
+    disposed = true;
+    timers.forEach((t) => { clearInterval(t); clearTimeout(t); });
+    cleanups.forEach((f) => { try { f(); } catch { /* egal */ } });
+    try { if (unsubDay) unsubDay(); if (unsubMonth) unsubMonth(); if (unsubCfg) unsubCfg(); } catch { /* egal */ }
+    container.innerHTML = "";
+  };
+}
+
+const host = document.getElementById("rz-host");
+const root = host.attachShadow({ mode: "open" });
+const style = document.createElement("style");
+style.textContent = APP_CSS;
+root.appendChild(style);
+const container = document.createElement("div");
+container.className = "rz-root";
+root.appendChild(container);
+mount(container, { root, mode: "auto", fitViewport: true, standalone: true });
 })();
 </script>

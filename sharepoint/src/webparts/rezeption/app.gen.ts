@@ -1,0 +1,2041 @@
+/* eslint-disable */
+// @ts-nocheck
+// GENERIERT von tools/build.mjs aus app/app.js und app/app.css – nicht direkt bearbeiten.
+export const APP_CSS: string = "/* Wird in einen Shadow-Root geladen (eigenständig und in SharePoint). :host = Wurzel.\n   Layout: Querformat = ein Bildschirm ohne Seiten-Scroll (Kopfzeile + Spalten, die nur intern scrollen).\n   Hochformat/Handy = normale Seite. Ansichten: Übersicht, Früh, Spät (Phasen als Spalten), Monat, Plan (Editor). */\n[hidden] { display: none !important }\n:host {\n  --bg: #eef2f6; --surface: #ffffff; --surface-2: #f6f8fb; --ink: #142130; --muted: #5a6879; --line: #d7dee7;\n  --accent: #1d5bb8; --accent-soft: #e2ecfa; --done: #23804f; --done-soft: #e1f2e8;\n  --warn: #c0392b; --warn-soft: #fbe6e3; --na: #8a96a5; --now: #b8700a; --now-soft: #fdf1dc;\n  --f-display: \"Barlow Condensed\", \"Arial Narrow\", system-ui, sans-serif;\n  --f-body: \"Barlow\", system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  --r: 10px;\n}\n@media (prefers-color-scheme: dark) { :host(:not([data-theme=\"light\"])) {\n  --bg: #0f1620; --surface: #17212d; --surface-2: #1c2836; --ink: #e6edf5; --muted: #95a3b4; --line: #2b3a4b;\n  --accent: #6aa2f2; --accent-soft: #1d3150; --done: #4cc184; --done-soft: #173627;\n  --warn: #f07a6c; --warn-soft: #3d1f1c; --na: #6d7a8a; --now: #f0b04f; --now-soft: #3a2c14; color-scheme: dark } }\n:host([data-theme=\"dark\"]) {\n  --bg: #0f1620; --surface: #17212d; --surface-2: #1c2836; --ink: #e6edf5; --muted: #95a3b4; --line: #2b3a4b;\n  --accent: #6aa2f2; --accent-soft: #1d3150; --done: #4cc184; --done-soft: #173627;\n  --warn: #f07a6c; --warn-soft: #3d1f1c; --na: #6d7a8a; --now: #f0b04f; --now-soft: #3a2c14; color-scheme: dark }\n\n* { box-sizing: border-box }\n:host { display: block; background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.35; -webkit-text-size-adjust: 100% }\n.rz-root { min-height: 100% }\nbutton, input, select, textarea { font: inherit; color: inherit }\nbutton { cursor: pointer }\nbutton:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, [role=\"button\"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }\n.wrap { padding-inline: 16px; padding-block: 0 24px; max-width: 1100px; margin: 0 auto }\nh2, h3 { text-wrap: balance }\n\n/* Kopfzeile */\nheader.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 10px 8px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap }\n.brand { font-family: var(--f-display); font-weight: 700; font-size: 20px; letter-spacing: .02em; text-transform: uppercase; margin: 0; line-height: 1.05 }\n.brand small { display: block; font-family: var(--f-body); font-weight: 500; font-size: 12px; letter-spacing: .02em; color: var(--muted); text-transform: none }\n.clock { font-family: var(--f-display); font-weight: 700; font-size: 34px; line-height: 1; font-variant-numeric: tabular-nums }\n.clock small { font-family: var(--f-body); font-size: 13px; font-weight: 500; color: var(--muted); margin-left: 6px }\n.tabs { display: flex; gap: 4px; overflow-x: auto; max-width: 100% }\n.tab { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 11px; display: inline-flex; gap: 7px; align-items: baseline; white-space: nowrap }\n.tab b { font-family: var(--f-display); font-size: 16px; letter-spacing: .03em; text-transform: uppercase }\n.tab .meta { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums }\n.tab[aria-selected=\"true\"] { border-color: var(--accent); background: var(--accent-soft) }\n.tab[aria-selected=\"true\"] b { color: var(--accent) }\n.datenav { display: flex; align-items: center; gap: 4px; margin-left: auto }\n.iconbtn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; width: 34px; height: 34px; font-size: 18px; line-height: 1 }\n.datebtn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; height: 34px; padding: 0 10px; font-weight: 600; font-variant-numeric: tabular-nums; position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: 6px }\n.datebtn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100% }\n.datebtn .src { font-size: 11px; font-weight: 600; color: var(--now) }\n.todaybtn { border: 0; background: none; color: var(--accent); font-weight: 600; padding: 0 4px; height: 34px }\n.status { font-size: 12px; color: var(--muted); width: 100% }\n.status.err { color: var(--warn) }\n\n/* Karten */\n.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); min-width: 0; overflow: hidden; display: flex; flex-direction: column }\n.chead { display: flex; align-items: baseline; gap: 8px; padding: 9px 12px 7px; border-bottom: 1px solid var(--line); background: var(--surface-2); flex-wrap: wrap; flex: none }\n.chead h2 { margin: 0; font-family: var(--f-display); font-size: 17px; letter-spacing: .04em; text-transform: uppercase; flex: 1; min-width: 0 }\n.chead .hint { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums }\n.cbody { min-height: 0 }\n.pill { font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; padding: 2px 8px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); white-space: nowrap }\n.pill.now { background: var(--now-soft); color: var(--now) }\n.pill.late { background: var(--warn-soft); color: var(--warn) }\n.pill.done { background: var(--done-soft); color: var(--done) }\n.pill.later { background: var(--surface-2); color: var(--muted); box-shadow: inset 0 0 0 1px var(--line) }\n.empty { color: var(--muted); padding: 12px }\n.sublabel { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 9px 12px 3px; border-top: 1px solid var(--line); list-style: none }\n.sublabel:first-child { border-top: 0 }\n.sublabel.late { color: var(--warn) }\n.sublabel.now { color: var(--now) }\n\n/* Abhak-Zeilen */\nul.items { list-style: none; margin: 0; padding: 0 }\nul.items li { display: flex; align-items: stretch; border-top: 1px solid var(--line) }\nul.items li:first-child { border-top: 0 }\n.check { flex: 1; min-width: 0; display: flex; gap: 10px; align-items: flex-start; text-align: left; background: none; border: 0; padding: 9px 12px; min-height: 44px }\n.box { flex: none; width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--line); display: grid; place-items: center; transition: background .15s, border-color .15s }\n.box svg { width: 14px; height: 14px; opacity: 0 }\n.txt { min-width: 0 }\n.txt .label { font-weight: 500 }\n.txt .sub { display: block; font-size: 12.5px; color: var(--muted); margin-top: 1px }\n.txt .who { display: block; font-size: 12px; color: var(--done); margin-top: 2px; font-variant-numeric: tabular-nums }\n.txt .tag { font-size: 11px; font-weight: 600; color: var(--warn); margin-left: 6px; white-space: nowrap }\nli.important .label { color: var(--warn) }\nli.done .box { background: var(--done); border-color: var(--done) }\nli.done .box svg { opacity: 1 }\nli.done .label { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line) }\nli.na .box { border-style: dashed; border-color: var(--na) }\nli.na .label, li.na .who { color: var(--na) }\nli.upcoming .label { color: var(--muted) }\n.skip { flex: none; border: 0; border-left: 1px solid var(--line); background: none; color: var(--muted); font-size: 12px; font-weight: 600; padding: 0 10px }\nli.na .skip { color: var(--ink); background: var(--surface-2) }\n\n/* Daueraufgaben */\n.always { list-style: none; margin: 0; padding: 0 }\n.always li { border-top: 1px solid var(--line); display: flex; align-items: stretch }\n.always li:first-child { border-top: 0 }\n.always .tap { flex: 1; min-width: 0; display: flex; gap: 10px; align-items: flex-start; border: 0; background: none; text-align: left; padding: 8px 12px; min-height: 44px }\n.always .tap:disabled { cursor: default }\n.always .ic { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; transition: transform .2s }\n.always .ic svg { width: 14px; height: 14px }\n.always .tap:not(:disabled):active .ic { transform: rotate(-120deg) }\n.always .important .label { color: var(--warn) }\n.always .label { font-weight: 500 }\n.always .sub { display: block; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums }\n.always .last { display: block; font-size: 12px; color: var(--done); font-variant-numeric: tabular-nums }\n.always .cnt { flex: none; align-self: center; margin-left: auto; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--done); background: var(--done-soft); border-radius: 99px; padding: 2px 8px }\n.always .cnt.zero { color: var(--muted); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line) }\n.always li.due { background: var(--now-soft) }\n.always li.due .ic { background: var(--now); color: #fff }\n.always li.due .sub b { color: var(--now) }\n.always li.over { background: var(--warn-soft) }\n.always li.over .ic { background: var(--warn); color: #fff }\n.always li.over .sub b { color: var(--warn) }\n.always li.ok .ic { background: var(--done-soft); color: var(--done) }\n.always .undo { flex: none; border: 0; border-left: 1px solid var(--line); background: none; color: var(--muted); font-size: 12px; font-weight: 600; padding: 0 10px }\n\n/* Schichtplan */\n.plan { list-style: none; margin: 0; padding: 0 }\n.plan li { border-top: 1px solid var(--line) }\n.plan li:first-child { border-top: 0 }\n.plan button { width: 100%; border: 0; background: none; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 7px 12px; text-align: left }\n.plan .t { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--muted) }\n.plan .n small { color: var(--muted); font-variant-numeric: tabular-nums; margin-left: 6px }\n.plan li.cur { background: var(--now-soft) }\n.plan li.cur .t { color: var(--now) }\n.shiftsum { display: flex; align-items: center; gap: 10px; padding: 9px 12px 4px }\n.shiftsum b { font-family: var(--f-display); font-size: 16px; text-transform: uppercase; letter-spacing: .04em }\n.shiftsum span { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; margin-left: auto }\n.bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin: 0 12px 8px }\n.bar i { display: block; height: 100%; background: var(--done); transition: width .3s }\n.othersum { border-top: 1px solid var(--line); padding: 9px 12px; font-size: 13px; color: var(--muted); background: none; border-left: 0; border-right: 0; border-bottom: 0; width: 100%; text-align: left }\n.othersum b { color: var(--warn) }\n\n/* Übergabe */\n.note { padding: 9px 12px; display: grid; gap: 5px }\n.note + .note { border-top: 1px solid var(--line) }\n.note label { font-size: 12px; font-weight: 600; color: var(--muted) }\n.note textarea { width: 100%; min-height: 60px; resize: vertical; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); padding: 7px 9px }\n.note .read { background: var(--now-soft); border-radius: 8px; padding: 7px 9px; white-space: pre-wrap; overflow-wrap: anywhere }\n.note .read.none { background: var(--surface-2); color: var(--muted) }\n.note .saved { font-size: 11px; color: var(--muted); min-height: 14px }\n\n/* Übersicht */\n.dash { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-top: 12px }\n.dash > .col { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0 }\n\n/* Schichtansicht: Fahrplan */\n.shiftview { display: grid; grid-template-columns: minmax(200px, 250px) minmax(0, 1fr); gap: 12px; margin-top: 12px }\n.side { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0 }\n.board { min-width: 0 }\n.board-in { display: grid; gap: 8px }\n.stop { scroll-margin-top: var(--rz-head, 150px); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; break-inside: avoid; margin-bottom: 8px }\n.stop-head { display: grid; grid-template-columns: 22px 92px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 12px; width: 100%; border: 0; background: none; text-align: left }\n.stop-head .mark { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; background: var(--surface-2); color: var(--muted); box-shadow: inset 0 0 0 1px var(--line) }\n.stop-head .time { font-family: var(--f-display); font-weight: 700; font-size: 17px; font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap }\n.stop-head .ttl { font-family: var(--f-display); font-weight: 700; font-size: 17px; letter-spacing: .03em; text-transform: uppercase; min-width: 0 }\n.stop-head .ttl small { font-family: var(--f-body); font-weight: 500; font-size: 12px; letter-spacing: 0; text-transform: none; color: var(--muted); margin-left: 8px }\n.stop.is-done { background: transparent; border-style: dashed }\n.stop.is-done .mark { background: var(--done); color: #fff; box-shadow: none }\n.stop.is-done .ttl, .stop.is-done .time { color: var(--muted) }\n.stop.is-done .stop-head { padding-block: 5px }\n.stop.is-now { border-color: var(--now); box-shadow: 0 0 0 1px var(--now) }\n.stop.is-now .stop-head { background: var(--now-soft) }\n.stop.is-now .mark { background: var(--now); color: #fff; box-shadow: none }\n.stop.is-now .time { color: var(--now) }\n.stop.is-late { border-color: var(--warn) }\n.stop.is-late .stop-head { background: var(--warn-soft) }\n.stop.is-late .mark { background: var(--warn); color: #fff; box-shadow: none }\n.stop.is-late .time { color: var(--warn) }\n.stop .items { border-top: 1px solid var(--line) }\n.stop.is-later .check { padding-block: 5px; min-height: 34px }\n.stop.is-later .box { width: 18px; height: 18px; border-radius: 5px }\n.stop.is-later .txt .label { color: var(--muted); font-weight: 400 }\n.stop.is-later .txt .sub { display: none }\n.stop .phint { font-size: 12px; color: var(--muted); padding: 0 12px 6px 146px }\n.stop.is-now .phint { background: var(--now-soft) }\n.stop.is-late .phint { background: var(--warn-soft) }\n@media (max-width: 480px) { .stop .phint { padding-left: 44px } .stop-head { grid-template-columns: 22px 80px minmax(0, 1fr) auto; gap: 8px } }\n\n/* Monat */\n.monthhead { display: flex; align-items: center; gap: 8px; margin-top: 14px }\n.monthhead h2 { margin: 0; font-family: var(--f-display); font-size: 22px; text-transform: uppercase; letter-spacing: .03em; flex: 1 }\n.mscroll { overflow-x: auto; margin-top: 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface) }\ntable.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 13px; width: 100% }\n.mgrid th, .mgrid td { padding: 0; border-bottom: 1px solid var(--line); text-align: center }\n.mgrid thead th { font-weight: 600; color: var(--muted); padding: 8px 4px; font-size: 12px }\n.mgrid th.rowh { text-align: left; padding: 8px 12px; white-space: nowrap; font-family: var(--f-display); text-transform: uppercase; letter-spacing: .04em; font-size: 14px; position: sticky; left: 0; background: var(--surface) }\n.mgrid tr:last-child td, .mgrid tr:last-child th { border-bottom: 0 }\n.mcell { border: 0; background: none; width: 100%; min-width: 34px; height: 36px; font-size: 12px; font-weight: 600 }\n.mcell.full { background: var(--done-soft); color: var(--done) }\n.mcell.part { background: var(--now-soft); color: var(--now) }\n.mcell.none, .mcell.future { color: var(--line) }\n.mcell.sel { box-shadow: inset 0 0 0 2px var(--accent) }\n.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 10px }\n.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 4px }\n.legend .lg-full { background: var(--done-soft); box-shadow: inset 0 0 0 1px var(--done) }\n.legend .lg-part { background: var(--now-soft); box-shadow: inset 0 0 0 1px var(--now) }\n\n/* Plan-Editor */\n.edbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 12px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r) }\n.edbar .info { flex: 1; min-width: 220px; font-size: 13px; color: var(--muted) }\n.edbar .info b { color: var(--ink) }\n.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 7px 12px; font-weight: 600; font-size: 14px; white-space: nowrap }\n.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff }\n.btn.ghost { border-color: transparent; background: none; color: var(--accent) }\n.btn.danger { color: var(--warn) }\n.btn:disabled { opacity: .5; cursor: default }\n.editor { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px }\n.edshift { display: grid; gap: 10px; align-content: start; min-width: 0 }\n.edshift > h2 { margin: 0; font-family: var(--f-display); font-size: 20px; text-transform: uppercase; letter-spacing: .03em; display: flex; gap: 10px; align-items: center; flex-wrap: wrap }\n.edshift > h2 label { font-family: var(--f-body); font-size: 13px; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--muted); display: inline-flex; gap: 6px; align-items: center }\n.ed-phase .chead { gap: 6px; align-items: center }\n.in { border: 1px solid var(--line); background: var(--surface-2); border-radius: 6px; padding: 5px 8px; min-width: 0 }\n.in.title { font-weight: 600; flex: 1 1 140px }\n.in.time { width: 64px; text-align: center; font-variant-numeric: tabular-nums }\n.ed-items { list-style: none; margin: 0; padding: 0 }\n.ed-items li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px 8px; padding: 7px 10px; border-top: 1px solid var(--line); align-items: start }\n.ed-items li:first-child { border-top: 0 }\n.ed-items .fields { display: grid; gap: 4px; min-width: 0 }\n.ed-items .fields .in.sub { font-size: 13px }\n.ed-items .opts { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--muted); align-items: center }\n.ed-items .opts label { display: inline-flex; gap: 4px; align-items: center }\n.ed-items .opts select { font-size: 12px; padding: 2px 4px }\n.order { display: grid; gap: 2px }\n.mini { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; width: 28px; height: 24px; font-size: 12px; line-height: 1; padding: 0 }\n.mini:disabled { opacity: .35; cursor: default }\n.mini.del { color: var(--warn) }\n.mini.del.confirm { width: auto; padding: 0 6px; background: var(--warn); color: #fff; border-color: var(--warn) }\n.addrow { border: 0; border-top: 1px dashed var(--line); background: none; color: var(--accent); font-weight: 600; font-size: 13px; padding: 8px 12px; text-align: left; width: 100% }\n\n/* Person / Dienst */\n.whobtn { border: 1px solid var(--line); background: var(--surface); border-radius: 99px; height: 34px; padding: 0 12px 0 6px; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; white-space: nowrap }\n.whobtn .av { width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-size: 11px; font-weight: 700 }\n.whobtn.none { border-color: var(--warn); color: var(--warn) }\n.whobtn.none .av { background: var(--warn) }\n.whobtn small { font-weight: 500; color: var(--muted) }\n.duty { display: flex; gap: 6px 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); padding: 8px 12px; border-top: 1px solid var(--line) }\n.duty b { color: var(--ink) }\n.chip { display: inline-flex; align-items: center; gap: 4px; border-radius: 99px; padding: 2px 9px; font-size: 13px; font-weight: 600; background: var(--accent-soft); color: var(--accent); border: 1px solid transparent; white-space: nowrap }\nbutton.chip { cursor: pointer }\nbutton.chip.off { background: var(--surface); color: var(--muted); border-color: var(--line); font-weight: 500 }\n\n/* Namensauswahl */\n.overlay { position: fixed; inset: 0; z-index: 20; background: rgba(15, 22, 32, .55); display: grid; place-items: center; padding: 16px }\n.dialog { background: var(--surface); color: var(--ink); border-radius: 14px; width: min(640px, 100%); max-height: calc(100% - 32px); overflow: auto; padding: 20px; display: grid; gap: 14px; box-shadow: 0 20px 60px rgba(0, 0, 0, .3) }\n.dialog h2 { margin: 0; font-family: var(--f-display); font-size: 26px; text-transform: uppercase; letter-spacing: .03em }\n.dialog p { margin: 0; color: var(--muted) }\n.dialog .grp { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted) }\n.names { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px }\n.namebtn { border: 1px solid var(--line); background: var(--surface-2); border-radius: 10px; padding: 14px 12px; font-size: 17px; font-weight: 600; text-align: left; display: flex; gap: 10px; align-items: center }\n.namebtn .av { flex: none; width: 30px; height: 30px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font-size: 12px; font-weight: 700 }\n.namebtn.sched { border-color: var(--accent); background: var(--accent-soft) }\n.namebtn.sched .av { background: var(--accent); color: #fff }\n.dialog .row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end }\n\n/* Dienstplan */\n.roster { overflow-x: auto; margin-top: 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface) }\n.roster table { border-collapse: collapse; width: 100%; min-width: 760px }\n.roster th, .roster td { border-bottom: 1px solid var(--line); border-left: 1px solid var(--line); padding: 8px; vertical-align: top; text-align: left }\n.roster tr:last-child td, .roster tr:last-child th { border-bottom: 0 }\n.roster thead th { font-size: 13px; color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums }\n.roster thead th.today { color: var(--accent); background: var(--accent-soft) }\n.roster th.rowh { border-left: 0; font-family: var(--f-display); text-transform: uppercase; letter-spacing: .04em; font-size: 15px; white-space: nowrap; width: 90px }\n.roster td .cell { display: flex; flex-wrap: wrap; gap: 4px }\n.roster td .empty { padding: 0; font-size: 12px }\n\n/* Verwaltung */\n.admin { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-top: 12px; align-items: start }\n.admin .card .cbody { padding: 12px; display: grid; gap: 10px }\n.admin p { margin: 0; font-size: 13px; color: var(--muted) }\n.people { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px }\n.people li { display: flex; gap: 6px; align-items: center }\n.people .in { flex: 1 }\n.pinform { max-width: 360px; margin: 40px auto 0; display: grid; gap: 10px; text-align: center }\n.pinform h2 { margin: 0; font-family: var(--f-display); font-size: 24px; text-transform: uppercase }\n.pinform .in { font-size: 22px; text-align: center; letter-spacing: .3em; padding: 10px }\n.pinform p { margin: 0; color: var(--muted); font-size: 13px }\n\n/* Querformat: alles auf einen Bildschirm */\n@media (orientation: landscape) and (min-width: 900px) {\n  :host { height: var(--rz-h, 100dvh) }\n  .rz-root { height: 100% }\n  .wrap { max-width: none; height: 100%; display: flex; flex-direction: column; padding-block: 0 12px }\n  header.top { position: static }\n  .status { width: auto; max-width: 220px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }\n  main { flex: 1; min-height: 0; display: flex; flex-direction: column }\n  main.scroll { overflow: auto }\n  .dash, .shiftview { flex: 1; min-height: 0; grid-template-rows: minmax(0, 1fr) }\n  .dash > .col > .card, .side > .card { min-height: 0 }\n  .dash > .col > .card.grow, .side > .card.grow { flex: 1 }\n  .card .cbody { overflow-y: auto; flex: 1 }\n  .board { min-height: 0; overflow-y: auto }\n  .board-in { display: block; columns: 2 320px; column-gap: 12px }\n}\n@media (orientation: portrait), (max-width: 899px) {\n  .dash { grid-template-columns: minmax(0, 1fr) }\n  .shiftview { grid-template-columns: minmax(0, 1fr) }\n  .clock { font-size: 28px }\n}\n@media (max-width: 760px) { .editor { grid-template-columns: minmax(0, 1fr) } .datenav { margin-left: 0 } }\n@media (prefers-reduced-motion: reduce) { * { transition: none !important } }\n";
+const MARKUP = "<div class=\"wrap\">\n  <header class=\"top\">\n    <h1 class=\"brand\">Rezeption<small id=\"weekday\">–</small></h1>\n    <div class=\"clock\" id=\"clock\">--:--</div>\n    <button class=\"whobtn none\" id=\"whoBtn\" aria-label=\"Person wechseln\"><span class=\"av\" id=\"whoAv\">?</span><span id=\"whoName\">Name wählen</span></button>\n    <div class=\"tabs\" role=\"tablist\">\n      <button class=\"tab\" role=\"tab\" data-view=\"uebersicht\"><b>Übersicht</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"frueh\"><b>Früh</b><span class=\"meta\" id=\"meta-frueh\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"spaet\"><b>Spät</b><span class=\"meta\" id=\"meta-spaet\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"dienst\"><b>Dienstplan</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"monat\"><b>Monat</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"admin\"><b>Verwaltung</b></button>\n    </div>\n    <div class=\"datenav\">\n      <button class=\"iconbtn\" id=\"prev\" aria-label=\"Vorheriger Tag\">‹</button>\n      <label class=\"datebtn\"><span id=\"datelabel\">–</span><span class=\"src\" id=\"datesrc\"></span><input type=\"date\" id=\"datepick\" aria-label=\"Datum wählen\"></label>\n      <button class=\"iconbtn\" id=\"next\" aria-label=\"Nächster Tag\">›</button>\n      <button class=\"todaybtn\" id=\"today\">Heute</button>\n    </div>\n    <div class=\"status\" id=\"status\">Verbinde…</div>\n  </header>\n  <main id=\"main\"></main>\n</div>\n<div id=\"picker\" hidden></div>";
+
+/* Rezeption Schichtcheck – App-Kern.
+   Wird von tools/build.mjs in index.html (eigenständig) und in das SharePoint-Webpart (app.gen.ts) eingebaut.
+   mount(container, opts) rendert die App in `container` (liegt in einem Shadow-Root) und gibt eine Aufräumfunktion zurück.
+   opts.mode: "auto" (claude.ai-Datenbank falls vorhanden, sonst Browser-Speicher) | "local" | "sharepoint". */
+
+// ---------- SharePoint-Speicher ----------
+// Jedes Dokument ist eine JSON-Datei in einer Dokumentbibliothek (Versionsverlauf = Sicherung).
+// Bietet dieselbe Schnittstelle wie die claude.ai-Datenbank, soweit die App sie nutzt:
+// doc(path).get/set/update/onSnapshot und collection("days").where("month", "==", ym).onSnapshot.
+// Änderungen anderer Geräte kommen per Abfrage alle POLL_MS an.
+export function createSpDb(opts) {
+  const POLL_MS = opts.pollMs || 15000;
+  const web = String(opts.webAbsoluteUrl || "").replace(/\/$/, "");
+  const webRel = String(opts.webServerRelativeUrl || "/").replace(/\/$/, "");
+  const title = opts.library || "RezeptionDaten";
+  let libUrl = null;                 // server-relativ, z. B. /sites/team/RezeptionDaten
+  let digest = null, digestUntil = 0;
+  const knownFolders = new Set();
+
+  const q = (v) => encodeURIComponent(String(v).replace(/'/g, "''"));
+  class SpError extends Error { constructor(code, message, status) { super(message); this.code = code; this.status = status; } }
+  async function http(url, init = {}) {
+    let res;
+    try { res = await fetch(url, { credentials: "same-origin", cache: "no-store", ...init }); }
+    catch { throw new SpError("unavailable", "Keine Verbindung zu SharePoint"); }
+    if (res.status === 401 || res.status === 403) throw new SpError("not_granted", "Keine Berechtigung in SharePoint", res.status);
+    return res;
+  }
+  async function getDigest() {
+    if (digest && Date.now() < digestUntil) return digest;
+    const res = await http(`${web}/_api/contextinfo`, { method: "POST", headers: { Accept: "application/json;odata=nometadata" } });
+    if (!res.ok) throw new SpError("unavailable", `contextinfo ${res.status}`, res.status);
+    const j = await res.json();
+    digest = j.FormDigestValue;
+    digestUntil = Date.now() + Math.max(60, (j.FormDigestTimeoutSeconds || 1800) - 120) * 1000;
+    return digest;
+  }
+  async function post(url, body, headers = {}) {
+    const d = await getDigest();
+    return http(url, { method: "POST", body, headers: { Accept: "application/json;odata=nometadata", "X-RequestDigest": d, ...headers } });
+  }
+  // Bibliothek finden oder anlegen (BaseTemplate 101 = Dokumentbibliothek).
+  async function ensureLibrary() {
+    if (libUrl) return libUrl;
+    const url = `${web}/_api/web/lists/GetByTitle('${q(title)}')?$select=Id&$expand=RootFolder`;
+    let res = await http(url, { headers: { Accept: "application/json;odata=nometadata" } });
+    if (res.status === 404) {
+      const c = await post(`${web}/_api/web/lists`, JSON.stringify({ __metadata: { type: "SP.List" }, BaseTemplate: 101, Title: title, Description: "Daten der Rezeptions-Checkliste (nicht manuell bearbeiten)" }),
+        { Accept: "application/json;odata=verbose", "Content-Type": "application/json;odata=verbose" });
+      if (!c.ok) throw new SpError("unavailable", `Bibliothek „${title}“ konnte nicht angelegt werden (${c.status})`, c.status);
+      res = await http(url, { headers: { Accept: "application/json;odata=nometadata" } });
+    }
+    if (!res.ok) throw new SpError("unavailable", `Bibliothek „${title}“ nicht lesbar (${res.status})`, res.status);
+    const j = await res.json();
+    libUrl = (j.RootFolder && j.RootFolder.ServerRelativeUrl) || `${webRel}/${title}`;
+    return libUrl;
+  }
+  // Pfad → Ordner + Dateiname. Tage liegen in Monatsordnern: days/2026-10/2026-10-14.json
+  function locate(path) {
+    const parts = path.split("/");
+    const name = parts.pop() + ".json";
+    if (parts[0] === "days" && parts.length === 1 && /^\d{4}-\d{2}-\d{2}/.test(name)) parts.push(name.slice(0, 7));
+    return { dir: parts, name };
+  }
+  async function ensureFolder(dirParts) {
+    const lib = await ensureLibrary();
+    let cur = lib;
+    for (const p of dirParts) {
+      cur += "/" + p;
+      if (knownFolders.has(cur)) continue;
+      const res = await post(`${web}/_api/web/folders/AddUsingPath(DecodedUrl='${q(cur)}',Overwrite=false)`, null);
+      if (!res.ok && res.status !== 409) {
+        // Ältere Variante als Rückfall
+        const r2 = await post(`${web}/_api/web/folders/add('${q(cur)}')`, null);
+        if (!r2.ok) throw new SpError("unavailable", `Ordner ${cur} (${r2.status})`, r2.status);
+      }
+      knownFolders.add(cur);
+    }
+    return cur;
+  }
+  async function readFile(path) {
+    const lib = await ensureLibrary();
+    const { dir, name } = locate(path);
+    const fileUrl = [lib, ...dir, name].join("/");
+    const res = await http(`${web}/_api/web/GetFileByServerRelativePath(DecodedUrl='${q(fileUrl)}')/$value`);
+    if (res.status === 404) return { exists: false, data: undefined, etag: null, fileUrl };
+    if (!res.ok) throw new SpError("unavailable", `Lesen ${path} (${res.status})`, res.status);
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch { throw new SpError("unavailable", `Datei ${name} ist beschädigt`); }
+    return { exists: true, data, etag: res.headers.get("ETag"), fileUrl };
+  }
+  async function writeFile(path, data, etag) {
+    const { dir, name } = locate(path);
+    const body = JSON.stringify(data);
+    if (etag !== undefined && etag !== null) {
+      const lib = await ensureLibrary();
+      const fileUrl = [lib, ...dir, name].join("/");
+      const res = await post(`${web}/_api/web/GetFileByServerRelativePath(DecodedUrl='${q(fileUrl)}')/$value`, body, { "X-HTTP-Method": "PUT", "IF-MATCH": etag });
+      if (res.status === 412) throw new SpError("conflict", "Gleichzeitige Änderung", 412);
+      if (!res.ok) throw new SpError("unavailable", `Schreiben ${path} (${res.status})`, res.status);
+      return;
+    }
+    const folder = await ensureFolder(dir);
+    const res = await post(`${web}/_api/web/GetFolderByServerRelativePath(DecodedUrl='${q(folder)}')/Files/AddUsingPath(DecodedUrl='${q(name)}',Overwrite=true)`, body);
+    if (!res.ok) throw new SpError("unavailable", `Speichern ${path} (${res.status})`, res.status);
+  }
+  const isObj = (v) => v && typeof v === "object" && !Array.isArray(v);
+  function merge(base, patch) {
+    const out = isObj(base) ? { ...base } : {};
+    for (const [k, v] of Object.entries(patch)) out[k] = isObj(v) && isObj(out[k]) ? merge(out[k], v) : (isObj(v) ? merge({}, v) : v);
+    return out;
+  }
+  const freeze = (o) => { if (o && typeof o === "object") { Object.values(o).forEach(freeze); Object.freeze(o); } return o; };
+  const snap = (id, exists, data) => ({ id, exists, data: () => data, metadata: { fromCache: false, hasPendingWrites: false } });
+
+  // Beobachter: nach eigenen Schreibvorgängen sofort neu lesen.
+  const watchers = new Set();
+  const poke = () => watchers.forEach((w) => w());
+
+  function doc(path) {
+    const id = path.split("/").pop();
+    return {
+      id, path,
+      async get() { const r = await readFile(path); return snap(id, r.exists, r.exists ? freeze(r.data) : undefined); },
+      async set(data) { await writeFile(path, data); poke(); },
+      async update(patch) {
+        for (let attempt = 0; attempt < 4; attempt++) {
+          const r = await readFile(path);
+          if (!r.exists) throw new SpError("invalid_argument", "Dokument existiert nicht");
+          try { await writeFile(path, merge(r.data, patch), r.etag || null); poke(); return; }
+          catch (e) { if (e.code !== "conflict") throw e; }
+        }
+        throw new SpError("unavailable", "Zu viele gleichzeitige Änderungen");
+      },
+      onSnapshot(next, error) {
+        let last = Symbol("none"), stopped = false, busy = false;
+        const run = async () => {
+          if (stopped || busy) return;
+          busy = true;
+          try {
+            const r = await readFile(path);
+            const key = r.exists ? JSON.stringify(r.data) : null;
+            if (key !== last) { last = key; next(snap(id, r.exists, r.exists ? freeze(r.data) : undefined)); }
+          } catch (e) { if (e.code === "not_granted" && error) { error(e); stopped = true; } }
+          finally { busy = false; }
+        };
+        run();
+        const t = setInterval(run, POLL_MS);
+        watchers.add(run);
+        return () => { stopped = true; clearInterval(t); watchers.delete(run); };
+      },
+    };
+  }
+  function collection(name) {
+    let monthEq = null;
+    const api = {
+      where(field, op, value) { if (name === "days" && field === "month" && op === "==") monthEq = String(value); return api; },
+      onSnapshot(next, error) {
+        let stopped = false, busy = false, lastKey = null;
+        const cache = new Map(); // Dateiname -> { etag, data }
+        const run = async () => {
+          if (stopped || busy || !monthEq) return;
+          busy = true;
+          try {
+            const lib = await ensureLibrary();
+            const folder = `${lib}/days/${monthEq}`;
+            const res = await http(`${web}/_api/web/GetFolderByServerRelativePath(DecodedUrl='${q(folder)}')/Files?$select=Name,ETag`, { headers: { Accept: "application/json;odata=nometadata" } });
+            let files = [];
+            if (res.ok) files = ((await res.json()).value || []).filter((f) => /\.json$/.test(f.Name));
+            else if (res.status !== 404) throw new SpError("unavailable", `Monat ${monthEq} (${res.status})`, res.status);
+            for (const f of files) {
+              const c = cache.get(f.Name);
+              if (c && c.etag === f.ETag) continue;
+              const r = await readFile("days/" + f.Name.replace(/\.json$/, ""));
+              if (r.exists) cache.set(f.Name, { etag: f.ETag, data: freeze(r.data) });
+            }
+            for (const k of [...cache.keys()]) if (!files.some((f) => f.Name === k)) cache.delete(k);
+            const key = files.map((f) => f.Name + f.ETag).sort().join("|");
+            if (key !== lastKey) {
+              lastKey = key;
+              const docs = [...cache.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([n, v]) => snap(n.replace(/\.json$/, ""), true, v.data));
+              next({ docs, size: docs.length, empty: !docs.length, docChanges: () => [], metadata: { fromCache: false, hasPendingWrites: false } });
+            }
+          } catch (e) { if (e.code === "not_granted" && error) { error(e); stopped = true; } }
+          finally { busy = false; }
+        };
+        run();
+        const t = setInterval(run, POLL_MS);
+        watchers.add(run);
+        return () => { stopped = true; clearInterval(t); watchers.delete(run); };
+      },
+    };
+    return api;
+  }
+  return { doc, collection, ready: ensureLibrary };
+}
+
+// ---------- App ----------
+export function mount(container, opts = {}) {
+  opts = { mode: "auto", ...opts };
+  const root = opts.root || document;
+  const host = root.host || container;
+  const timers = [], cleanups = [];
+  let disposed = false;
+  container.innerHTML = MARKUP;
+  // Farbschema: in SharePoint immer hell, sonst wie die einbettende Seite (claude.ai setzt data-theme).
+  if (opts.mode === "sharepoint") host.setAttribute("data-theme", "light");
+  else if (root.host) {
+    const syncTheme = () => { const t = document.documentElement.getAttribute("data-theme"); if (t) host.setAttribute("data-theme", t); else host.removeAttribute("data-theme"); };
+    syncTheme();
+    const mo = new MutationObserver(syncTheme);
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    cleanups.push(() => mo.disconnect());
+  }
+  // Querformat: Höhe bis zum unteren Fensterrand, damit alles auf einen Bildschirm passt.
+  if (opts.fitViewport) {
+    const fit = () => { const top = Math.max(0, host.getBoundingClientRect().top + (window.scrollY || 0)); host.style.setProperty("--rz-h", Math.max(480, window.innerHeight - top - 8) + "px"); };
+    fit();
+    window.addEventListener("resize", fit);
+    cleanups.push(() => window.removeEventListener("resize", fit));
+    timers.push(setTimeout(fit, 500));
+  }
+
+
+  // ---------- Standardplan (Vorlage: Aushang „Checkliste neue Rezeption") ----------
+  // Pro Tag gilt: Tagesanpassung > Wochentag-Vorlage > gespeicherter Standard > DEFAULT_PLAN.
+  // Item-IDs sind Datenbank-Schlüssel: nie umbenennen.
+  // Stand: von der Rezeption angepasster Plan (Testversion, 10.10.2026).
+  const DEFAULT_PLAN = {
+    "frueh": {
+      "end": "15:30",
+      "phases": [
+        {
+          "from": "08:00",
+          "hint": "direkt bei Schichtbeginn",
+          "id": "open",
+          "items": [
+            {
+              "id": "f_lager",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Lager (hinter Rezeption) aufschließen"
+            },
+            {
+              "id": "f_ruf",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Rufweiterleitung deaktivieren"
+            },
+            {
+              "id": "f_nubsi",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Neue Eingangstür „Nubsi“ verstellen"
+            },
+            {
+              "id": "f_kuehl_auf",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Kühlschränke aufschließen + Licht an"
+            },
+            {
+              "id": "f_kaffee",
+              "important": false,
+              "optional": false,
+              "s": "rechts hinter dem Display",
+              "t": "Kaffeemaschine anstellen"
+            },
+            {
+              "id": "f_musik",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Musik an über Sonos"
+            },
+            {
+              "id": "f_tv",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Beide Fernseher anmachen"
+            }
+          ],
+          "title": "Öffnen",
+          "to": "08:30"
+        },
+        {
+          "from": "08:00",
+          "hint": "vor den ersten Buchungen",
+          "id": "setup",
+          "items": [
+            {
+              "id": "f_spint",
+              "important": false,
+              "optional": false,
+              "s": "Schläger-Nr. korrekt hinterlegt? Auf Schäden prüfen.",
+              "t": "Schläger/Bälle vom Vorabend aus dem Rückgabespint nehmen"
+            },
+            {
+              "id": "f_merch",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Merch und Testschläger vorne an die Wand hängen"
+            },
+            {
+              "id": "f_rezeption",
+              "important": false,
+              "optional": false,
+              "s": "Aufsteller, Kaffeebecher + Extras, Spendenbox, Preisliste, Eisliste, Snickers, Müsliriegel, Griffbänder",
+              "t": "Rezeption aufbauen"
+            },
+            {
+              "id": "f_kuehl_fuell",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Kühlschränke auffüllen"
+            }
+          ],
+          "title": "Rezeption einrichten",
+          "to": "09:00"
+        },
+        {
+          "from": "09:00",
+          "hint": "am Vormittag",
+          "id": "orga",
+          "items": [
+            {
+              "id": "f_excel",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Neuerungen in der Excel (SharePoint) prüfen"
+            },
+            {
+              "id": "f_bestand",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Bestand Schläger + Bälle prüfen → sortieren"
+            }
+          ],
+          "title": "Orga",
+          "to": "11:00"
+        }
+      ],
+      "start": "08:00"
+    },
+    "spaet": {
+      "end": "23:00",
+      "phases": [
+        {
+          "from": "15:30",
+          "hint": "Übergabe-Notiz lesen",
+          "id": "start",
+          "items": [
+            {
+              "id": "s_excel",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Neuerungen in der Excel (SharePoint) prüfen"
+            },
+            {
+              "id": "s_xmv2uktvfpcm8",
+              "important": false,
+              "optional": true,
+              "s": "",
+              "t": "Check-ins erledigen, wenn noch offen"
+            }
+          ],
+          "title": "Schichtstart",
+          "to": "16:00"
+        },
+        {
+          "from": "18:30",
+          "hint": "je nach Dunkelheit",
+          "id": "licht",
+          "items": [
+            {
+              "id": "s_flutlicht_an",
+              "important": false,
+              "optional": true,
+              "s": "ab ca. 18:30, je nach Dunkelheit",
+              "t": "bei Bedarf: Tennis-Flutlicht anstellen"
+            },
+            {
+              "id": "s_plejd",
+              "important": false,
+              "optional": false,
+              "s": "geht automatisch 30 min vor Sonnenuntergang ein und um 22:10 Uhr aus",
+              "t": "Outdoor-Plätze: Licht über Plejd anmachen"
+            }
+          ],
+          "title": "Licht an",
+          "to": "19:30"
+        },
+        {
+          "from": "20:00",
+          "hint": "",
+          "id": "kunden",
+          "items": [
+            {
+              "id": "s_kunden",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Kunden für abends ab 22 Uhr und morgens (8–10 Uhr) anschreiben und informieren"
+            }
+          ],
+          "title": "Kunden informieren",
+          "to": "21:00"
+        },
+        {
+          "from": "21:00",
+          "hint": "nach den Buchungen",
+          "id": "plaetze",
+          "items": [
+            {
+              "id": "s_flutlicht_aus",
+              "important": false,
+              "optional": true,
+              "s": "spätestens 22:10 Uhr",
+              "t": "Tennis-Flutlicht ausstellen"
+            },
+            {
+              "id": "s_waessern",
+              "important": false,
+              "optional": true,
+              "s": "nur wenn es sehr trocken ist, nach 21 Uhr // aktuell nicht notwendig wegen Tau",
+              "t": "Tennisplätze 3× hintereinander wässern"
+            }
+          ],
+          "title": "Plätze",
+          "to": "21:30"
+        },
+        {
+          "from": "21:30",
+          "hint": "nach der letzten Buchung",
+          "id": "abbau",
+          "items": [
+            {
+              "id": "s_kaffee",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Kaffeemaschine reinigen"
+            },
+            {
+              "id": "s_merch",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Merch + Testschläger hinten in den Raum wegräumen"
+            },
+            {
+              "id": "s_rezeption",
+              "important": false,
+              "optional": false,
+              "s": "Aufsteller alter Tresen 2×, neuer Tresen 1×, Kaffeebecher + Extras, Spendenbox, Preisliste, Eisliste, Snickers, Müsliriegel, Griffbänder",
+              "t": "Rezeption abbauen"
+            },
+            {
+              "id": "s_spinte",
+              "important": false,
+              "optional": false,
+              "s": "Notiz in der Buchung: Schläger-Nr. + evtl. Bälle",
+              "t": "Rückgabe-Spinte mit LE füllen"
+            },
+            {
+              "id": "s_kuehl",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Kühlschränke auffüllen + Licht aus + abschließen"
+            }
+          ],
+          "title": "Abbau",
+          "to": "22:00"
+        },
+        {
+          "from": "22:30",
+          "hint": "in dieser Reihenfolge",
+          "id": "close",
+          "items": [
+            {
+              "id": "s_musik",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Musik aus über Sonos/Spotify"
+            },
+            {
+              "id": "s_tv",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Fernseher ausmachen"
+            },
+            {
+              "id": "s_schiebe",
+              "important": false,
+              "optional": false,
+              "s": "roter Punkt",
+              "t": "Schiebefenster abschließen"
+            },
+            {
+              "id": "s_ruf",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Rufweiterleitung aktivieren, Info an G/D/D/J"
+            },
+            {
+              "id": "s_xmv2j3h7wo0pc",
+              "important": false,
+              "optional": true,
+              "s": "wenn voll",
+              "t": "Müll rausbringen"
+            },
+            {
+              "id": "s_nubsi",
+              "important": false,
+              "optional": false,
+              "s": "",
+              "t": "Neue Eingangstür „Nubsi“ verstellen"
+            },
+            {
+              "id": "s_alte",
+              "important": false,
+              "optional": false,
+              "s": "Gummiband abmachen, prüfen ob abgeschlossen",
+              "t": "„Alte“ Eingangstür (mit Code) abschließen"
+            }
+          ],
+          "title": "Abschließen",
+          "to": "23:00"
+        }
+      ],
+      "start": "15:30"
+    },
+    "always": {
+      "frueh": [
+        {
+          "every": 60,
+          "id": "rund",
+          "important": false,
+          "s": "",
+          "t": "Rundgang Halle / draußen"
+        },
+        {
+          "every": 60,
+          "id": "wasser",
+          "important": false,
+          "s": "",
+          "t": "Wasserspender regelmäßig wischen"
+        },
+        {
+          "every": 0,
+          "id": "spuel",
+          "important": false,
+          "s": "",
+          "t": "Spülbecken (Lager) sauberhalten"
+        },
+        {
+          "every": 0,
+          "id": "checkin",
+          "important": false,
+          "s": "nicht geschafft? → Übergabe-Notiz",
+          "t": "Check-ins erledigen"
+        },
+        {
+          "every": 0,
+          "id": "whatsapp",
+          "important": false,
+          "s": "",
+          "t": "WhatsApp-Chats abarbeiten"
+        },
+        {
+          "every": 0,
+          "id": "a_xmv2j2g67uihk",
+          "important": false,
+          "s": "",
+          "t": "Laptop + Handy laden"
+        },
+        {
+          "every": 0,
+          "id": "fenster",
+          "important": false,
+          "s": "je nach Wetter",
+          "t": "Fenster öffnen/schließen"
+        },
+        {
+          "every": 0,
+          "id": "a_xmv2j6qsr3cnv",
+          "important": false,
+          "s": "",
+          "t": "Müll rausbringen, wenn voll"
+        }
+      ],
+      "spaet": [
+        {
+          "every": 60,
+          "id": "rund",
+          "important": false,
+          "s": "",
+          "t": "Rundgang Halle / draußen"
+        },
+        {
+          "every": 60,
+          "id": "wasser",
+          "important": false,
+          "s": "",
+          "t": "Wasserspender regelmäßig wischen"
+        },
+        {
+          "every": 0,
+          "id": "spuel",
+          "important": false,
+          "s": "",
+          "t": "Spülbecken (Lager) sauberhalten"
+        },
+        {
+          "every": 0,
+          "id": "whatsapp",
+          "important": false,
+          "s": "",
+          "t": "WhatsApp-Chats abarbeiten"
+        },
+        {
+          "every": 0,
+          "id": "fenster",
+          "important": false,
+          "s": "je nach Wetter",
+          "t": "Fenster öffnen/schließen"
+        },
+        {
+          "every": 0,
+          "id": "a_xmv2j69560uh4",
+          "important": false,
+          "s": "",
+          "t": "Laptop + Handy laden"
+        }
+      ]
+    }
+  };
+
+  const SHIFT_META = {
+    frueh: { label: "Frühschicht", short: "Früh", prefix: "f" },
+    spaet: { label: "Spätschicht", short: "Spät", prefix: "s" },
+  };
+  const KEYS = ["frueh", "spaet"];
+
+  // ---------- Helfer ----------
+  const $ = (id) => root.getElementById(id);
+  const esc = (v) => String(v).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const pad = (n) => String(n).padStart(2, "0");
+  const isoDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const parseIso = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+  const addDays = (iso, n) => { const d = parseIso(iso); d.setDate(d.getDate() + n); return isoDate(d); };
+  const toMin = (hhmm) => { const [h, m] = hhmm.split(":").map(Number); return h * 60 + m; };
+  const fmtMin = (m) => `${pad(Math.floor(m / 60) % 24)}:${pad(m % 60)}`;
+  const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+  const fmtTime = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  const clone = (o) => JSON.parse(JSON.stringify(o));
+  const newId = (prefix) => `${prefix}_x${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  const WD = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
+  const WD_PL = ["Sonntage", "Montage", "Dienstage", "Mittwoche", "Donnerstage", "Freitage", "Samstage"];
+  const MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+  const CHECK_SVG = '<svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3L13 4.5"/></svg>';
+  const LOOP_SVG = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 5.5A5.5 5.5 0 0 0 3.2 4.6M3 10.5a5.5 5.5 0 0 0 9.8.9"/><path d="M3 1.8v3h3M13 14.2v-3h-3"/></svg>';
+
+  // ---------- Plan prüfen (Daten aus der DB sind unvertrauenswürdig) ----------
+  const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+  const ID_RE = /^[A-Za-z0-9_-]{1,60}$/;
+  const str = (v, max) => (typeof v === "string" ? v.slice(0, max) : "");
+  // Akzeptiert 7:30, 0730, 730, 7.30, 7 → "07:30"/"07:00"; sonst null.
+  function normTime(v) {
+    const m = String(v || "").trim().match(/^(\d{1,2})(?:[:.]?(\d{2}))?$/);
+    if (!m) return null;
+    const h = Number(m[1]), mi = Number(m[2] || 0);
+    return h < 24 && mi < 60 ? `${pad(h)}:${pad(mi)}` : null;
+  }
+  const sortPhases = (phases) => phases.map((p, i) => [p, i]).sort((a, b) => (toMin(a[0].from) - toMin(b[0].from)) || (a[1] - b[1])).map(x => x[0]);
+
+  function normalizePlan(raw) {
+    if (!raw || typeof raw !== "object") return null;
+    const out = { always: {} };
+    for (const key of KEYS) {
+      const s = raw[key], def = DEFAULT_PLAN[key];
+      if (!s || typeof s !== "object" || !Array.isArray(s.phases)) return null;
+      const seen = new Set();
+      const phases = s.phases.slice(0, 20).map(p => {
+        if (!p || typeof p !== "object" || !TIME_RE.test(p.from) || !TIME_RE.test(p.to)) return null;
+        const items = (Array.isArray(p.items) ? p.items : []).slice(0, 40).map(i => {
+          if (!i || typeof i !== "object" || !ID_RE.test(i.id) || seen.has(i.id)) return null;
+          const t = str(i.t, 200).trim();
+          if (!t) return null;
+          seen.add(i.id);
+          return { id: i.id, t, s: str(i.s, 300), important: i.important === true, optional: i.optional === true };
+        }).filter(Boolean);
+        return { id: ID_RE.test(p.id) ? p.id : newId("p"), title: str(p.title, 60).trim() || "Abschnitt", from: p.from, to: p.to, hint: str(p.hint, 80), items };
+      }).filter(Boolean);
+      out[key] = {
+        start: TIME_RE.test(s.start) ? s.start : def.start,
+        end: TIME_RE.test(s.end) ? s.end : def.end,
+        phases: sortPhases(phases),
+      };
+      const al = raw.always && Array.isArray(raw.always[key]) ? raw.always[key] : DEFAULT_PLAN.always[key];
+      out.always[key] = al.slice(0, 20).map(a => {
+        if (!a || typeof a !== "object") return null;
+        const t = str(a.t, 200).trim();
+        if (!t) return null;
+        const every = Number.isInteger(a.every) && a.every >= 0 && a.every <= 480 ? a.every : (a.rounds === true ? 60 : 0);
+        return { id: ID_RE.test(a.id) ? a.id : newId("a"), t, s: str(a.s, 200), important: a.important === true, every };
+      }).filter(Boolean);
+    }
+    return out;
+  }
+
+  // Abgeleitete Strukturen pro Planobjekt einmal berechnen.
+  const derivedCache = new WeakMap();
+  function derive(plan) {
+    let d = derivedCache.get(plan);
+    if (d) return d;
+    d = { ids: {}, item: {} };
+    for (const key of KEYS) {
+      d.ids[key] = [];
+      for (const p of plan[key].phases) for (const i of p.items) { d.ids[key].push(i.id); d.item[i.id] = { ...i, shift: key, phase: p }; }
+    }
+    derivedCache.set(plan, d);
+    return d;
+  }
+
+  // ---------- Zustand ----------
+  const DEFAULT = normalizePlan(DEFAULT_PLAN);
+  const state = {
+    date: isoDate(new Date()),
+    view: "uebersicht",
+    checks: {}, notes: {}, prevNotes: {},
+    logs: {},            // Daueraufgaben: { frueh|spaet: { <id>: { <key>: {at, by} | null } } }
+    dayPlan: null,       // Tagesanpassung (normalisiert) oder null
+    cfg: { base: null, weekday: {}, people: [], roster: {}, adminPin: null }, // Pläne, Team, Dienstplan, Leitungs-PIN
+    docExists: false, cfgExists: false,
+    month: {},           // date -> { checks, plan }
+    names: {},
+    expanded: new Set(),
+    draft: null,         // Plan-Editor: Arbeitskopie
+    draftDirty: false,
+    confirm: null,       // zweistufiges Löschen
+    mode: "loading",
+    readOnly: false,
+    who: null,           // { date, shift, id } – wer gerade an der Rezeption arbeitet (pro Gerät)
+    pickerOpen: false, pickerSnoozeUntil: 0,
+    unlockedUntil: 0,    // Leitungsbereich entsperrt bis (ms)
+    pinStage: null,      // { mode: "unlock"|"set", first?: string, next: view }
+    rosterWeek: null,    // Montag der angezeigten Dienstplan-Woche
+    rosterEdit: false,
+  };
+  let db = null, user = null, myId = null, unsubDay = null, unsubMonth = null, unsubCfg = null, monthKey = null;
+  let writeChain = Promise.resolve();
+  let renderPending = false;
+  let scrolledOnce = false;
+
+  function resolvePlan(date, dayPlan) {
+    if (dayPlan) return { plan: dayPlan, source: "day" };
+    const wd = String(parseIso(date).getDay());
+    if (state.cfg.weekday[wd]) return { plan: state.cfg.weekday[wd], source: "weekday" };
+    if (state.cfg.base) return { plan: state.cfg.base, source: "base" };
+    return { plan: DEFAULT, source: "default" };
+  }
+  const P = () => resolvePlan(state.date, state.dayPlan).plan;
+
+  // ---------- Speicher ----------
+  const LS = {
+    get(key, fallback) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch { return fallback; } },
+    set(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); return true; } catch { return false; } },
+    month(ym) {
+      const out = {};
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith("rz2:" + ym)) { const d = JSON.parse(localStorage.getItem(k) || "{}"); out[k.slice(4)] = { checks: d.checks || {}, plan: normalizePlan(d.plan) }; }
+        }
+      } catch { /* blockiert */ }
+      return out;
+    },
+  };
+
+  function setStatus(text, err = false) { const el = $("status"); el.textContent = text; el.title = text; el.classList.toggle("err", err); }
+  function statusLine() {
+    if (state.readOnly) return "Nur Lesezugriff.";
+    if (state.mode === "shared") return opts.mode === "sharepoint" ? "Gespeichert in SharePoint" : "Live geteilt";
+    if (state.mode === "local") return backupHint() || "Gespeichert auf diesem Mac";
+    return "Verbinde…";
+  }
+
+  function applyDoc(data) {
+    state.checks = (data && data.checks && typeof data.checks === "object") ? data.checks : {};
+    state.notes = (data && data.notes && typeof data.notes === "object") ? data.notes : {};
+    state.logs = (data && data.logs && typeof data.logs === "object") ? data.logs : {};
+    state.dayPlan = data ? normalizePlan(data.plan) : null;
+  }
+  function applyCfg(data) {
+    const weekday = {};
+    if (data && data.weekday && typeof data.weekday === "object") {
+      for (let i = 0; i < 7; i++) { const p = normalizePlan(data.weekday[String(i)]); if (p) weekday[String(i)] = p; }
+    }
+    const people = (data && Array.isArray(data.people) ? data.people : []).slice(0, 80).map(x => {
+      if (!x || typeof x !== "object" || !ID_RE.test(x.id)) return null;
+      const name = str(x.name, 40).trim();
+      return name ? { id: x.id, name } : null;
+    }).filter(Boolean);
+    const roster = {};
+    if (data && data.roster && typeof data.roster === "object") {
+      for (const [d, v] of Object.entries(data.roster)) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !v || typeof v !== "object") continue;
+        const e = {};
+        for (const k of KEYS) e[k] = Array.isArray(v[k]) ? v[k].filter(id => typeof id === "string" && ID_RE.test(id)).slice(0, 10) : [];
+        roster[d] = e;
+      }
+    }
+    state.cfg = { base: data ? normalizePlan(data.base) : null, weekday, people, roster, adminPin: data && typeof data.adminPin === "string" ? data.adminPin.slice(0, 64) : null };
+  }
+
+  function currentDayDoc() {
+    return { month: state.date.slice(0, 7), checks: state.checks, notes: state.notes, logs: state.logs, plan: state.dayPlan };
+  }
+
+  async function loadPrevNotes() {
+    const prev = addDays(state.date, -1), forDate = state.date;
+    let notes = {};
+    if (state.mode === "shared") {
+      try { const s = await db.doc("days/" + prev).get(); notes = (s.exists && s.data().notes) || {}; } catch { notes = {}; }
+    } else notes = LS.get("rz2:" + prev, {}).notes || {};
+    if (forDate !== state.date) return;
+    state.prevNotes = notes;
+    collectNames();
+    render();
+  }
+
+  function subscribeDay() {
+    if (unsubDay) { unsubDay(); unsubDay = null; }
+    state.prevNotes = {};
+    if (state.mode !== "shared") {
+      applyDoc(LS.get("rz2:" + state.date, null));
+      state.docExists = true;
+      render(); loadPrevNotes();
+      return;
+    }
+    const m = state.month[state.date];
+    applyDoc(m ? { checks: m.checks, plan: m.plan } : null);
+    state.docExists = !!m;
+    render(); loadPrevNotes();
+    unsubDay = db.doc("days/" + state.date).onSnapshot(
+      (snap) => { state.docExists = snap.exists; applyDoc(snap.exists ? snap.data() : null); collectNames(); render(); },
+      (e) => setStatus("Verbindung unterbrochen (" + ((e && e.code) || "Fehler") + ") – Seite neu laden", true),
+    );
+  }
+
+  function subscribeMonth(force) {
+    const ym = state.date.slice(0, 7);
+    if (!force && ym === monthKey && (unsubMonth || state.mode === "local")) return;
+    monthKey = ym;
+    if (unsubMonth) { unsubMonth(); unsubMonth = null; }
+    if (state.mode !== "shared") { state.month = LS.month(ym); return; }
+    state.month = {};
+    unsubMonth = db.collection("days").where("month", "==", ym).onSnapshot(
+      (snap) => {
+        const m = {};
+        snap.docs.forEach(d => { if (d.exists) { const x = d.data(); m[d.id] = { checks: x.checks || {}, plan: normalizePlan(x.plan) }; } });
+        state.month = m;
+        if (state.view === "monat") render();
+      },
+      () => { /* optional */ },
+    );
+  }
+
+  function subscribeCfg() {
+    if (state.mode !== "shared") { applyCfg(LS.get("rz2cfg", null)); state.cfgExists = true; return; }
+    unsubCfg = db.doc("config/plan").onSnapshot(
+      (snap) => { state.cfgExists = snap.exists; applyCfg(snap.exists ? snap.data() : null); render(); },
+      () => { /* Standardplan bleibt aktiv */ },
+    );
+  }
+
+  function collectNames() {
+    const ids = [
+      ...Object.values(state.checks).filter(Boolean).map(c => c.by),
+      ...Object.values(state.notes).filter(Boolean).map(n => n.by),
+      ...Object.values(state.prevNotes).filter(Boolean).map(n => n.by),
+      ...Object.values(state.logs).flatMap(sh => Object.values(sh || {}).flatMap(m => Object.values(m || {}))).filter(Boolean).map(v => v.by),
+    ].filter(id => typeof id === "string" && id && !(id in state.names));
+    if (!ids.length || !user || typeof user.profiles !== "function") return;
+    const uniq = [...new Set(ids)];
+    uniq.forEach(id => { state.names[id] = ""; });
+    user.profiles(uniq).then(ps => {
+      uniq.forEach(id => { state.names[id] = (ps && ps[id] && ps[id].name) || ""; });
+      render();
+    }).catch(() => { /* optional */ });
+  }
+
+  // Schreibvorgänge strikt nacheinander. patch = Merge auf bestehendes Dokument, full = Inhalt beim Neuanlegen.
+  function persistDoc(path, patch, full, localKey, localFull) {
+    if (state.readOnly) { setStatus("Nur Lesezugriff – Änderungen werden nicht gespeichert", true); return Promise.resolve(false); }
+    if (state.mode !== "shared") {
+      const ok = LS.set(localKey, localFull);
+      if (!ok) setStatus("Browser-Speicher blockiert – Änderungen gehen beim Neuladen verloren", true);
+      return Promise.resolve(ok);
+    }
+    const job = writeChain.then(async () => {
+      const ref = db.doc(path);
+      try {
+        const snap = await ref.get();
+        if (snap.exists) await ref.update(patch); else await ref.set(full);
+        setStatus(statusLine());
+        return true;
+      } catch (e) {
+        const code = e && e.code;
+        if (code === "not_granted") { state.readOnly = true; setStatus("Nur Lesezugriff – Bearbeitungsrechte beim Besitzer anfragen", true); }
+        else setStatus("Speichern fehlgeschlagen (" + (code || "Fehler") + ") – bitte erneut versuchen", true);
+        return false;
+      }
+    });
+    writeChain = job;
+    return job;
+  }
+  const persistDay = (date, patch) => persistDoc("days/" + date, patch, currentDayDoc(), "rz2:" + date, currentDayDoc());
+  function cfgPayload() {
+    const weekday = {};
+    for (const k of Object.keys(state.cfg.weekday)) weekday[k] = state.cfg.weekday[k];
+    return { base: state.cfg.base, weekday, people: state.cfg.people, roster: state.cfg.roster, adminPin: state.cfg.adminPin };
+  }
+  const persistCfg = (patch) => persistDoc("config/plan", patch, cfgPayload(), "rz2cfg", cfgPayload());
+
+  function setCheck(id, value) {
+    if (state.readOnly) { setStatus("Nur Lesezugriff – Änderungen werden nicht gespeichert", true); return; }
+    if (needPerson()) return;
+    const next = { ...state.checks, [id]: value };
+    if (!value) delete next[id];
+    state.checks = next;
+    state.month = { ...state.month, [state.date]: { checks: next, plan: state.dayPlan } };
+    render();
+    persistDay(state.date, { checks: { [id]: value } });
+    // Letzter Punkt der Spätschicht heute erledigt → Tagesabschluss sichern.
+    if (value && state.date === isoDate(new Date())) {
+      const pr = progress(P(), "spaet", next);
+      if (pr.total && pr.done === pr.total) autoBackup("day");
+    }
+  }
+
+  const noteTimers = {};
+  function queueNote(shift, text) {
+    clearTimeout(noteTimers[shift]);
+    const date = state.date;
+    const el = $("saved-" + shift);
+    if (el) el.textContent = "Speichert…";
+    noteTimers[shift] = setTimeout(async () => {
+      if (date !== state.date) return;
+      const val = { text: text.slice(0, 4000), by: actorId(), at: new Date().toISOString() };
+      state.notes = { ...state.notes, [shift]: val };
+      const ok = await persistDay(date, { notes: { [shift]: val } });
+      const el2 = $("saved-" + shift);
+      if (el2) el2.textContent = ok ? "Gespeichert " + fmtTime(val.at) : "Nicht gespeichert";
+    }, 700);
+  }
+
+  // ---------- Personen ----------
+  const initials = (name) => name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join("").toUpperCase() || "?";
+  function personName(id) {
+    if (!id) return "";
+    const p = state.cfg.people.find(x => x.id === id);
+    if (p) return p.name;
+    return state.names[id] || (id === myId ? "dir" : "");
+  }
+  function loadWho() { state.who = LS.get("rz2who", null); }
+  // Aktive Person: gilt nur für heute und die aktuelle Schicht.
+  function currentPerson() {
+    const w = state.who, today = isoDate(new Date());
+    if (!w || w.date !== today) return null;
+    const plan = resolvePlan(today, today === state.date ? state.dayPlan : (state.month[today] && state.month[today].plan) || null).plan;
+    if (w.shift !== focusShift(plan, nowMin())) return null;
+    return state.cfg.people.find(p => p.id === w.id) || null;
+  }
+  const actorId = () => { const p = currentPerson(); return p ? p.id : (myId || null); };
+  function rosterFor(date) { return state.cfg.roster[date] || { frueh: [], spaet: [] }; }
+  // Abhaken braucht eine gewählte Person, sobald ein Team angelegt ist.
+  function needPerson() {
+    if (!state.cfg.people.length || currentPerson()) return false;
+    openPicker(true);
+    return true;
+  }
+
+  // ---------- Zeitlogik ----------
+  function timeCtx() {
+    const today = isoDate(new Date());
+    if (state.date < today) return "past";
+    if (state.date > today) return "future";
+    return nowMin();
+  }
+  function phaseState(phase, ctx) {
+    if (!phase.items.length) return "done";
+    const open = phase.items.filter(i => !state.checks[i.id]).length;
+    if (!open) return "done";
+    if (ctx === "future") return "later";
+    if (ctx === "past") return "late";
+    if (ctx >= toMin(phase.to)) return "late";
+    if (ctx >= toMin(phase.from)) return "now";
+    return "later";
+  }
+  function activeShift(plan, ctx) {
+    if (typeof ctx !== "number") return null;
+    const f = plan.frueh, s = plan.spaet;
+    if (ctx >= toMin(f.start) && ctx < toMin(f.end) && ctx < toMin(s.start)) return "frueh";
+    if (ctx >= toMin(s.start) && ctx < toMin(s.end)) return "spaet";
+    if (ctx >= toMin(f.start) && ctx < toMin(f.end)) return "frueh";
+    return null;
+  }
+  function focusShift(plan, ctx) {
+    const a = activeShift(plan, ctx);
+    if (a) return a;
+    if (typeof ctx === "number" && ctx >= toMin(plan.spaet.start)) return "spaet";
+    return "frueh";
+  }
+  // Einträge einer Daueraufgabe, älteste zuerst. Ungültige/gelöschte (null) fallen raus.
+  function logEntries(shift, id) {
+    const m = state.logs[shift] && state.logs[shift][id];
+    if (!m || typeof m !== "object") return [];
+    return Object.entries(m)
+      .filter(([, v]) => v && typeof v.at === "string" && !isNaN(new Date(v.at)))
+      .map(([k, v]) => ({ key: k, at: v.at, by: v.by }))
+      .sort((x, y) => x.at.localeCompare(y.at));
+  }
+  // Fälligkeit bei festem Rhythmus: Referenz = letzter Haken, sonst Schichtbeginn.
+  function dueInfo(plan, shift, a, ctx) {
+    if (!a.every || typeof ctx !== "number" || activeShift(plan, ctx) !== shift) return null;
+    const list = logEntries(shift, a.id);
+    const last = list.length ? list[list.length - 1] : null;
+    const ref = last ? (() => { const d = new Date(last.at); return d.getHours() * 60 + d.getMinutes(); })() : toMin(plan[shift].start);
+    const due = ref + a.every;
+    if (due >= toMin(plan[shift].end)) return { state: "ok", due: null };
+    if (ctx < due) return { state: "ok", due };
+    return { state: ctx >= due + Math.max(15, a.every / 2) ? "over" : "due", due };
+  }
+  function progress(plan, key, checks) {
+    const ids = derive(plan).ids[key];
+    const done = ids.filter(id => checks[id]).length;
+    return { done, total: ids.length, pct: ids.length ? Math.round(done / ids.length * 100) : 0 };
+  }
+
+  // ---------- Bausteine ----------
+  const PILL = { now: '<span class="pill now">jetzt</span>', late: '<span class="pill late">offen</span>', done: '<span class="pill done">erledigt</span>', later: '<span class="pill later">später</span>' };
+
+  function whoLine(c) {
+    if (!c) return "";
+    const name = personName(c.by);
+    const time = fmtTime(c.at);
+    return `${c.s === "na" ? "entfällt" : "erledigt"}${time ? " " + time : ""}${name ? " · " + esc(name) : ""}`;
+  }
+
+  function itemHtml(item, opts = {}) {
+    const c = state.checks[item.id];
+    const cls = [item.important ? "important" : "", c ? (c.s === "na" ? "na" : "done") : "", opts.upcoming ? "upcoming" : ""].join(" ");
+    const tag = opts.showPhase ? `<span class="tag">${esc(item.phase.title)} · bis ${item.phase.to}</span>` : "";
+    return `<li class="${cls}">
+      <button class="check" data-id="${esc(item.id)}" aria-pressed="${!!c}">
+        <span class="box">${CHECK_SVG}</span>
+        <span class="txt"><span class="label">${esc(item.t)}</span>${tag}${item.s ? `<span class="sub">${esc(item.s)}</span>` : ""}${c ? `<span class="who">${whoLine(c)}</span>` : ""}</span>
+      </button>
+      ${item.optional ? `<button class="skip" data-skip="${esc(item.id)}" aria-pressed="${c && c.s === "na" ? "true" : "false"}">entfällt</button>` : ""}
+    </li>`;
+  }
+
+  function alwaysHtml(plan, key, ctx) {
+    const list = plan.always[key];
+    if (!list.length) return `<div class="empty">Keine Daueraufgaben.</div>`;
+    const canLog = typeof ctx === "number";
+    return `<ul class="always">${list.map(a => {
+      const entries = logEntries(key, a.id), last = entries[entries.length - 1];
+      const info = canLog ? dueInfo(plan, key, a, ctx) : null;
+      let sub = "";
+      if (a.every) {
+        const rhythm = a.every % 60 === 0 ? (a.every === 60 ? "1× pro Stunde" : `alle ${a.every / 60} Std.`) : `alle ${a.every} Min.`;
+        sub = rhythm;
+        if (info && info.due !== null) sub += info.state === "ok" ? ` · nächster um <b>${fmtMin(info.due)}</b>` : ` · <b>fällig seit ${fmtMin(info.due)}</b>`;
+      } else if (a.s) sub = esc(a.s);
+      const name = last && personName(last.by);
+      const lastTxt = last ? `zuletzt ${fmtTime(last.at)}${name ? " · " + esc(name) : ""}` : "";
+      const cls = [a.important ? "important" : "", info ? info.state : ""].join(" ");
+      return `<li class="${cls}">
+        <button class="tap" data-log="${esc(a.id)}" data-shift="${key}" ${canLog ? "" : 'disabled title="Nur am heutigen Tag"'} aria-label="${esc(a.t)} erledigt – eintragen">
+          <span class="ic" aria-hidden="true">${LOOP_SVG}</span>
+          <span><span class="label">${esc(a.t)}</span>${sub ? `<span class="sub">${sub}</span>` : ""}${lastTxt ? `<span class="last">${lastTxt}</span>` : ""}</span>
+          <span class="cnt${entries.length ? "" : " zero"}" title="heute in dieser Schicht">${entries.length}×</span>
+        </button>
+        ${last && canLog ? `<button class="undo" data-unlog="${esc(a.id)}" data-shift="${key}" aria-label="Letzten Eintrag zurücknehmen">↶</button>` : ""}
+      </li>`;
+    }).join("")}</ul>`;
+  }
+
+  // Jeder Tipp = neuer Eintrag unter eigenem Schlüssel; gleichzeitige Tipps verschiedener Geräte überschreiben sich nicht.
+  function logAlways(shift, id) {
+    if (state.readOnly) { setStatus("Nur Lesezugriff – Änderungen werden nicht gespeichert", true); return; }
+    if (needPerson()) return;
+    const k = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const val = { at: new Date().toISOString(), by: actorId() };
+    const sh = { ...(state.logs[shift] || {}) };
+    sh[id] = { ...(sh[id] || {}), [k]: val };
+    state.logs = { ...state.logs, [shift]: sh };
+    render();
+    persistDay(state.date, { logs: { [shift]: { [id]: { [k]: val } } } });
+  }
+  function unlogAlways(shift, id) {
+    if (state.readOnly) return;
+    const list = logEntries(shift, id);
+    if (!list.length) return;
+    const k = list[list.length - 1].key;
+    const sh = { ...(state.logs[shift] || {}) };
+    sh[id] = { ...(sh[id] || {}), [k]: null };
+    state.logs = { ...state.logs, [shift]: sh };
+    render();
+    persistDay(state.date, { logs: { [shift]: { [id]: { [k]: null } } } });
+  }
+
+  function noteAuthor(n) {
+    if (!n || !n.at) return "";
+    const name = personName(n.by);
+    return ` · ${fmtTime(n.at)}${name ? " · " + esc(name) : ""}`;
+  }
+  function noteEditor(shift, label) {
+    const n = state.notes[shift];
+    return `<div class="note"><label for="note-${shift}">${esc(label)}</label>
+      <textarea id="note-${shift}" data-note="${shift}" placeholder="z. B. offene Check-ins, defekte Schläger, Rückrufe…" ${state.readOnly ? "readonly" : ""}>${esc((n && n.text) || "")}</textarea>
+      <span class="saved" id="saved-${shift}">${n && n.at ? "Gespeichert" + noteAuthor(n) : ""}</span></div>`;
+  }
+  function noteReader(n, label) {
+    const has = n && typeof n.text === "string" && n.text.trim();
+    return `<div class="note"><label>${esc(label)}${has ? noteAuthor(n) : ""}</label>
+      <div class="read${has ? "" : " none"}">${has ? esc(n.text) : "Keine Notiz hinterlassen."}</div></div>`;
+  }
+  function handoverHtml(key) {
+    return key === "frueh"
+      ? noteReader(state.prevNotes.spaet, "Von der Spätschicht (gestern)") + noteEditor("frueh", "Für die Spätschicht")
+      : noteReader(state.notes.frueh, "Von der Frühschicht") + noteEditor("spaet", "Für die Frühschicht morgen");
+  }
+
+  function dutyLine(date) {
+    const r = rosterFor(date);
+    const names = (k) => r[k].map(personName).filter(Boolean).join(", ") || "–";
+    if (!state.cfg.people.length) return `<div class="duty">Team und Dienstplan unter <b>Verwaltung</b> anlegen.</div>`;
+    return `<div class="duty"><span>Dienst Früh: <b>${esc(names("frueh"))}</b></span><span>Spät: <b>${esc(names("spaet"))}</b></span></div>`;
+  }
+
+  // ---------- Übersicht ----------
+  function renderOverview() {
+    const plan = P(), ctx = timeCtx(), d = derive(plan);
+    const focus = focusShift(plan, ctx), s = plan[focus], meta = SHIFT_META[focus];
+
+    const nowItems = [], lateItems = [];
+    let nowPhase = null;
+    for (const p of s.phases) {
+      const st = phaseState(p, ctx);
+      const open = p.items.filter(i => !state.checks[i.id]).map(i => d.item[i.id]);
+      if (st === "now") { nowItems.push(...open); nowPhase = nowPhase || p; }
+      if (st === "late") lateItems.push(...open);
+    }
+    const nextPhase = typeof ctx === "number"
+      ? s.phases.find(p => toMin(p.from) > ctx && p !== nowPhase && phaseState(p, ctx) !== "done") || null
+      : (ctx === "future" ? s.phases.find(p => phaseState(p, ctx) !== "done") || null : null);
+
+    let body = "";
+    if (lateItems.length) body += `<li class="sublabel late">Überfällig (${lateItems.length})</li>${lateItems.map(i => itemHtml(i, { showPhase: true })).join("")}`;
+    if (nowItems.length) body += `<li class="sublabel now">Jetzt · ${esc(nowPhase.title)} bis ${nowPhase.to}</li>${nowItems.map(i => itemHtml(i)).join("")}`;
+    if (nextPhase) {
+      const open = nextPhase.items.filter(i => !state.checks[i.id]).map(i => d.item[i.id]);
+      body += `<li class="sublabel">Als Nächstes · ${esc(nextPhase.title)} ab ${nextPhase.from}</li>${open.map(i => itemHtml(i, { upcoming: true })).join("")}`;
+    }
+    if (!body) body = `<li class="empty">${ctx === "past" ? "Alles erledigt." : "Für diese Schicht ist alles erledigt."}</li>`;
+
+    const other = focus === "frueh" ? "spaet" : "frueh";
+    const otherOpen = plan[other].phases.filter(p => phaseState(p, ctx) === "late").reduce((n, p) => n + p.items.filter(i => !state.checks[i.id]).length, 0);
+    const otherPr = progress(plan, other, state.checks);
+
+    const pr = progress(plan, focus, state.checks);
+    const rows = s.phases.map(p => {
+      const st = phaseState(p, ctx);
+      const done = p.items.filter(i => state.checks[i.id]).length;
+      return `<li class="${st === "now" ? "cur" : ""}"><button data-goto="${focus}" data-phase="${esc(p.id)}"><span class="t">${p.from}</span><span class="n">${esc(p.title)}<small>${done}/${p.items.length}</small></span>${PILL[st]}</button></li>`;
+    }).join("");
+
+    const title = ctx === "past" ? "Rückblick" : ctx === "future" ? "Vorschau" : "Jetzt dran";
+    return `<div class="dash">
+      <div class="col">
+        <section class="card grow"><div class="chead"><h2>${title}</h2><span class="hint">${meta.label} · ${s.start}–${s.end}</span></div>
+          <div class="cbody"><ul class="items">${body}</ul></div></section>
+      </div>
+      <div class="col">
+        <section class="card grow"><div class="chead"><h2>Schichtplan</h2><span class="hint">antippen zum Öffnen</span></div>
+          <div class="cbody">
+            <div class="shiftsum"><b>${meta.label}</b><span>${pr.done}/${pr.total}</span></div>
+            <div class="bar"><i style="width:${pr.pct}%"></i></div>
+            <ul class="plan">${rows}</ul>
+            ${dutyLine(state.date)}
+            <button class="othersum" data-view-go="${other}">${SHIFT_META[other].label} ${plan[other].start}–${plan[other].end}: ${otherPr.done}/${otherPr.total}${otherOpen ? ` · <b>${otherOpen} offen geblieben</b>` : ""}</button>
+          </div></section>
+      </div>
+      <div class="col">
+        <section class="card grow"><div class="chead"><h2>Immer im Blick</h2><span class="hint">antippen, wenn erledigt</span></div>
+          <div class="cbody">${alwaysHtml(plan, focus, ctx)}</div></section>
+        <section class="card"><div class="chead"><h2>Übergabe</h2></div><div class="cbody">${handoverHtml(focus)}</div></section>
+      </div>
+    </div>`;
+  }
+
+  // ---------- Schichtansicht: Fahrplan ----------
+  // Chronologische Liste: erledigt = eine Zeile, aktuell/überfällig = groß, später = kompakt (trotzdem abhakbar).
+  function renderShift(key) {
+    const plan = P(), s = plan[key], ctx = timeCtx(), d = derive(plan);
+    if (!s.phases.length) return `<div class="empty">Für diese Schicht sind keine Abschnitte geplant. Unter „Plan anpassen“ hinzufügen.</div>`;
+    const MARK = { done: "✓", now: "▶", late: "!", later: "" };
+    const stops = s.phases.map(p => {
+      const st = phaseState(p, ctx);
+      const done = p.items.filter(i => state.checks[i.id]).length;
+      const collapsed = st === "done" && !state.expanded.has(p.id);
+      const label = { done: "erledigt", now: "jetzt", late: "offen", later: "später" }[st];
+      const head = `<span class="mark" aria-hidden="true">${MARK[st]}</span><span class="time">${p.from}–${p.to}</span><span class="ttl">${esc(p.title)}<small>${done}/${p.items.length}</small></span>${PILL[st]}`;
+      const headEl = st === "done"
+        ? `<button class="stop-head" data-toggle="${esc(p.id)}" aria-expanded="${!collapsed}" aria-label="${esc(p.title)}, ${label}, ${collapsed ? "aufklappen" : "zuklappen"}">${head}</button>`
+        : `<div class="stop-head">${head}</div>`;
+      const hint = p.hint && (st === "now" || st === "late") ? `<div class="phint">${esc(p.hint)}</div>` : "";
+      const items = collapsed ? "" : `<ul class="items">${p.items.map(i => itemHtml(d.item[i.id])).join("") || '<li class="empty">Keine Aufgaben.</li>'}</ul>`;
+      return `<section class="stop is-${st}" id="phase-${esc(p.id)}">${headEl}${hint}${items}</section>`;
+    }).join("");
+    return `<div class="shiftview">
+      <div class="side">
+        <section class="card grow"><div class="chead"><h2>Immer im Blick</h2><span class="hint">${s.start}–${s.end}</span></div><div class="cbody">${alwaysHtml(plan, key, ctx)}</div></section>
+        <section class="card"><div class="chead"><h2>Übergabe</h2></div><div class="cbody">${handoverHtml(key)}</div></section>
+      </div>
+      <div class="board"><div class="board-in">${stops}</div></div>
+    </div>`;
+  }
+
+  // ---------- Monat ----------
+  function renderMonth() {
+    const d = parseIso(state.date), y = d.getFullYear(), m = d.getMonth();
+    const days = new Date(y, m + 1, 0).getDate(), today = isoDate(new Date());
+    const head = Array.from({ length: days }, (_, i) => `<th scope="col">${pad(i + 1)}.</th>`).join("");
+    const row = (key) => Array.from({ length: days }, (_, i) => {
+      const date = `${y}-${pad(m + 1)}-${pad(i + 1)}`;
+      const entry = date === state.date ? { checks: state.checks, plan: state.dayPlan } : (state.month[date] || { checks: {}, plan: null });
+      const plan = resolvePlan(date, entry.plan).plan;
+      const p = progress(plan, key, entry.checks || {});
+      const cls = date > today && !p.done ? "future" : p.pct === 100 ? "full" : p.done ? "part" : "none";
+      const text = p.done ? (p.pct === 100 ? "✓" : p.pct + "%") : "·";
+      return `<td><button class="mcell ${cls}${date === state.date ? " sel" : ""}" data-date="${date}" data-shift="${key}" aria-label="${SHIFT_META[key].label} ${pad(i + 1)}.${pad(m + 1)}.: ${p.done} von ${p.total}">${text}</button></td>`;
+    }).join("");
+    return `<div class="monthhead">
+        <button class="iconbtn" id="mprev" aria-label="Vorheriger Monat">‹</button>
+        <h2>${MONTHS[m]} ${y}</h2>
+        <button class="iconbtn" id="mnext" aria-label="Nächster Monat">›</button>
+      </div>
+      <div class="mscroll"><table class="mgrid">
+        <thead><tr><th class="rowh"></th>${head}</tr></thead>
+        <tbody><tr><th class="rowh" scope="row">Früh</th>${row("frueh")}</tr><tr><th class="rowh" scope="row">Spät</th>${row("spaet")}</tr></tbody>
+      </table></div>
+      <div class="legend"><span><i class="lg-full"></i>vollständig</span><span><i class="lg-part"></i>teilweise</span><span>Tippe auf einen Tag, um ihn zu öffnen.</span></div>`;
+  }
+
+  // ---------- Dienstplan ----------
+  function mondayOf(iso) { const d = parseIso(iso); const wd = (d.getDay() + 6) % 7; d.setDate(d.getDate() - wd); return isoDate(d); }
+  function renderRoster() {
+    const mon = state.rosterWeek || mondayOf(state.date);
+    const days = Array.from({ length: 7 }, (_, i) => addDays(mon, i)), today = isoDate(new Date());
+    const edit = state.rosterEdit && isUnlocked();
+    const head = days.map(d => { const x = parseIso(d); return `<th class="${d === today ? "today" : ""}">${WD[x.getDay()].slice(0, 2)} ${pad(x.getDate())}.${pad(x.getMonth() + 1)}.</th>`; }).join("");
+    const row = (k) => days.map(d => {
+      const ids = rosterFor(d)[k];
+      if (edit) return `<td><div class="cell">${state.cfg.people.map(p => `<button class="chip${ids.includes(p.id) ? "" : " off"}" data-roster="${d}" data-shift="${k}" data-pid="${esc(p.id)}" aria-pressed="${ids.includes(p.id)}">${esc(p.name)}</button>`).join("") || '<span class="empty">Kein Team</span>'}</div></td>`;
+      const names = ids.map(personName).filter(Boolean);
+      return `<td><div class="cell">${names.map(n => `<span class="chip">${esc(n)}</span>`).join("") || '<span class="empty">–</span>'}</div></td>`;
+    }).join("");
+    const e = parseIso(days[6]), m = parseIso(mon);
+    return `<div class="monthhead">
+        <button class="iconbtn" id="wprev" aria-label="Vorherige Woche">‹</button>
+        <h2>Dienstplan ${pad(m.getDate())}.${pad(m.getMonth() + 1)}. – ${pad(e.getDate())}.${pad(e.getMonth() + 1)}.</h2>
+        <button class="iconbtn" id="wnext" aria-label="Nächste Woche">›</button>
+        ${edit ? `<button class="btn${state.confirm === "copy-week" ? " danger" : ""}" data-act2="copy-week">${state.confirm === "copy-week" ? "Woche überschreiben?" : "Vorwoche übernehmen"}</button><button class="btn primary" data-act2="roster-done">Fertig</button>`
+               : `<button class="btn" data-act2="roster-edit">Bearbeiten</button>`}
+      </div>
+      <div class="roster"><table>
+        <thead><tr><th class="rowh"></th>${head}</tr></thead>
+        <tbody><tr><th class="rowh" scope="row">Früh</th>${row("frueh")}</tr><tr><th class="rowh" scope="row">Spät</th>${row("spaet")}</tr></tbody>
+      </table></div>
+      <div class="legend">${edit ? "Namen antippen, um sie für die Schicht einzutragen oder auszutragen." : "Bearbeiten braucht die Leitungs-PIN."}</div>`;
+  }
+  function toggleRoster(date, shift, pid) {
+    const cur = rosterFor(date);
+    const ids = cur[shift].includes(pid) ? cur[shift].filter(x => x !== pid) : [...cur[shift], pid];
+    const entry = { ...cur, [shift]: ids };
+    state.cfg = { ...state.cfg, roster: { ...state.cfg.roster, [date]: entry } };
+    render();
+    persistCfg({ roster: { [date]: entry } });
+  }
+  function copyPrevWeek() {
+    const mon = state.rosterWeek || mondayOf(state.date);
+    const roster = { ...state.cfg.roster }, patch = {};
+    for (let i = 0; i < 7; i++) {
+      const src = rosterFor(addDays(mon, i - 7)), d = addDays(mon, i);
+      roster[d] = { frueh: [...src.frueh], spaet: [...src.spaet] };
+      patch[d] = roster[d];
+    }
+    state.cfg = { ...state.cfg, roster };
+    render();
+    persistCfg({ roster: patch });
+  }
+
+  // ---------- Leitungsbereich (PIN) ----------
+  // Einfacher Schutz gegen versehentliche Änderungen auf dem Gemeinschaftsrechner – keine echte Zugriffskontrolle.
+  function pinHash(pin) {
+    let h = 0x811c9dc5;
+    for (const ch of "rezeption:" + pin) { h ^= ch.charCodeAt(0); h = Math.imul(h, 0x01000193) >>> 0; }
+    return "f1:" + h.toString(16);
+  }
+  const isUnlocked = () => Date.now() < state.unlockedUntil;
+  function requireAdmin(next) {
+    if (isUnlocked()) { state.unlockedUntil = Date.now() + 10 * 60000; return true; }
+    state.pinStage = { mode: state.cfg.adminPin ? "unlock" : "set", next };
+    state.view = "pin";
+    render();
+    setTimeout(() => { const el = $("pin-in"); if (el) el.focus(); }, 0);
+    return false;
+  }
+  function renderPin() {
+    const st = state.pinStage || { mode: "unlock" };
+    const title = st.mode === "set" ? (st.first ? "PIN wiederholen" : "Leitungs-PIN festlegen") : "Leitungs-PIN";
+    const text = st.mode === "set" ? "Diese PIN schützt Team, Dienstplan und Aufgaben-Plan vor Änderungen. Mindestens 4 Ziffern." : "Nur für die Schichtleitung.";
+    return `<form class="pinform" id="pinform">
+      <h2>${title}</h2><p>${text}</p>
+      <input class="in" id="pin-in" type="password" inputmode="numeric" autocomplete="off" maxlength="8" aria-label="PIN">
+      <button class="btn primary" type="submit">${st.mode === "set" && !st.first ? "Weiter" : "Entsperren"}</button>
+      <button class="btn ghost" type="button" data-act2="pin-cancel">Abbrechen</button>
+      <p id="pin-msg"></p>
+    </form>`;
+  }
+  // Render wird während einer Eingabe aufgeschoben – bei Formular-Aktionen deshalb erst den Fokus lösen.
+  function blurActive() { const a = root.activeElement; if (a && a.blur) a.blur(); }
+  async function submitPin(val) {
+    const st = state.pinStage, msg = $("pin-msg");
+    blurActive();
+    if (!/^\d{4,8}$/.test(val)) { if (msg) msg.textContent = "Bitte 4 bis 8 Ziffern eingeben."; return; }
+    if (st.mode === "set") {
+      if (!st.first) { state.pinStage = { ...st, first: val }; render(); setTimeout(() => { const el = $("pin-in"); if (el) el.focus(); }, 0); return; }
+      if (st.first !== val) { state.pinStage = { ...st, first: null }; render(); setTimeout(() => { const m2 = $("pin-msg"); if (m2) m2.textContent = "Die PINs stimmen nicht überein. Bitte neu festlegen."; }, 0); return; }
+      state.cfg = { ...state.cfg, adminPin: pinHash(val) };
+      await persistCfg({ adminPin: state.cfg.adminPin });
+    } else if (pinHash(val) !== state.cfg.adminPin) {
+      if (msg) msg.textContent = "PIN falsch.";
+      const el = $("pin-in"); if (el) { el.value = ""; el.focus(); }
+      return;
+    }
+    state.unlockedUntil = Date.now() + 10 * 60000;
+    const next = st.next || "admin";
+    state.pinStage = null;
+    if (next === "dienst-edit") { state.view = "dienst"; state.rosterEdit = true; } else state.view = next;
+    render();
+  }
+
+  // ---------- Verwaltung ----------
+  function backupHint() {
+    if (state.mode !== "local") return "";
+    const last = LS.get("rz2meta", {}).lastBackup;
+    const days = last ? Math.floor((Date.now() - new Date(last)) / 86400000) : null;
+    if (FS_OK && !backupDir) return "Sicherungsordner fehlt (Verwaltung)";
+    if (days === null) return "Noch keine Sicherung (Verwaltung)";
+    return days >= 7 ? `Sicherung ${days} Tage alt (Verwaltung)` : "";
+  }
+  function renderAdmin() {
+    const people = state.cfg.people.map((p, i) => `<li>
+        <input class="in" id="pp-${esc(p.id)}" data-person="${esc(p.id)}" value="${esc(p.name)}" maxlength="40" aria-label="Name">
+        ${state.confirm === "p:" + p.id ? `<button class="mini del confirm" data-act2="person-del" data-pid="${esc(p.id)}">Löschen?</button>` : `<button class="mini del" data-act2="person-del" data-pid="${esc(p.id)}" aria-label="Entfernen">✕</button>`}
+      </li>`).join("");
+    const last = LS.get("rz2meta", {}).lastBackup;
+    return `<div class="admin">
+      <section class="card"><div class="chead"><h2>Team</h2><span class="hint">${state.cfg.people.length} Personen</span></div>
+        <div class="cbody">
+          <ul class="people">${people || "<p>Noch niemand angelegt.</p>"}</ul>
+          <form id="addperson" class="people"><li><input class="in" id="newperson" maxlength="40" placeholder="Name, z. B. Lisa" aria-label="Neuer Name"><button class="btn" type="submit">Hinzufügen</button></li></form>
+          <p>Namen erscheinen bei der Auswahl zu Schichtbeginn und im Dienstplan. Entfernte Personen bleiben in alten Einträgen als Kürzel unsichtbar.</p>
+        </div></section>
+      <section class="card"><div class="chead"><h2>Aufgaben &amp; Zeiten</h2></div>
+        <div class="cbody"><p>Abschnitte, Uhrzeiten, Reihenfolge und Daueraufgaben – für einen Tag, einen Wochentag oder als Standard.</p>
+          <button class="btn primary" data-act2="open-plan">Aufgaben-Plan bearbeiten</button>
+          <button class="btn" data-act2="open-roster">Dienstplan bearbeiten</button></div></section>
+      ${state.mode === "local" ? `<section class="card"><div class="chead"><h2>Datensicherung</h2></div>
+        <div class="cbody"><p>Alles liegt im Browser dieses Macs. Wird der Browserverlauf mit „Website-Daten“ gelöscht, ist es weg. Sichere deshalb regelmäßig.</p>
+          ${FS_OK ? (backupDir
+            ? `<p>Sicherungsordner: <b>${esc(backupDir.name)}</b>. Gesichert wird bei jedem Schichtbeginn und wenn der letzte Punkt der Spätschicht abgehakt ist – als „rezeption-sicherung-aktuell.json“ und eine Datei pro Tag.</p>
+               <button class="btn primary" data-act2="backup-now">Jetzt sichern</button>
+               <button class="btn" data-act2="backup-dir">Anderen Ordner wählen</button>
+               <button class="btn ghost danger" data-act2="backup-forget">Ordner trennen</button>`
+            : `<p>Wähle einmal den per OneDrive synchronisierten SharePoint-Ordner. Danach sichert die App automatisch dorthin – andere Downloads bleiben, wo sie sind.</p>
+               <button class="btn primary" data-act2="backup-dir">Sicherungsordner wählen</button>
+               <button class="btn" data-act2="export">Einmalig herunterladen</button>`)
+          : `<p>Dieser Browser kann nicht direkt in einen Ordner schreiben. Bitte Google Chrome verwenden.</p>
+             <button class="btn" data-act2="export">Einmalig herunterladen</button>`}
+          <p>Letzte Sicherung: <b>${last ? new Date(last).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) : "noch nie"}</b></p>
+          <label class="btn" style="text-align:center;cursor:pointer">Sicherung einspielen<input type="file" id="importfile" accept="application/json,.json" hidden></label>
+          <p id="import-msg"></p></div></section>` : opts.mode === "sharepoint" ? `<section class="card"><div class="chead"><h2>Datenspeicher</h2></div>
+        <div class="cbody"><p>Alle Daten liegen in der SharePoint-Bibliothek <b>${esc(opts.library || "RezeptionDaten")}</b> dieser Website. SharePoint speichert jede Änderung im Versionsverlauf – ein früherer Stand lässt sich dort wiederherstellen.</p>
+          <p>Daten aus der bisherigen Mac-Version übernehmen: dort unter Verwaltung › Datensicherung eine Sicherung herunterladen und hier einspielen.</p>
+          <label class="btn" style="text-align:center;cursor:pointer">Sicherung übernehmen<input type="file" id="importfile" accept="application/json,.json" hidden></label>
+          <p id="import-msg"></p></div></section>` : ""}
+      <section class="card"><div class="chead"><h2>Leitungs-PIN</h2></div>
+        <div class="cbody"><p>Entsperrt für 10 Minuten nach der letzten Aktion.</p>
+          <button class="btn" data-act2="pin-change">PIN ändern</button>
+          <button class="btn ghost" data-act2="lock">Jetzt sperren</button></div></section>
+    </div>`;
+  }
+  function addPerson(name) {
+    name = name.trim().slice(0, 40);
+    if (!name) return;
+    if (state.cfg.people.some(p => p.name.toLowerCase() === name.toLowerCase())) { setStatus(`„${name}“ gibt es schon`, true); return; }
+    blurActive();
+    const people = [...state.cfg.people, { id: newId("u"), name }];
+    state.cfg = { ...state.cfg, people };
+    render();
+    persistCfg({ people });
+    setTimeout(() => { const el = $("newperson"); if (el) el.focus(); }, 0);
+  }
+  function renamePerson(id, name) {
+    name = name.trim().slice(0, 40);
+    if (!name) return;
+    const people = state.cfg.people.map(p => p.id === id ? { ...p, name } : p);
+    state.cfg = { ...state.cfg, people };
+    persistCfg({ people });
+  }
+  function deletePerson(id) {
+    if (state.confirm !== "p:" + id) { state.confirm = "p:" + id; render(); return; }
+    state.confirm = null;
+    const people = state.cfg.people.filter(p => p.id !== id);
+    state.cfg = { ...state.cfg, people };
+    render();
+    persistCfg({ people });
+  }
+  // ---------- Sicherung in einen gewählten Ordner (Chrome: File System Access API) ----------
+  // Der Ordner-Zugriff wird in IndexedDB gemerkt. Chrome fragt ggf. nach – dafür muss die Sicherung aus einem Klick starten.
+  const FS_OK = typeof window.showDirectoryPicker === "function";
+  let backupDir = null;
+  const idb = {
+    open() {
+      return new Promise((res, rej) => {
+        const r = indexedDB.open("rz2fs", 1);
+        r.onupgradeneeded = () => r.result.createObjectStore("h");
+        r.onsuccess = () => res(r.result);
+        r.onerror = () => rej(r.error);
+      });
+    },
+    async get(k) { const d = await this.open(); return new Promise((res, rej) => { const q = d.transaction("h").objectStore("h").get(k); q.onsuccess = () => res(q.result || null); q.onerror = () => rej(q.error); }); },
+    async set(k, v) { const d = await this.open(); return new Promise((res, rej) => { const t = d.transaction("h", "readwrite"); if (v === null) t.objectStore("h").delete(k); else t.objectStore("h").put(v, k); t.oncomplete = () => res(); t.onerror = () => rej(t.error); }); },
+  };
+  async function loadBackupDir() {
+    try { backupDir = await idb.get("backupDir"); } catch { backupDir = null; }
+    if (state.view === "admin") render();
+  }
+  async function chooseBackupDir() {
+    if (!FS_OK) return;
+    try {
+      const h = await window.showDirectoryPicker({ id: "rezeption-sicherung", mode: "readwrite" });
+      backupDir = h;
+      await idb.set("backupDir", h);
+      const ok = await writeBackup("manual");
+      setStatus(ok ? `Sicherungsordner „${h.name}“ eingerichtet` : "Ordner gewählt, aber kein Schreibzugriff", !ok);
+    } catch (e) {
+      if (!(e && e.name === "AbortError")) setStatus("Ordner konnte nicht gewählt werden", true);
+    }
+    render();
+  }
+  async function forgetBackupDir() {
+    backupDir = null;
+    try { await idb.set("backupDir", null); } catch { /* egal */ }
+    render();
+  }
+  function backupPayload() {
+    const data = {};
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith("rz2") && k !== "rz2who") data[k] = localStorage.getItem(k); }
+    return JSON.stringify({ app: "rezeption-schichtcheck", version: 1, exportedAt: new Date().toISOString(), data }, null, 1);
+  }
+  async function writeFile(dir, name, text) {
+    const fh = await dir.getFileHandle(name, { create: true });
+    const w = await fh.createWritable();
+    await w.write(text);
+    await w.close();
+  }
+  // Schreibt „…-aktuell.json“ (immer neuester Stand) und „…-JJJJ-MM-TT.json“ (eine Datei pro Tag, wird überschrieben).
+  // reason: "manual" | "shift" (Schichtbeginn) | "day" (Tagesabschluss)
+  async function writeBackup(reason) {
+    if (state.mode !== "local" || !backupDir) return false;
+    let text;
+    try { text = backupPayload(); } catch { setStatus("Browser-Speicher blockiert", true); return false; }
+    try {
+      let perm = backupDir.queryPermission ? await backupDir.queryPermission({ mode: "readwrite" }) : "granted";
+      if (perm !== "granted" && backupDir.requestPermission) perm = await backupDir.requestPermission({ mode: "readwrite" });
+      if (perm !== "granted") { setStatus("Sicherung übersprungen – Ordnerzugriff nicht erlaubt (Verwaltung)", true); return false; }
+      const now = new Date();
+      await writeFile(backupDir, `rezeption-sicherung-${isoDate(now)}.json`, text);
+      await writeFile(backupDir, "rezeption-sicherung-aktuell.json", text);
+      LS.set("rz2meta", { ...LS.get("rz2meta", {}), lastBackup: now.toISOString(), ...(reason === "day" ? { lastDayBackup: isoDate(now) } : {}) });
+      setStatus(`Gesichert ${fmtMin(now.getHours() * 60 + now.getMinutes())}${reason === "day" ? " (Tagesabschluss)" : ""}`);
+      if (state.view === "admin") render();
+      return true;
+    } catch {
+      setStatus("Sicherung fehlgeschlagen – Ordner prüfen (Verwaltung › Datensicherung)", true);
+      return false;
+    }
+  }
+  // Manuell ohne Ordner: einmaliger Download in den normalen Download-Ordner.
+  function downloadBackup() {
+    let text;
+    try { text = backupPayload(); } catch { setStatus("Browser-Speicher blockiert", true); return; }
+    const now = new Date();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+    a.download = `rezeption-sicherung-${isoDate(now)}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    LS.set("rz2meta", { ...LS.get("rz2meta", {}), lastBackup: now.toISOString() });
+    setStatus("Sicherung heruntergeladen");
+    render();
+  }
+  // Automatisch nur mit eingerichtetem Ordner: bei jedem Schichtbeginn und einmal zum Tagesabschluss.
+  function autoBackup(reason) {
+    if (state.mode !== "local" || !backupDir) return;
+    if (reason === "day" && LS.get("rz2meta", {}).lastDayBackup === isoDate(new Date())) return;
+    writeBackup(reason);
+  }
+  // Übernimmt eine lokale Sicherung (localStorage-Schlüssel) in den geteilten Speicher (SharePoint).
+  async function migrateToShared(entries, msg) {
+    const docs = [];
+    for (const [k, v] of entries) {
+      let val; try { val = JSON.parse(v); } catch { continue; }
+      if (!val || typeof val !== "object") continue;
+      if (k === "rz2cfg") docs.push(["config/plan", val, true]);
+      else if (/^rz2:\d{4}-\d{2}-\d{2}$/.test(k)) docs.push(["days/" + k.slice(4), { ...val, month: k.slice(4, 11) }]);
+    }
+    if (!docs.length) { if (msg) msg.textContent = "Die Sicherung enthält keine Daten."; return; }
+    let done = 0;
+    // Leere Felder (kein Team, kein Dienstplan, keine PIN) überschreiben vorhandene Einstellungen nicht.
+    const prune = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== null && v !== undefined && !(Array.isArray(v) && !v.length) && !(typeof v === "object" && !Array.isArray(v) && !Object.keys(v).length)));
+    for (const [path, val, mergeCfg] of docs) {
+      try {
+        const ref = db.doc(path);
+        const cur = mergeCfg ? await ref.get() : null;
+        if (cur && cur.exists) await ref.update(prune(val)); else await ref.set(val);
+        done++;
+      } catch (e) { if (msg) msg.textContent = `Abbruch bei ${path}: ${(e && e.message) || "Fehler"}. ${done} von ${docs.length} übernommen.`; return; }
+      if (msg) msg.textContent = `Übernehme… ${done}/${docs.length}`;
+    }
+    if (msg) msg.textContent = `${done} Einträge übernommen.`;
+    subscribeMonth(true); subscribeDay();
+  }
+  function importBackup(file) {
+    const msg = $("import-msg");
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const obj = JSON.parse(String(reader.result));
+        if (!obj || obj.app !== "rezeption-schichtcheck" || !obj.data || typeof obj.data !== "object") throw new Error("format");
+        const entries = Object.entries(obj.data).filter(([k, v]) => k.startsWith("rz2") && typeof v === "string");
+        if (!entries.length) throw new Error("leer");
+        if (state.mode === "shared") { migrateToShared(entries, msg); return; }
+        for (const [k, v] of entries) localStorage.setItem(k, v);
+        if (msg) msg.textContent = `${entries.length} Einträge eingespielt. Seite lädt neu…`;
+        setTimeout(() => location.reload(), 800);
+      } catch {
+        if (msg) msg.textContent = "Diese Datei ist keine gültige Sicherung dieser App.";
+      }
+    };
+    reader.onerror = () => { if (msg) msg.textContent = "Datei konnte nicht gelesen werden."; };
+    reader.readAsText(file);
+  }
+
+  // ---------- Namensauswahl ----------
+  function openPicker(force) {
+    if (!force && Date.now() < state.pickerSnoozeUntil) return;
+    state.pickerOpen = true;
+    renderPicker();
+  }
+  function renderPicker() {
+    const el = $("picker");
+    if (!state.pickerOpen) { el.hidden = true; el.innerHTML = ""; return; }
+    const today = isoDate(new Date()), plan = resolvePlan(today, state.date === today ? state.dayPlan : null).plan;
+    const shift = focusShift(plan, nowMin());
+    const sched = rosterFor(today)[shift];
+    const people = state.cfg.people;
+    const btn = (p, cls) => `<button class="namebtn ${cls}" data-pick="${esc(p.id)}"><span class="av">${esc(initials(p.name))}</span>${esc(p.name)}</button>`;
+    const inSched = people.filter(p => sched.includes(p.id)), others = people.filter(p => !sched.includes(p.id));
+    el.hidden = false;
+    el.innerHTML = `<div class="overlay" role="dialog" aria-modal="true" aria-labelledby="pick-title"><div class="dialog">
+      <h2 id="pick-title">Wer arbeitet gerade?</h2>
+      <p>${SHIFT_META[shift].label} ${plan[shift].start}–${plan[shift].end}. Deine Haken und Notizen werden mit deinem Namen gespeichert.</p>
+      ${people.length ? `
+        ${inSched.length ? `<div class="grp">Laut Dienstplan</div><div class="names">${inSched.map(p => btn(p, "sched")).join("")}</div>` : ""}
+        ${others.length ? `<div class="grp">${inSched.length ? "Andere" : "Team"}</div><div class="names">${others.map(p => btn(p, "")).join("")}</div>` : ""}`
+        : `<p>Es ist noch kein Team angelegt. Die Schichtleitung legt Namen unter <b>Verwaltung › Team</b> an.</p>`}
+      <div class="row"><button class="btn ghost" data-pick-close="1">Nur ansehen</button></div>
+    </div></div>`;
+    const first = el.querySelector(".namebtn");
+    if (first) first.focus();
+  }
+  function pickPerson(id) {
+    const today = isoDate(new Date()), plan = resolvePlan(today, state.date === today ? state.dayPlan : null).plan;
+    state.who = { date: today, shift: focusShift(plan, nowMin()), id };
+    LS.set("rz2who", state.who);
+    state.pickerOpen = false;
+    renderPicker();
+    render();
+    const p = state.cfg.people.find(x => x.id === id);
+    setStatus(p ? `Hallo ${p.name}!` : statusLine());
+    autoBackup("shift");
+  }
+  $("picker").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (b.dataset.pick) return pickPerson(b.dataset.pick);
+    if (b.dataset.pickClose) { state.pickerOpen = false; state.pickerSnoozeUntil = Date.now() + 5 * 60000; renderPicker(); }
+  });
+  const onKey = (e) => {
+    if (e.key === "Escape" && state.pickerOpen) { state.pickerOpen = false; state.pickerSnoozeUntil = Date.now() + 5 * 60000; renderPicker(); }
+  };
+  document.addEventListener("keydown", onKey);
+  cleanups.push(() => document.removeEventListener("keydown", onKey));
+  // Zu Schichtbeginn bzw. bei Schichtwechsel automatisch nachfragen.
+  function maybeAskPerson() {
+    if (state.mode === "loading" || state.pickerOpen || !state.cfg.people.length) return;
+    if (!["uebersicht", "frueh", "spaet"].includes(state.view)) return;
+    if (state.date !== isoDate(new Date()) || currentPerson()) return;
+    openPicker(false);
+  }
+
+  // ---------- Plan-Editor ----------
+  const SOURCE_LABEL = { day: "Tagesanpassung", weekday: "Wochentag-Vorlage", base: "Standard", default: "Standard (Aushang)" };
+
+  function ensureDraft() {
+    if (!state.draft || state.draft.date !== state.date) { state.draft = { date: state.date, plan: clone(P()) }; state.draftDirty = false; }
+    return state.draft.plan;
+  }
+
+  function renderEditor() {
+    const plan = ensureDraft();
+    const { source } = resolvePlan(state.date, state.dayPlan);
+    const wd = parseIso(state.date).getDay();
+    const dd = parseIso(state.date);
+    const dateTxt = `${WD[wd]}, ${pad(dd.getDate())}.${pad(dd.getMonth() + 1)}.`;
+    const wdTemplates = Object.keys(state.cfg.weekday).map(Number).sort();
+    const del = (path) => state.confirm === path ? `<button class="mini del confirm" data-act="del" data-path="${path}">Löschen?</button>` : `<button class="mini del" data-act="del" data-path="${path}" aria-label="Löschen">✕</button>`;
+
+    const shiftHtml = (key) => {
+      const s = plan[key], meta = SHIFT_META[key];
+      const phases = s.phases.map((p, pi) => {
+        const base = `${key}.phases.${pi}`;
+        const items = p.items.map((it, ii) => {
+          const path = `${base}.items.${ii}`;
+          const moveOpts = s.phases.map((q, qi) => `<option value="${qi}"${qi === pi ? " selected" : ""}>${esc(q.from)} ${esc(q.title)}</option>`).join("");
+          return `<li>
+            <div class="order"><button class="mini" data-act="up" data-path="${path}" ${ii === 0 ? "disabled" : ""} aria-label="Nach oben">▲</button><button class="mini" data-act="down" data-path="${path}" ${ii === p.items.length - 1 ? "disabled" : ""} aria-label="Nach unten">▼</button></div>
+            <div class="fields">
+              <input class="in" id="ed-${path}-t" data-path="${path}.t" value="${esc(it.t)}" maxlength="200" aria-label="Aufgabe">
+              <input class="in sub" id="ed-${path}-s" data-path="${path}.s" value="${esc(it.s || "")}" maxlength="300" placeholder="Hinweis (optional)" aria-label="Hinweis">
+              <div class="opts">
+                <label><input type="checkbox" data-path="${path}.important" ${it.important ? "checked" : ""}> wichtig (rot)</label>
+                <label><input type="checkbox" data-path="${path}.optional" ${it.optional ? "checked" : ""}> „entfällt“ erlaubt</label>
+                <label>Abschnitt <select data-move="${path}">${moveOpts}</select></label>
+              </div>
+            </div>
+            ${del(path)}
+          </li>`;
+        }).join("");
+        return `<section class="card ed-phase">
+          <div class="chead">
+            <input class="in title" id="ed-${base}-title" data-path="${base}.title" value="${esc(p.title)}" maxlength="60" aria-label="Abschnitt">
+            <input class="in time" inputmode="numeric" maxlength="5" placeholder="HH:MM" id="ed-${base}-from" data-time="${base}.from" value="${p.from}" aria-label="von">
+            <span class="hint">–</span>
+            <input class="in time" inputmode="numeric" maxlength="5" placeholder="HH:MM" id="ed-${base}-to" data-time="${base}.to" value="${p.to}" aria-label="bis">
+            ${del(base)}
+          </div>
+          <ul class="ed-items">${items}</ul>
+          <button class="addrow" data-act="add-item" data-path="${base}">+ Aufgabe</button>
+        </section>`;
+      }).join("");
+      const always = plan.always[key].map((a, ai) => {
+        const path = `always.${key}.${ai}`;
+        return `<li>
+          <div class="order"><button class="mini" data-act="up" data-path="${path}" ${ai === 0 ? "disabled" : ""} aria-label="Nach oben">▲</button><button class="mini" data-act="down" data-path="${path}" ${ai === plan.always[key].length - 1 ? "disabled" : ""} aria-label="Nach unten">▼</button></div>
+          <div class="fields">
+            <input class="in" id="ed-${path}-t" data-path="${path}.t" value="${esc(a.t)}" maxlength="200" aria-label="Daueraufgabe">
+            <div class="opts"><label><input type="checkbox" data-path="${path}.important" ${a.important ? "checked" : ""}> wichtig (rot)</label><label>Rhythmus alle <input class="in time" data-num="${path}.every" id="ed-${path}-every" value="${a.every || ""}" inputmode="numeric" maxlength="3" placeholder="–" aria-label="Rhythmus in Minuten"> Min.</label></div>
+          </div>
+          ${del(path)}
+        </li>`;
+      }).join("");
+      return `<div class="edshift">
+        <h2>${meta.label}
+          <label>Beginn <input class="in time" inputmode="numeric" maxlength="5" placeholder="HH:MM" id="ed-${key}-start" data-time="${key}.start" value="${s.start}"></label>
+          <label>Ende <input class="in time" inputmode="numeric" maxlength="5" placeholder="HH:MM" id="ed-${key}-end" data-time="${key}.end" value="${s.end}"></label>
+        </h2>
+        ${phases}
+        <button class="btn" data-act="add-phase" data-path="${key}">+ Abschnitt</button>
+        <section class="card"><div class="chead"><h2>Immer im Blick</h2><span class="hint">beliebig oft abhakbar · Rhythmus 0 = ohne</span></div>
+          <ul class="ed-items">${always}</ul>
+          <button class="addrow" data-act="add-always" data-path="always.${key}">+ Daueraufgabe</button></section>
+      </div>`;
+    };
+
+    const removeBtns = [
+      source === "day" ? `<button class="btn ghost danger" data-act="reset-day">Tagesanpassung entfernen</button>` : "",
+      state.cfg.weekday[String(wd)] ? `<button class="btn ghost danger" data-act="reset-weekday">${WD[wd]}-Vorlage entfernen</button>` : "",
+    ].join("");
+    return `<div class="edbar">
+        <div class="info">Plan für <b>${dateTxt}</b> · aktuell gilt: <b>${SOURCE_LABEL[source]}</b>${state.draftDirty ? " · <b style=\"color:var(--now)\">ungespeicherte Änderungen</b>" : ""}<br>
+          ${wdTemplates.length ? "Wochentag-Vorlagen: " + wdTemplates.map(i => WD[i]).join(", ") + ". " : ""}Abschnitte sortieren sich nach Uhrzeit, Aufgaben mit ▲▼.</div>
+        <button class="btn primary" data-act="save-day" ${state.draftDirty ? "" : "disabled"}>Nur ${dateTxt} speichern</button>
+        <button class="btn" data-act="save-weekday" ${state.draftDirty ? "" : "disabled"}>Für alle ${WD_PL[wd]}</button>
+        <button class="btn" data-act="save-base" ${state.draftDirty ? "" : "disabled"}>Als Standard</button>
+        <button class="btn ghost" data-act="discard" ${state.draftDirty ? "" : "disabled"}>Verwerfen</button>
+        ${removeBtns}
+      </div>
+      <div class="editor">${shiftHtml("frueh")}${shiftHtml("spaet")}</div>`;
+  }
+
+  function getRef(path) {
+    const parts = path.split(".");
+    const last = parts.pop();
+    let obj = state.draft.plan;
+    for (const p of parts) obj = obj[/^\d+$/.test(p) ? Number(p) : p];
+    return { parent: obj, key: /^\d+$/.test(last) ? Number(last) : last };
+  }
+  function markDirty() { state.draftDirty = true; const b = root.querySelectorAll('[data-act^="save-"],[data-act="discard"]'); b.forEach(x => { x.disabled = false; }); }
+
+  function editorAction(act, path) {
+    const plan = state.draft.plan;
+    if (act === "del") {
+      if (state.confirm !== path) { state.confirm = path; render(); return; }
+      state.confirm = null;
+      const { parent, key } = getRef(path);
+      parent.splice(key, 1);
+    } else if (act === "up" || act === "down") {
+      const { parent, key } = getRef(path);
+      const j = act === "up" ? key - 1 : key + 1;
+      if (j < 0 || j >= parent.length) return;
+      [parent[key], parent[j]] = [parent[j], parent[key]];
+    } else if (act === "add-item") {
+      const { parent, key } = getRef(path);
+      const shift = path.split(".")[0];
+      parent[key].items.push({ id: newId(SHIFT_META[shift].prefix), t: "Neue Aufgabe", s: "", important: false, optional: false });
+    } else if (act === "add-phase") {
+      const s = plan[path];
+      const last = s.phases[s.phases.length - 1];
+      const from = last ? last.to : s.start;
+      const to = fmtMin(Math.min(toMin(from) + 30, 23 * 60 + 59));
+      s.phases.push({ id: newId("p"), title: "Neuer Abschnitt", from, to, hint: "", items: [] });
+      s.phases = sortPhases(s.phases);
+    } else if (act === "add-always") {
+      const { parent, key } = getRef(path);
+      parent[key].push({ id: newId("a"), t: "Neue Daueraufgabe", s: "", important: false, every: 0 });
+    } else return;
+    state.confirm = null;
+    markDirty();
+    render();
+  }
+
+  async function saveDraft(scope) {
+    const plan = normalizePlan(state.draft.plan);
+    if (!plan) { setStatus("Plan ungültig – bitte Uhrzeiten prüfen", true); return; }
+    const wd = String(parseIso(state.date).getDay());
+    let ok;
+    if (scope === "day") {
+      state.dayPlan = plan;
+      ok = await persistDay(state.date, { plan });
+    } else if (scope === "weekday") {
+      state.cfg = { ...state.cfg, weekday: { ...state.cfg.weekday, [wd]: plan } };
+      ok = await persistCfg({ weekday: { [wd]: plan } });
+    } else {
+      state.cfg = { ...state.cfg, base: plan };
+      ok = await persistCfg({ base: plan });
+    }
+    if (ok) {
+      state.draft = null; state.draftDirty = false;
+      const { source } = resolvePlan(state.date, state.dayPlan);
+      const shadow = scope !== "day" && source === "day" ? " Für diesen Tag gilt weiter die Tagesanpassung." : (scope === "base" && source === "weekday" ? ` Für ${WD_PL[Number(wd)]} gilt weiter die Wochentag-Vorlage.` : "");
+      setStatus("Plan gespeichert." + shadow, !!shadow);
+    }
+    render();
+  }
+
+  async function resetScope(scope) {
+    const wd = String(parseIso(state.date).getDay());
+    if (scope === "day") { state.dayPlan = null; await persistDay(state.date, { plan: null }); }
+    else { const w = { ...state.cfg.weekday }; delete w[wd]; state.cfg = { ...state.cfg, weekday: w }; await persistCfg({ weekday: { [wd]: null } }); }
+    state.draft = null; state.draftDirty = false;
+    render();
+  }
+
+  // ---------- Rendering ----------
+  function renderHeader() {
+    const d = parseIso(state.date), plan = P(), ctx = timeCtx();
+    const { source } = resolvePlan(state.date, state.dayPlan);
+    $("weekday").textContent = WD[d.getDay()] + (state.date === isoDate(new Date()) ? " · heute" : "");
+    $("datelabel").textContent = `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
+    $("datesrc").textContent = source === "day" ? "angepasst" : source === "weekday" ? WD[d.getDay()].slice(0, 2) + "-Plan" : "";
+    $("datepick").value = state.date;
+    const act = activeShift(plan, ctx);
+    $("clock").innerHTML = `${fmtMin(nowMin())}${act ? `<small>${SHIFT_META[act].label} bis ${plan[act].end}</small>` : ""}`;
+    for (const key of KEYS) { const p = progress(plan, key, state.checks); $("meta-" + key).textContent = `${p.done}/${p.total}`; }
+    const tabView = state.view === "plan" || state.view === "pin" ? "admin" : state.view;
+    root.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", String(t.dataset.view === tabView)));
+    const p = currentPerson(), wb = $("whoBtn");
+    wb.classList.toggle("none", !p);
+    wb.hidden = !state.cfg.people.length;
+    $("whoAv").textContent = p ? initials(p.name) : "?";
+    $("whoName").innerHTML = p ? `${esc(p.name)} <small>wechseln</small>` : "Name wählen";
+  }
+
+  function render() {
+    const active = root.activeElement;
+    const typing = active && $("main").contains(active) && (active.tagName === "TEXTAREA" || (active.tagName === "INPUT" && active.type !== "checkbox"));
+    if (typing) { renderPending = true; renderHeader(); return; }
+    renderPending = false;
+    renderHeader();
+    const v = state.view, main = $("main");
+    if ((v === "plan" || v === "admin") && !isUnlocked()) { state.pinStage = { mode: state.cfg.adminPin ? "unlock" : "set", next: v }; state.view = "pin"; return render(); }
+    main.className = ["plan", "monat", "dienst", "admin", "pin"].includes(v) ? "scroll" : "";
+    main.innerHTML = v === "monat" ? renderMonth() : v === "uebersicht" ? renderOverview() : v === "plan" ? renderEditor()
+      : v === "dienst" ? renderRoster() : v === "admin" ? renderAdmin() : v === "pin" ? renderPin() : renderShift(v);
+    maybeAskPerson();
+    if (v === "frueh" || v === "spaet") scrollToNow();
+  }
+  // Querformat: aktuelle Spalte ins Bild holen.
+  function scrollToNow() {
+    // Erster offener Abschnitt (überfällig oder aktuell) in Zeitreihenfolge.
+    const el = root.querySelector(".stop.is-late, .stop.is-now");
+    if (!el) return;
+    const board = root.querySelector(".board");
+    if (board && board.scrollHeight > board.clientHeight) board.scrollTop = Math.max(0, el.offsetTop - board.offsetTop - 8);
+    else if (!scrolledOnce) {
+      const head = root.querySelector("header.top");
+      if (head) host.style.setProperty("--rz-head", head.offsetHeight + 8 + "px");
+      el.scrollIntoView({ block: "start" });
+      scrolledOnce = true;
+    }
+  }
+
+
+
+  // ---------- Interaktion ----------
+  function goDate(date) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+    if (state.view === "plan" && state.draftDirty && !confirmLeave()) return;
+    state.date = date;
+    state.expanded.clear();
+    state.draft = null; state.draftDirty = false; state.confirm = null;
+    subscribeMonth();
+    subscribeDay();
+  }
+  let leaveArmed = false;
+  function confirmLeave() {
+    if (leaveArmed) { leaveArmed = false; return true; }
+    leaveArmed = true;
+    setStatus("Ungespeicherte Plan-Änderungen – nochmal tippen zum Verwerfen", true);
+    setTimeout(() => { leaveArmed = false; }, 4000);
+    return false;
+  }
+  function setView(v) {
+    if (state.view === "plan" && v !== "plan" && state.draftDirty && !confirmLeave()) return;
+    if (v !== "plan") { state.draft = null; state.draftDirty = false; }
+    if (v === "admin" || v === "plan") { if (!requireAdmin(v)) return; }
+    if (v !== "dienst") state.rosterEdit = false;
+    if (v === "dienst") state.rosterWeek = mondayOf(state.date);
+    state.view = v; state.confirm = null; scrolledOnce = false;
+    if (opts.standalone) window.scrollTo(0, 0);
+    render();
+  }
+  function shiftMonths(n) { const d = parseIso(state.date); d.setDate(1); d.setMonth(d.getMonth() + n); goDate(isoDate(d)); }
+
+  $("prev").addEventListener("click", () => goDate(addDays(state.date, -1)));
+  $("next").addEventListener("click", () => goDate(addDays(state.date, 1)));
+  $("today").addEventListener("click", () => goDate(isoDate(new Date())));
+  $("datepick").addEventListener("change", (e) => goDate(e.target.value));
+  root.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => setView(t.dataset.view)));
+
+  const main = $("main");
+  main.addEventListener("click", (e) => {
+    const t = e.target.closest("button");
+    if (!t || t.disabled) return;
+    if (t.dataset.act) {
+      const a = t.dataset.act;
+      if (a === "save-day") return saveDraft("day");
+      if (a === "save-weekday") return saveDraft("weekday");
+      if (a === "save-base") return saveDraft("base");
+      if (a === "discard") { state.draft = null; state.draftDirty = false; render(); return; }
+      if (a === "reset-day") return resetScope("day");
+      if (a === "reset-weekday") return resetScope("weekday");
+      return editorAction(a, t.dataset.path);
+    }
+    if (t.dataset.act2) {
+      const a = t.dataset.act2;
+      if (a === "roster-edit") { if (requireAdmin("dienst-edit")) { state.rosterEdit = true; render(); } return; }
+      if (a === "roster-done") { state.rosterEdit = false; render(); return; }
+      if (a === "copy-week") {
+        if (!isUnlocked()) return;
+        if (state.confirm !== "copy-week") { state.confirm = "copy-week"; render(); return; }
+        state.confirm = null; copyPrevWeek(); return;
+      }
+      if (a === "pin-cancel") { state.pinStage = null; state.view = "uebersicht"; render(); return; }
+      if (a === "open-plan") return setView("plan");
+      if (a === "open-roster") { state.view = "dienst"; state.rosterWeek = mondayOf(state.date); state.rosterEdit = true; render(); return; }
+      if (a === "export") return downloadBackup();
+      if (a === "backup-dir") return chooseBackupDir();
+      if (a === "backup-now") return writeBackup("manual");
+      if (a === "backup-forget") return forgetBackupDir();
+      if (a === "person-del") return deletePerson(t.dataset.pid);
+      if (a === "pin-change") { state.pinStage = { mode: "set", next: "admin" }; state.view = "pin"; render(); setTimeout(() => { const el = $("pin-in"); if (el) el.focus(); }, 0); return; }
+      if (a === "lock") { state.unlockedUntil = 0; state.view = "uebersicht"; render(); return; }
+      return;
+    }
+    if (t.dataset.roster) { if (isUnlocked()) { state.unlockedUntil = Date.now() + 10 * 60000; toggleRoster(t.dataset.roster, t.dataset.shift, t.dataset.pid); } else { state.rosterEdit = false; render(); } return; }
+    if (t.id === "wprev" || t.id === "wnext") { state.rosterWeek = addDays(state.rosterWeek || mondayOf(state.date), t.id === "wprev" ? -7 : 7); render(); return; }
+    if (t.dataset.log) return logAlways(t.dataset.shift, t.dataset.log);
+    if (t.dataset.unlog) return unlogAlways(t.dataset.shift, t.dataset.unlog);
+    if (t.dataset.toggle) { const id = t.dataset.toggle; state.expanded.has(id) ? state.expanded.delete(id) : state.expanded.add(id); render(); return; }
+    if (t.id === "mprev") return shiftMonths(-1);
+    if (t.id === "mnext") return shiftMonths(1);
+    if (t.dataset.viewGo) return setView(t.dataset.viewGo);
+    if (t.dataset.date) { const sh = t.dataset.shift; goDate(t.dataset.date); state.view = sh; render(); return; }
+    if (t.dataset.goto) {
+      state.expanded.add(t.dataset.phase);
+      setView(t.dataset.goto);
+      const el = $("phase-" + t.dataset.phase);
+      if (el) el.scrollIntoView({ block: "nearest", inline: "start" });
+      return;
+    }
+    const stamp = (s) => ({ s, by: actorId(), at: new Date().toISOString() });
+    if (t.dataset.id) { const c = state.checks[t.dataset.id]; setCheck(t.dataset.id, c && c.s === "done" ? null : stamp("done")); }
+    else if (t.dataset.skip) { const c = state.checks[t.dataset.skip]; setCheck(t.dataset.skip, c && c.s === "na" ? null : stamp("na")); }
+  });
+  main.addEventListener("input", (e) => {
+    const el = e.target;
+    if (el.dataset.note) return queueNote(el.dataset.note, el.value);
+    if (el.dataset.num && state.draft) {
+      const n = parseInt(el.value, 10);
+      const { parent, key } = getRef(el.dataset.num);
+      parent[key] = Number.isFinite(n) ? Math.min(480, Math.max(0, n)) : 0;
+      markDirty(); return;
+    }
+    if (el.dataset.path && state.draft && el.type !== "checkbox") { const { parent, key } = getRef(el.dataset.path); parent[key] = el.value; markDirty(); }
+  });
+  main.addEventListener("change", (e) => {
+    const el = e.target;
+    if (!state.draft) return;
+    if (el.dataset.path && el.type === "checkbox") { const { parent, key } = getRef(el.dataset.path); parent[key] = el.checked; markDirty(); return; }
+    if (el.dataset.time) {
+      const t = normTime(el.value);
+      if (!t) { setStatus("Bitte eine Uhrzeit wie 07:30 eingeben", true); el.value = getRef(el.dataset.time).parent[getRef(el.dataset.time).key]; return; }
+      const { parent, key } = getRef(el.dataset.time); parent[key] = t;
+      for (const k of KEYS) state.draft.plan[k].phases = sortPhases(state.draft.plan[k].phases);
+      markDirty(); el.blur(); render(); return;
+    }
+    if (el.dataset.move) {
+      const parts = el.dataset.move.split(".");
+      const shift = parts[0], pi = Number(parts[2]), ii = Number(parts[4]), target = Number(el.value);
+      const phases = state.draft.plan[shift].phases;
+      if (target === pi || !phases[target]) return;
+      const [item] = phases[pi].items.splice(ii, 1);
+      phases[target].items.push(item);
+      markDirty(); render();
+    }
+  });
+  main.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (e.target.id === "pinform") return submitPin($("pin-in").value);
+    if (e.target.id === "addperson") return addPerson($("newperson").value);
+  });
+  main.addEventListener("change", (e) => {
+    const el = e.target;
+    if (el.dataset.person) return renamePerson(el.dataset.person, el.value);
+    if (el.id === "importfile" && el.files && el.files[0]) return importBackup(el.files[0]);
+  });
+  main.addEventListener("focusout", () => setTimeout(() => { if (renderPending) render(); }, 0));
+  $("whoBtn").addEventListener("click", () => openPicker(true));
+
+  // Uhr, Fälligkeiten und „mitlaufende" Spalten jede Minute aktualisieren (nur Anzeige).
+  timers.push(setInterval(() => {
+    if (["plan", "monat", "admin", "pin", "dienst"].includes(state.view)) { renderHeader(); maybeAskPerson(); }
+    else render();
+  }, 30000));
+
+  // ---------- Start ----------
+  render();
+  (async () => {
+    const api = opts.mode === "auto" && window.claude && typeof window.claude.use === "function" ? window.claude : null;
+    if (opts.mode === "sharepoint") {
+      db = createSpDb(opts);
+      try { await db.ready(); }
+      catch (e) { setStatus("SharePoint-Speicher nicht erreichbar: " + ((e && e.message) || "Fehler"), true); state.readOnly = true; }
+    } else if (api) {
+      try { db = await api.use("db"); } catch { db = null; }
+      try { user = await api.use("user"); } catch { user = null; }
+    }
+    if (user) { try { myId = await user.id(); } catch { myId = null; } }
+    state.mode = db ? "shared" : "local";
+    if (user && typeof user.can === "function") {
+      try { if ((await user.can("data.write")) === false) state.readOnly = true; } catch { /* unbekannt */ }
+    }
+    loadWho();
+    if (state.mode === "local") await loadBackupDir();
+    setStatus(statusLine(), state.readOnly || !!backupHint());
+    if (disposed) return;
+    subscribeCfg();
+    subscribeMonth();
+    subscribeDay();
+  })();
+
+  return () => {
+    disposed = true;
+    timers.forEach((t) => { clearInterval(t); clearTimeout(t); });
+    cleanups.forEach((f) => { try { f(); } catch { /* egal */ } });
+    try { if (unsubDay) unsubDay(); if (unsubMonth) unsubMonth(); if (unsubCfg) unsubCfg(); } catch { /* egal */ }
+    container.innerHTML = "";
+  };
+}
