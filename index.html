@@ -710,6 +710,11 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
     state.month = { ...state.month, [state.date]: { checks: next, plan: state.dayPlan } };
     render();
     persistDay(state.date, { checks: { [id]: value } });
+    // Letzter Punkt der Spätschicht heute erledigt → Tagesabschluss sichern.
+    if (value && state.date === isoDate(new Date())) {
+      const pr = progress(P(), "spaet", next);
+      if (pr.total && pr.done === pr.total) autoBackup("day");
+    }
   }
 
   const noteTimers = {};
@@ -1155,7 +1160,8 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
           <button class="btn" data-act2="open-roster">Dienstplan bearbeiten</button></div></section>
       ${state.mode === "local" ? `<section class="card"><div class="chead"><h2>Datensicherung</h2></div>
         <div class="cbody"><p>Alles liegt im Browser dieses Macs. Wird der Browserverlauf mit „Website-Daten“ gelöscht, ist es weg. Sichere deshalb regelmäßig.</p>
-          <p>Letzte Sicherung: <b>${last ? new Date(last).toLocaleDateString("de-DE") : "noch nie"}</b></p>
+          <p>Automatisch: bei jedem Schichtbeginn (Namenswahl) und wenn der letzte Punkt der Spätschicht abgehakt ist. Chrome-Downloadordner auf den synchronisierten SharePoint-Ordner stellen.</p>
+          <p>Letzte Sicherung: <b>${last ? new Date(last).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) : "noch nie"}</b></p>
           <button class="btn primary" data-act2="export">Sicherung herunterladen</button>
           <label class="btn" style="text-align:center;cursor:pointer">Sicherung einspielen<input type="file" id="importfile" accept="application/json,.json" hidden></label>
           <p id="import-msg"></p></div></section>` : ""}
@@ -1191,18 +1197,32 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
     render();
     persistCfg({ people });
   }
-  function exportBackup() {
+  // Muss aus einem Klick heraus laufen, sonst blockiert Chrome den Download.
+  // reason: "manual" | "shift" (Schichtbeginn) | "day" (Tagesabschluss)
+  function exportBackup(reason = "manual") {
+    if (state.mode !== "local") return false;
     const data = {};
-    try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith("rz2") && k !== "rz2who") data[k] = localStorage.getItem(k); } } catch { setStatus("Browser-Speicher blockiert", true); return; }
+    try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith("rz2") && k !== "rz2who") data[k] = localStorage.getItem(k); } } catch { setStatus("Browser-Speicher blockiert", true); return false; }
+    const now = new Date();
     const blob = new Blob([JSON.stringify({ app: "rezeption-schichtcheck", version: 1, exportedAt: new Date().toISOString(), data }, null, 1)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `rezeption-sicherung-${isoDate(new Date())}.json`;
+    // Datum + Uhrzeit im Namen: Chrome überschreibt nichts, die neueste Datei ist am Namen erkennbar.
+    a.download = `rezeption-sicherung-${isoDate(now)}_${pad(now.getHours())}${pad(now.getMinutes())}${reason === "day" ? "_tagesabschluss" : ""}.json`;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-    LS.set("rz2meta", { ...LS.get("rz2meta", {}), lastBackup: new Date().toISOString() });
-    setStatus(statusLine());
-    render();
+    LS.set("rz2meta", { ...LS.get("rz2meta", {}), lastBackup: now.toISOString(), ...(reason === "day" ? { lastDayBackup: isoDate(now) } : {}) });
+    setStatus(`Sicherung gespeichert ${fmtMin(now.getHours() * 60 + now.getMinutes())}${reason === "day" ? " (Tagesabschluss)" : ""}`);
+    if (reason === "manual") render();
+    return true;
+  }
+  // Automatisch: bei Schichtbeginn höchstens alle 2 Stunden, Tagesabschluss einmal pro Tag.
+  function autoBackup(reason) {
+    if (state.mode !== "local") return;
+    const meta = LS.get("rz2meta", {});
+    if (reason === "shift" && meta.lastBackup && Date.now() - new Date(meta.lastBackup) < 2 * 3600000) return;
+    if (reason === "day" && meta.lastDayBackup === isoDate(new Date())) return;
+    exportBackup(reason);
   }
   function importBackup(file) {
     const msg = $("import-msg");
@@ -1261,6 +1281,7 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
     render();
     const p = state.cfg.people.find(x => x.id === id);
     setStatus(p ? `Hallo ${p.name}!` : statusLine());
+    autoBackup("shift");
   }
   $("picker").addEventListener("click", (e) => {
     const b = e.target.closest("button");
@@ -1553,7 +1574,7 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
       if (a === "pin-cancel") { state.pinStage = null; state.view = "uebersicht"; render(); return; }
       if (a === "open-plan") return setView("plan");
       if (a === "open-roster") { state.view = "dienst"; state.rosterWeek = mondayOf(state.date); state.rosterEdit = true; render(); return; }
-      if (a === "export") return exportBackup();
+      if (a === "export") return exportBackup("manual");
       if (a === "person-del") return deletePerson(t.dataset.pid);
       if (a === "pin-change") { state.pinStage = { mode: "set", next: "admin" }; state.view = "pin"; render(); setTimeout(() => { const el = $("pin-in"); if (el) el.focus(); }, 0); return; }
       if (a === "lock") { state.unlockedUntil = 0; state.view = "uebersicht"; render(); return; }

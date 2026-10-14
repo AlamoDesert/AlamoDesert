@@ -4,7 +4,7 @@
 
 Digitale Abhak-Checkliste für Früh- und Spätschicht an der Rezeption (Vorlage: Papier-Aushang „Checkliste neue Rezeption").
 
-- `index.html` – komplette App, kein Build. Hauptnutzung: lokal auf dem Rezeptions-MacBook (Chrome, `file://`), Daten in `localStorage` (Schlüssel `rz2*`, Export/Import in der Verwaltung). Als claude.ai-Artifact (Capabilities `db` + `user`) läuft derselbe Code mit geteilter DB.
+- `index.html` – komplette App, kein Build. Hauptnutzung: lokal auf dem Rezeptions-MacBook (Chrome, `file://`), Daten in `localStorage` (Schlüssel `rz2*`). Automatische Sicherung als JSON-Download bei Namenswahl (max. alle 2 h) und beim letzten Spätschicht-Haken (1×/Tag); Chrome-Downloadordner = per OneDrive synchronisierter SharePoint-Ordner. Import in der Verwaltung. Als claude.ai-Artifact (Capabilities `db` + `user`) läuft derselbe Code mit geteilter DB.
 - Personen ohne Login: Team (`cfg.people`) und Dienstplan (`cfg.roster[datum] = {frueh, spaet}`) in der Konfiguration; zu Schichtbeginn Namensauswahl, aktive Person pro Gerät in `rz2who`. `by` in Haken/Notizen/Logs = Personen-ID.
 - Verwaltung, Aufgaben-Plan und Dienstplan-Bearbeitung hinter Leitungs-PIN (`cfg.adminPin`, FNV-Hash) – nur Schutz vor versehentlichen Änderungen, keine echte Zugriffskontrolle.
 - `DEFAULT_PLAN` im Script ist der Ausgangsplan (Aushang). Unter Verwaltung › Aufgaben-Plan lässt er sich ändern; welcher Plan gilt, entscheidet `resolvePlan`: Tagesanpassung (`days/<datum>.plan`) > Wochentag-Vorlage (`config/plan.weekday["0"-"6"]`, 0 = Sonntag) > Standard (`config/plan.base`) > `DEFAULT_PLAN`. Alles aus der DB läuft durch `normalizePlan`.
