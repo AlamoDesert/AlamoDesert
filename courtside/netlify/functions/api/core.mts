@@ -135,13 +135,13 @@ async function route(req: Request, store: Store): Promise<Response> {
     return json({ event: publicEvent(meta, []), adminKey }, 201);
   }
 
-  const meta = await loadMeta(store, id);
+  // Anmeldung und Teilnehmerliste parallel laden: spart eine Runde zum Speicher.
+  if (!ID_RE.test(id)) throw new HttpError(404, 'Diese Anmeldung gibt es nicht.');
+  const needPlayers = (!sub && method === 'GET') || (sub === 'players' && !pid && method === 'POST');
+  const [meta, preloaded] = await Promise.all([loadMeta(store, id), needPlayers ? loadPlayers(store, id) : Promise.resolve(null)]);
 
   if (!sub) {
-    if (method === 'GET') {
-      const players = await loadPlayers(store, id);
-      return json({ event: publicEvent(meta, players), admin: await isAdmin(req, meta) });
-    }
+    if (method === 'GET') return json({ event: publicEvent(meta, preloaded), admin: await isAdmin(req, meta) });
     if (!(await isAdmin(req, meta))) throw new HttpError(403, 'Keine Berechtigung.');
     if (method === 'PATCH') {
       applyEventFields(meta, await readBody(req), false);
@@ -165,7 +165,7 @@ async function route(req: Request, store: Store): Promise<Response> {
     if (method !== 'POST') throw new HttpError(405, 'Nicht erlaubt.');
     if (!meta.open && !admin) throw new HttpError(409, closedMsg);
     const person = parsePerson(await readBody(req));
-    const players = await loadPlayers(store, id);
+    const players = preloaded;
     if (players.length >= MAX_PLAYERS) throw new HttpError(409, 'Das Turnier ist voll.');
     if (players.some((p) => p.name.toLowerCase() === person.name.toLowerCase())) {
       throw new HttpError(409, 'Dieser Name ist schon angemeldet. Bitte mit Initiale des Nachnamens ergänzen.');
