@@ -4,7 +4,7 @@ Für die Person mit SharePoint-Adminrechten. Dauer: ca. 15 Minuten.
 
 ## Was das Paket macht
 
-- Ein SharePoint-Framework-Webpart (SPFx 1.23.2, ohne React), Datei `sharepoint/solution/rezeption-checkliste.sppkg`.
+- Ein SharePoint-Framework-Webpart (SPFx 1.23.2, ohne React), Datei `sharepoint/sharepoint/solution/rezeption-checkliste.sppkg` (im Repository).
 - Keine API-Berechtigungen, kein Microsoft Graph, kein externer Server, kein Custom Script.
 - Daten: JSON-Dateien in der Dokumentbibliothek **RezeptionDaten** der Website, auf der das Webpart liegt. Die App legt die Bibliothek beim ersten Öffnen selbst an (Benutzer braucht dafür die Berechtigung „Bearbeiten“, wie Websitemitglieder). Sicherung über den Versionsverlauf der Bibliothek.
 
