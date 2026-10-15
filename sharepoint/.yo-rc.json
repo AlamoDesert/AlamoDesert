@@ -1,0 +1,22 @@
+{
+  "@microsoft/generator-sharepoint": {
+    "whichFolder": "subdir",
+    "solutionName": "rezeption-checkliste",
+    "environment": "spo",
+    "useGulp": false,
+    "componentType": "webpart",
+    "template": "none",
+    "componentName": "Rezeption",
+    "plusBeta": false,
+    "isCreatingSolution": true,
+    "nodeVersion": "22.22.0",
+    "sdksVersions": {},
+    "version": "1.23.2",
+    "libraryName": "rezeption-checkliste",
+    "libraryId": "3e981ad6-dd2b-414e-affe-55c796178269",
+    "packageManager": "npm",
+    "solutionShortDescription": "rezeption-checkliste description",
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false
+  }
+}
