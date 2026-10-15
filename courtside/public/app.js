@@ -3,7 +3,7 @@
   'use strict';
   const E = window.Engine;
   const C = window.CONTENT;
-  const VERSION = '2.0.0';
+  const VERSION = '2.1.0';
   const MODE_ORDER = ['americano', 'mexicano', 'kotc', 'team'];
 
   /* ---------- Hilfen ---------- */
@@ -570,6 +570,21 @@
     });
   }
 
+  // Wie viele Plätze werden gebraucht, wer setzt je Runde aus? units = Personen bzw. Teams.
+  function courtNote(mode, discipline, courts, units) {
+    const m = E.MODES[mode];
+    const per = m.unit === 'player' ? 4 : 2;
+    const word = m.unit === 'player' || discipline === 'singles' ? ['Person', 'Personen'] : ['Team', 'Teams'];
+    const need = Math.floor(units / per);
+    if (!need) return '';
+    if (courts > need) return `Bei ${units} ${word[1]} werden nur ${need} ${need === 1 ? 'Platz' : 'Plätze'} gebraucht.`;
+    const idle = units - courts * per;
+    if (!idle) return '';
+    const ladder = m.engine === 'ladder';
+    const verb = ladder ? (idle === 1 ? 'wartet' : 'warten') : idle === 1 ? 'setzt' : 'setzen';
+    return `Je Runde ${verb} ${idle} ${idle === 1 ? word[0] : word[1]}${ladder ? '' : ' aus'}.`;
+  }
+
   /* ---------- Turnier-Liste ---------- */
   function statusLine(t) {
     const info = C.modes[t.mode];
@@ -578,8 +593,7 @@
       const p = E.podium(t);
       return `${info.name} · ${p.length ? `Sieg: ${p[0].join(', ')}` : 'Beendet'}`;
     }
-    const planned = t.mode === 'team' ? t.rounds.length : t.options.rounds;
-    return `${info.name} · Runde ${t.cur + 1} von ${planned}`;
+    return `${info.name} · Runde ${t.cur + 1} von ${E.plannedRounds(t)}`;
   }
   function tournamentCell(t) {
     const trail = t.status === 'draft' ? '<span class="badge warn">Anmeldung</span>' : t.status === 'running' ? '<span class="badge live">läuft</span>' : esc(dateDE(t.finishedAt || t.updatedAt));
@@ -645,10 +659,13 @@
     const svg = qrSVG(url);
     const rows = players.map((p) => `<button class="cell tappable" type="button" data-act="d-edit" data-pid="${p.id}"><span class="body"><span class="t1">${esc(p.name)}</span></span>${lvlBadge(p)}${icon('chev', 'sm chev')}</button>`).join('');
     const enough = players.length >= need;
+    const odd = teamMode && players.length % 2 === 1;
+    const courtsInfo = enough ? courtNote(t.mode, t.cfg.discipline, t.cfg.courts, teamMode ? Math.floor(players.length / 2) : players.length) : '';
     const body = `
       <section class="card next"><div class="state"><span class="badge ${t.reg.open ? 'live' : 'warn'}">${t.reg.open ? 'Anmeldung offen' : 'Anmeldung geschlossen'}</span></div>
         <h2>${players.length} angemeldet</h2>
-        <p>${esc(info.name)} · ${esc(E.SPORTS[t.sport].name)}${t.reg.when ? ' · ' + esc(t.reg.when) : ''}. ${enough ? (teamMode ? 'Die App bildet die Teams nach Level.' : 'Bereit zum Start.') : `Es fehlen noch ${need - players.length}.`}</p>
+        <p>${esc(info.name)} · ${esc(E.SPORTS[t.sport].name)}${t.reg.when ? ' · ' + esc(t.reg.when) : ''}. ${enough ? (teamMode ? 'Die App bildet die Teams nach Level.' : 'Bereit zum Start.') : `Es fehlen noch ${need - players.length}.`}${courtsInfo ? ' ' + esc(courtsInfo) : ''}</p>
+        ${enough && odd ? '<p class="note warn">Ungerade Zahl: Für Zweierteams fehlt eine Person, oder eine Person wird vor dem Start ausgetragen.</p>' : ''}
         <div class="actions"><button class="btn filled big" type="button" data-act="d-start" ${enough ? '' : 'disabled'}>${teamMode ? 'Teams bilden & starten' : 'Turnier starten'}</button></div></section>
       <section class="card qr-card"><div class="qr">${svg || '<p class="qr-empty">QR-Code nicht verfügbar.</p>'}</div><p class="url">${esc(url)}</p>
         <div class="row" style="justify-content:center"><button class="btn filled" type="button" data-act="d-share">${icon('share', 'sm')}Einladung teilen</button><button class="btn tonal" type="button" data-act="d-copy">${icon('copy', 'sm')}Link kopieren</button></div>
@@ -671,9 +688,20 @@
     return `Anmeldung: ${t.name}${t.reg.when ? ` (${t.reg.when})` : ''}\n${info.name} – ${info.tag}\nHier mit Name und Level eintragen:`;
   }
 
+  // Schließt zuerst die Anmeldung, damit während der Teambildung niemand mehr dazukommt.
   async function startFromDraft(t) {
-    try { await refreshDraft(t, { quiet: false }); } catch (e) { /* Fehler schon gemeldet */ }
+    if (t.reg.open) {
+      try {
+        await adminCall(t, 'PATCH', '', { open: false });
+        const cur = getT(t.id);
+        if (cur) { cur.reg.open = false; Store.save(); }
+      } catch (e) {
+        const n = (t.players || []).length;
+        if (!(await confirmDialog('Ohne Verbindung starten?', `${e.message} Die App startet mit der zuletzt geladenen Liste (${n} ${n === 1 ? 'Person' : 'Personen'}). Spätere Anmeldungen fehlen dann.`, 'Trotzdem starten'))) return;
+      }
+    } else await refreshDraft(t, { quiet: false });
     t = getT(t.id);
+    if (!t) return;
     const players = (t.players || []).map((p) => ({ name: p.name, level: p.level, rating: p.rating }));
     const m = E.MODES[t.mode];
     const launch = async (entrants) => {
@@ -891,8 +919,10 @@
     const m = f.m;
     const fmt = E.fmtOf(t);
     const allowDraw = E.allowDraw(t);
+    // Mit Zeitlimit darf ein Spiel auf 24 Punkte vorher enden: Die Gegenseite wird ergänzt, bleibt aber änderbar.
+    const capped = !!fmt.total && E.roundTimed(t);
     const nameA = E.sideName(t, m.a), nameB = E.sideName(t, m.b);
-    const st = { a: m.score ? m.score.a : null, b: m.score ? m.score.b : null, w: m.score ? m.score.w : null, active: 'a' };
+    const st = { a: m.score ? m.score.a : null, b: m.score ? m.score.b : null, w: m.score ? m.score.w : null, active: 'a', auto: null };
     if (st.a === undefined) st.a = null;
     if (st.b === undefined) st.b = null;
     const max = fmt.total || (fmt.target ? fmt.target + 6 : fmt.kind === 'games' ? 15 : 40);
@@ -904,16 +934,16 @@
       } else {
         const who = esc(st.active === 'a' ? nameA : nameB);
         h = `<div class="score-head"><button type="button" class="score-side" data-pick="a" aria-pressed="${st.active === 'a'}"><span class="tn">${esc(nameA)}</span><span class="v num">${st.a == null ? '–' : st.a}</span></button><span class="colon">:</span><button type="button" class="score-side" data-pick="b" aria-pressed="${st.active === 'b'}"><span class="tn">${esc(nameB)}</span><span class="v num">${st.b == null ? '–' : st.b}</span></button></div>
-          <p class="foot">${fmt.total ? `Punkte für ${who} antippen. Die Gegenseite ergibt sich aus ${fmt.total}.` : `${fmt.kind === 'games' ? 'Games' : 'Punkte'} für ${who} antippen.`}</p>
+          <p class="foot">${!fmt.total ? `${fmt.kind === 'games' ? 'Games' : 'Punkte'} für ${who} antippen.` : capped ? `Punkte für ${who} antippen, die App ergänzt auf ${fmt.total}. Bei Abpfiff vorher die andere Seite antippen und korrigieren.` : `Punkte für ${who} antippen. Die Gegenseite ergibt sich aus ${fmt.total}.`}</p>
           <div class="numgrid">${Array.from({ length: max + 1 }, (_, i) => `<button type="button" data-n="${i}" aria-pressed="${st[st.active] === i}">${i}</button>`).join('')}</div>`;
       }
       const sc = scoreObj();
-      const chk = sc ? E.checkScore(fmt, sc, allowDraw) : null;
+      const chk = sc ? E.checkScore(fmt, sc, allowDraw, capped) : null;
       if (chk && chk.error) h += `<p class="note err">${esc(chk.error)}</p>`;
       else if (chk && chk.warn) h += `<p class="note warn">${esc(chk.warn)}</p>`;
       return h;
     };
-    const canSave = () => { const sc = scoreObj(); return !!sc && !E.checkScore(fmt, sc, allowDraw).error; };
+    const canSave = () => { const sc = scoreObj(); return !!sc && !E.checkScore(fmt, sc, allowDraw, capped).error; };
     const foot = `${m.score ? `<button class="btn danger" type="button" data-clear>${icon('trash', 'sm')}Löschen</button>` : ''}<button class="btn filled big" type="button" data-save>Speichern</button>`;
     const o = sheet({ title: t.courts[m.court], body: body(), foot, doneLabel: 'Sichern' });
     const sb = o.el.querySelector('.sheet-b');
@@ -939,11 +969,13 @@
       if (b.dataset.pick) { st.active = b.dataset.pick; refresh(); return; }
       if (b.dataset.n !== undefined) {
         const n = Number(b.dataset.n);
+        const other = st.active === 'a' ? 'b' : 'a';
         haptic(5);
         st[st.active] = n;
-        if (fmt.total) st[st.active === 'a' ? 'b' : 'a'] = fmt.total - n;
-        else if (st.active === 'a' && st.b == null) st.active = 'b';
-        else if (st.active === 'b' && st.a == null) st.active = 'a';
+        if (st.auto === st.active) st.auto = null;
+        if (fmt.total) {
+          if (!capped || st[other] == null || st.auto === other) { st[other] = fmt.total - n; st.auto = other; }
+        } else if (st[other] == null) st.active = other;
         refresh();
       }
     });
@@ -1228,14 +1260,17 @@
     const autoName = () => `${E.SPORTS[W.sport].name} ${C.modes[W.mode].name} ${new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}`;
     const cfg = (entrants) => {
       const o = Object.assign({}, W.options);
-      if (W.mode !== 'team') o.rounds = W.rounds || E.defaultRounds({ mode: W.mode, format: W.format, entrants: entrants || W.people, options: o });
+      if (W.mode !== 'team') o.rounds = W.rounds || E.defaultRounds({ mode: W.mode, format: W.format, courts: W.courts, entrants: entrants || W.people, options: o });
       return { name: W.name.trim() || autoName(), sport: W.sport, discipline: W.discipline, mode: W.mode, format: W.format, courts: W.courts, rules: W.rules, options: o, entrants: entrants || W.people };
     };
     // Prüft alles außer der Teilnehmerzahl, die bei Online-Anmeldung noch offen ist.
     const checkBase = () => E.validateConfig(cfg(Array.from({ length: Math.max(m().min, 8) }, (_, i) => ({ name: 'x' + i }))));
     const checkPeople = () => {
       if (W.signup) return null;
-      if (buildTeams()) return W.people.length < m().min * 2 ? `Für ${m().min} Teams braucht es mindestens ${m().min * 2} Personen. Bisher: ${W.people.length}.` : null;
+      if (buildTeams()) {
+        if (W.people.length < m().min * 2) return `Für ${m().min} Teams braucht es mindestens ${m().min * 2} Personen. Bisher: ${W.people.length}.`;
+        return W.people.length % 2 ? `Für Zweierteams braucht es eine gerade Zahl. Bisher: ${W.people.length}. Eine Person ergänzen oder entfernen.` : null;
+      }
       if (W.people.length < m().min) return `Dieser Modus braucht mindestens ${m().min} ${unitWord()}. Bisher: ${W.people.length}.`;
       return E.validateConfig(cfg());
     };
@@ -1299,10 +1334,11 @@
         : `<div class="list">${switchRow('Mit Timer spielen', minutes ? 'Endet die Runde nach Zeit, zählt der Stand beim Abpfiff' : 'Aus – gespielt wird bis zur Punktzahl', 'timer', minutes > 0)}${minutes ? stepperRow('Minuten pro Runde', '', 'roundMinutes', minutes, 3, 60) : ''}</div>`;
       const rows = [];
       if (W.mode !== 'team') {
-        const def = E.defaultRounds({ mode: W.mode, format: W.format, entrants: W.people, options: o }) || 6;
-        const n = W.people.length;
+        const def = E.defaultRounds({ mode: W.mode, format: W.format, courts: W.courts, entrants: W.people, options: o }) || 6;
+        const full = W.mode === 'americano' && !W.signup ? E.fullRotation(W.people.length, W.courts) : null;
         const sub = W.signup && !W.rounds ? 'Automatisch passend zur Teilnehmerzahl'
-          : W.mode === 'americano' && n >= 4 ? `Bei ${n} Personen spielt mit ${n - 1} Runden jede Person einmal mit jeder anderen.` : '';
+          : full && full.exact ? `Mit ${full.rounds} Runden spielt jede Person genau einmal mit jeder anderen.`
+          : full ? `Damit alle einmal zusammenspielen, bräuchte es etwa ${full.rounds} Runden.` : '';
         rows.push(stepperRow('Runden', sub, 'rounds', W.rounds || (W.signup ? 'Auto' : def), 1, 40));
       }
       if (W.mode === 'americano') rows.push(switchRow('Ausgeglichene Spiele', 'Beide Teams eines Spiels möglichst gleich stark (nach Level)', 'balance', o.balance !== false));
@@ -1310,13 +1346,15 @@
         rows.push(segRow('Erste Runde', 'firstRound', [['level', 'Nach Level'], ['random', 'Zufall']]));
         rows.push(segRow('Paarung auf jedem Platz', 'scheme', [['14', '1+4 gegen 2+3'], ['13', '1+3 gegen 2+4']]));
       }
-      if (m().engine === 'rotation') rows.push(switchRow('Pausen ausgleichen', 'Wer aussetzt, bekommt den eigenen Punkteschnitt', 'byePoints', o.byePoints !== 'none'));
+      if (m().engine === 'rotation' && m().pairing !== 'circle') rows.push(switchRow('Pausen ausgleichen', 'Wer aussetzt, bekommt den eigenen Punkteschnitt', 'byePoints', o.byePoints !== 'none'));
       if (m().engine === 'ladder') rows.push(segRow('Wertung', 'ranking', [['position', 'Position'], ['points', 'Punkte je Platz']]));
       const R = E.RULES[W.sport];
       const cur = W.rules[R.key] || R.def;
-      return section('Plätze', `<div class="list">${stepperRow('Anzahl Plätze', m().engine === 'ladder' ? 'Platz 1 ist der Königsplatz.' : '', 'courts', W.courts, 1, 16)}</div>`)
+      const units = buildTeams() ? Math.floor(W.people.length / 2) : W.people.length;
+      const courtsSub = [m().engine === 'ladder' ? 'Platz 1 ist der Königsplatz.' : '', W.signup ? '' : courtNote(W.mode, W.discipline, W.courts, units)].filter(Boolean).join(' ');
+      return section('Plätze', `<div class="list">${stepperRow('Anzahl Plätze', courtsSub, 'courts', W.courts, 1, 16)}</div>`)
         + section('Zählweise', `<div class="list" role="radiogroup">${formats}</div>`, esc(pointsHint))
-        + section('Timer', timer, f.timed ? 'Diese Zählweise braucht einen Timer.' : '')
+        + section('Timer', timer, m().engine === 'ladder' ? 'King of the Court läuft immer auf Zeit.' : f.timed ? 'Diese Zählweise braucht einen Timer.' : '')
         + section('Ablauf', `<div class="list">${rows.join('')}</div>`)
         + section(R.label, `<div class="seg">${R.options.map((x) => `<button type="button" data-act="w-rule" data-v="${x.id}" aria-pressed="${x.id === cur}">${esc(x.name)}</button>`).join('')}</div>`, esc(R.options.find((x) => x.id === cur).hint));
     };
@@ -1572,7 +1610,7 @@
         const k = b.dataset.k, d = Number(b.dataset.d), min = Number(b.dataset.min), max = Number(b.dataset.max);
         if (k === 'courts') W.courts = Math.max(min, Math.min(max, W.courts + d));
         else if (k === 'rounds') {
-          const cur = W.rounds || (W.signup ? 6 - d : E.defaultRounds({ mode: W.mode, format: W.format, entrants: W.people, options: W.options }) || 6);
+          const cur = W.rounds || (W.signup ? 6 - d : E.defaultRounds({ mode: W.mode, format: W.format, courts: W.courts, entrants: W.people, options: W.options }) || 6);
           W.rounds = Math.max(min, Math.min(max, cur + d));
         } else {
           const cur = Number(W.options[k]) || 12;
@@ -1634,11 +1672,11 @@
       if (mine && !this.editing) {
         const link = personalUrl(ev.id, this.me);
         main = `<section class="card next"><div class="state"><span class="badge live">Du bist dabei</span></div><h2>${esc(mine.name)}</h2><p>${esc(E.levelLabel(mine) || '')}</p>
-          <div class="actions"><button class="btn tonal" type="button" data-act="p-edit">${icon('edit', 'sm')}Ändern</button><button class="btn danger" type="button" data-act="p-leave">Abmelden</button></div></section>
+          ${ev.open ? `<div class="actions"><button class="btn tonal" type="button" data-act="p-edit">${icon('edit', 'sm')}Ändern</button><button class="btn danger" type="button" data-act="p-leave">Abmelden</button></div>` : '<p class="foot" style="padding:0">Die Anmeldung ist geschlossen. Änderungen und Absagen bitte direkt an die Turnierleitung.</p>'}</section>
           <section class="section"><div class="section-h"><h2>Dein persönlicher Link</h2></div><div class="card"><p class="url" style="text-align:left">${esc(link)}</p>
           <div class="row"><button class="btn filled" type="button" data-act="p-copy">${icon('copy', 'sm')}Kopieren</button>${navigator.share ? `<button class="btn tonal" type="button" data-act="p-share">${icon('share', 'sm')}An mich senden</button>` : ''}</div>
           <p class="foot" style="padding:0">Mit diesem Link änderst du Name oder Level später, auch von einem anderen Gerät.</p></div></section>`;
-      } else if (ev.open || mine) {
+      } else if (ev.open) {
         main = `<section class="section"><div class="section-h"><h2>${mine ? 'Angaben ändern' : 'Jetzt anmelden'}</h2></div><div class="card" id="p-form">${personFields(mine || {}, 'pp')}<p class="note err" id="pp-err" hidden></p>
           <div class="row">${mine ? '<button class="btn" type="button" data-act="p-cancel">Abbrechen</button>' : ''}<button class="btn filled big grow" type="button" data-act="p-submit">${mine ? 'Speichern' : 'Anmelden'}</button></div></div></section>`;
       } else {
@@ -1759,7 +1797,8 @@
     const el = document.createElement('button');
     el.className = 'timeup';
     el.type = 'button';
-    el.innerHTML = '<span><strong>Zeit!</strong><p>Ballwechsel zu Ende spielen.<br>Bei Gleichstand entscheidet der nächste Punkt.</p><p style="font-size:15px;margin-top:24px;opacity:.8">Tippen zum Schließen</p></span>';
+    const rule = E.allowDraw(t) ? 'Dann den Stand eintragen, Unentschieden zählt.' : 'Bei Gleichstand entscheidet der nächste Punkt.';
+    el.innerHTML = `<span><strong>Zeit!</strong><p>Ballwechsel zu Ende spielen.<br>${rule}</p><p style="font-size:15px;margin-top:24px;opacity:.8">Tippen zum Schließen</p></span>`;
     el.addEventListener('click', () => el.remove());
     document.body.appendChild(el);
     setTimeout(() => el.remove(), 12000);
@@ -1820,7 +1859,7 @@
       if (!t) return;
       const id = b.dataset.id;
       if (id === 'start') {
-        if (E.roundTimed(t)) timerStart(t); else { E.startRound(t); Store.save(); }
+        if (E.roundTimed(t) && t.timer && t.timer.dur) timerStart(t); else { E.startRound(t); Store.save(); }
         haptic([10, 30, 10]);
         render();
       } else if (id === 'result') openScore(t, b.dataset.match);

@@ -43,13 +43,13 @@ window.CONTENT = {
       who: '8, 12 oder 16 Personen ideal', time: '90–120 min',
       about: 'Der Klassiker im Padel. Du spielst jede Runde mit jemand anderem zusammen. Gespielt wird auf eine feste Gesamtpunktzahl, zum Beispiel 24. Beide im Team bekommen ihre Punkte gutgeschrieben. Am Ende gewinnt, wer insgesamt die meisten Punkte hat.',
       steps: [
-        'Die App lost alle Runden aus. Bei 8, 12 oder 16 Personen spielst du genau einmal mit jeder anderen Person.',
+        'Die App lost alle Runden aus. Bei 8 Personen auf 2 Plätzen spielst du in 7 Runden genau einmal mit jeder anderen Person.',
         'Gespielt wird, bis die Gesamtpunktzahl erreicht ist, zum Beispiel 15:9 bei 24 Punkten.',
         'Mit Level-Angaben lost die App so aus, dass beide Teams eines Spiels möglichst gleich stark sind.',
         'Nach der letzten Runde steht die Einzelwertung fest.'
       ],
-      scoring: 'Summe der eigenen Punkte, bei Gleichstand zählen Siege, dann die Differenz. Wer pausiert, bekommt den eigenen Punkteschnitt gutgeschrieben.',
-      tips: ['16, 24 oder 32 Punkte: Dann schlägt jede Person gleich oft auf.', 'Lieber nach Zeit? „Punkte auf Zeit“ wählen, es zählt der Stand beim Abpfiff.']
+      scoring: 'Summe der eigenen Punkte, bei Gleichstand zählen Siege, dann die Differenz. Wer pausiert, bekommt den eigenen Punkteschnitt gutgeschrieben (abschaltbar).',
+      tips: ['16, 24 oder 32 Punkte: Dann schlägt jede Person gleich oft auf.', 'Knapp an Zeit? Einen Timer dazuschalten: Endet die Zeit vor 24 Punkten, zählt der Stand beim Abpfiff.']
     },
     mexicano: {
       name: 'Mexicano', icon: 'chart', tag: 'Wie Americano, aber ab Runde 2 spielen Gleichstarke zusammen.',

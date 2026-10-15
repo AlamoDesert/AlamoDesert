@@ -1,5 +1,5 @@
 /* Courtside – Offline-Cache. Immer zuerst das Netz, damit Updates sofort ankommen; ohne Netz aus dem Cache. */
-const CACHE = 'courtside-v3';
+const CACHE = 'courtside-v4';
 const ASSETS = [
   './', 'index.html', 'app.js', 'engine.js', 'content.js', 'vendor/qrcode.js', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'

@@ -191,3 +191,83 @@ test('Rundenzahl nachträglich ändern', () => {
   assert.equal(k.cur, 1);
   assert.equal(E.setPlannedRounds(E.create(cfg({ mode: 'team', format: 'p24', entrants: names(4, 'T') })), 9).ok, false);
 });
+
+test('Zeitlimit: Spiel auf 24 darf vorher enden', () => {
+  const f = E.FORMATS.p24;
+  assert.ok(E.checkScore(f, { a: 10, b: 8 }, true).error, 'ohne Timer muss die Summe stimmen');
+  const capped = E.checkScore(f, { a: 10, b: 8 }, true, true);
+  assert.equal(capped.error, null);
+  assert.ok(capped.warn);
+  assert.ok(E.checkScore(f, { a: 20, b: 8 }, true, true).error, 'mehr als 24 geht nie');
+  assert.ok(E.checkScore(f, { a: 2.5, b: 21.5 }, true).error, 'nur ganze Punkte');
+  const t = E.create(cfg({ mode: 'americano', format: 'p24', entrants: names(8), options: { rounds: 3, roundMinutes: 10 } }));
+  assert.ok(E.setResult(t, t.rounds[0].matches[0].id, { a: 11, b: 7 }).ok);
+});
+
+test('Satz-Ergebnisse: unmögliche Stände werden gemeldet', () => {
+  const { g4, g6 } = E.FORMATS;
+  assert.equal(E.checkScore(g4, { a: 4, b: 3 }, true).warn, null);
+  assert.ok(E.checkScore(g4, { a: 5, b: 3 }, true).warn);
+  assert.equal(E.checkScore(g6, { a: 7, b: 6 }, true).warn, null);
+  assert.equal(E.checkScore(g6, { a: 6, b: 4 }, true).warn, null);
+  assert.ok(E.checkScore(g6, { a: 6, b: 5 }, true).warn);
+  assert.ok(E.checkScore(g6, { a: 7, b: 3 }, true).warn);
+});
+
+test('Vorzeitig beenden: ungespielte Runden fallen weg, Siegerehrung nur mit Ergebnissen', () => {
+  const t = E.create(cfg({ mode: 'americano', format: 'p24', entrants: names(9), options: { rounds: 9 } }));
+  E.finish(t);
+  assert.deepEqual(E.podium(t), [], 'ohne Ergebnis keine Sieger');
+  const u = E.create(cfg({ mode: 'americano', format: 'p24', entrants: names(9), options: { rounds: 9 } }));
+  u.rounds[0].matches.forEach((m) => E.setResult(u, m.id, { a: 14, b: 10 }));
+  E.advance(u);
+  E.finish(u);
+  assert.equal(u.rounds.length, 1, 'leere Runde 2 und alle späteren sind weg');
+  assert.equal(u.cur, 0);
+  const rows = E.standings(u).rows;
+  assert.ok(rows.every((r) => r.byes <= 1));
+  assert.ok(E.addRound(u).ok);
+  assert.equal(u.status, 'running');
+  assert.equal(E.plannedRounds(u), 2);
+});
+
+test('Nachmeldung spielt sofort, statt zuerst auszusetzen', () => {
+  for (let i = 0; i < 10; i++) {
+    const t = E.create(cfg({ mode: 'americano', format: 'p24', entrants: names(8), options: { rounds: 5 } }));
+    t.rounds[0].matches.forEach((m) => E.setResult(t, m.id, { a: 12, b: 12 }));
+    E.advance(t);
+    assert.ok(E.addEntrant(t, { name: 'Neu' }).ok);
+    const neu = t.entrants.find((e) => e.name === 'Neu').id;
+    assert.ok(!t.rounds[1].byes.includes(neu));
+  }
+});
+
+test('Team-Turnier: Zusatzrunde entsteht erst, wenn sie dran ist, ohne Pausenbonus', () => {
+  const t = E.create(cfg({ mode: 'team', format: 'p24', courts: 1, entrants: names(5, 'T') }));
+  const planned = t.rounds.length;
+  assert.ok(E.addRound(t).ok);
+  assert.equal(t.rounds.length, planned, 'noch nicht ausgelost');
+  assert.equal(E.plannedRounds(t), planned + 1);
+  playOut(t);
+  assert.equal(t.rounds.length, planned + 1);
+  assert.ok(E.standings(t).rows.every((r) => r.bonus === 0));
+});
+
+test('King of the Court: Platzpunkte zählen nur genutzte Plätze', () => {
+  const t = E.create(cfg({ mode: 'kotc', format: 'win', courts: 4, entrants: names(4, 'T'), options: { rounds: 2, roundMinutes: 10, ranking: 'points' } }));
+  assert.equal(t.rounds[0].matches.length, 2);
+  t.rounds[0].matches.forEach((m) => E.setResult(t, m.id, { w: 'a' }));
+  const top = E.standings(t).rows[0];
+  assert.equal(top.cp, 2);
+  assert.ok(E.roundTimed(t));
+});
+
+test('Standard-Rundenzahl: alle Partner einmal, Pausen gleich verteilt', () => {
+  const d = (n, courts, format = 'p16') => E.defaultRounds({ mode: 'americano', format, courts, entrants: names(n), options: {} });
+  assert.equal(d(8, 2, 'p24'), 7);
+  assert.equal(d(9, 2), 9);
+  assert.equal(d(5, 1), 5);
+  assert.equal(d(6, 1, 'p24'), 6);
+  assert.deepEqual(E.fullRotation(9, 2), { rounds: 9, idle: 1, exact: true });
+  assert.equal(E.fullRotation(8, 1).exact, false);
+});
