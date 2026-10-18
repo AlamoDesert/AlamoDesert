@@ -148,7 +148,7 @@ li.na .skip { color: var(--ink); background: var(--surface-2) }
 .board { min-width: 0 }
 .board-in { display: grid; gap: 8px }
 .stop { scroll-margin-top: var(--rz-head, 150px); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; break-inside: avoid; margin-bottom: 8px }
-.stop-head { display: grid; grid-template-columns: 22px 92px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 12px; width: 100%; border: 0; background: none; text-align: left }
+.stop-head { display: grid; grid-template-columns: 22px auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 12px; width: 100%; border: 0; background: none; text-align: left }
 .stop-head .mark { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; background: var(--surface-2); color: var(--muted); box-shadow: inset 0 0 0 1px var(--line) }
 .stop-head .time { font-family: var(--f-display); font-weight: 700; font-size: 17px; font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap }
 .stop-head .ttl { font-family: var(--f-display); font-weight: 700; font-size: 17px; letter-spacing: .03em; text-transform: uppercase; min-width: 0 }
@@ -170,7 +170,7 @@ li.na .skip { color: var(--ink); background: var(--surface-2) }
 .stop.is-later .box { width: 18px; height: 18px; border-radius: 5px }
 .stop.is-later .txt .label { color: var(--muted); font-weight: 400 }
 .stop.is-later .txt .sub { display: none }
-.stop .phint { font-size: 12px; color: var(--muted); padding: 0 12px 6px 146px }
+.stop .phint { font-size: 12px; color: var(--muted); padding: 0 12px 6px 44px }
 .stop.is-now .phint { background: var(--now-soft) }
 .stop.is-late .phint { background: var(--warn-soft) }
 @media (max-width: 480px) { .stop .phint { padding-left: 44px } .stop-head { grid-template-columns: 22px 80px minmax(0, 1fr) auto; gap: 8px } }
@@ -262,6 +262,55 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
 .roster td .cell { display: flex; flex-wrap: wrap; gap: 4px }
 .roster td .empty { padding: 0; font-size: 12px }
 
+/* Schicht-Ansicht */
+.schicht { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(340px, 1fr); gap: 12px; margin-top: 12px }
+.schicht .side { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0 }
+.boardcard .chead { align-items: center }
+.boardcard .board { padding: 10px }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-left: auto }
+.segbtn { border: 0; background: var(--surface); padding: 5px 12px; font-weight: 600; font-size: 13px; color: var(--muted) }
+.segbtn + .segbtn { border-left: 1px solid var(--line) }
+.segbtn.on { background: var(--accent); color: #fff }
+.bar.flat { margin: 0; border-radius: 0; height: 4px; flex: none }
+.boardcard .othersum { border-top: 0; border-bottom: 1px solid var(--line); flex: none; background: var(--warn-soft) }
+.boardcard .othersum b { color: var(--warn) }
+
+/* Immer im Blick: Pflicht + Hinweise */
+.always li.confirm.open { background: var(--warn-soft) }
+.always li.confirm.open .label { font-weight: 600 }
+.always li.confirm .box { flex: none; width: 24px; height: 24px; border-radius: 6px; border: 2px solid var(--warn); display: grid; place-items: center; background: var(--surface) }
+.always li.confirm .box svg { width: 15px; height: 15px; opacity: 0 }
+.always li.confirm.ok .box { background: var(--done); border-color: var(--done) }
+.always li.confirm.ok .box svg { opacity: 1 }
+.always li.confirm.ok .label { color: var(--muted) }
+.always li.confirm .sub { color: var(--warn) }
+ul.hints { list-style: none; margin: 0; padding: 4px 12px 10px; display: grid; gap: 4px }
+ul.hints li { font-size: 14px; padding-left: 14px; position: relative }
+ul.hints li::before { content: ""; position: absolute; left: 2px; top: .55em; width: 5px; height: 5px; border-radius: 50%; background: var(--muted) }
+ul.hints li.important { color: var(--warn) }
+ul.hints .sub { font-size: 12px; color: var(--muted) }
+
+/* Dienstplan-Kalender */
+.rcal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-top: 10px }
+.rcal .rh { font-size: 12px; font-weight: 600; color: var(--muted); text-align: center; padding: 2px 0 }
+.rcal .rc { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 5px 7px; min-height: 78px; min-width: 0; text-align: left; display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; overflow: hidden }
+.rcal button.rc { cursor: pointer; font: inherit; font-size: 12.5px; color: inherit }
+.rcal button.rc:hover { border-color: var(--accent) }
+.rcal .rc.blank { background: none; border: 0 }
+.rcal .rc.we { background: var(--surface-2) }
+.rcal .rc.today { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent) }
+.rcal .rc.today .rd { color: var(--accent) }
+.rcal .rd { font-weight: 700; font-variant-numeric: tabular-nums }
+.rcal .rl { display: flex; gap: 5px; min-width: 0 }
+.rcal .rl b { flex: none; color: var(--muted); font-weight: 600; width: 10px }
+.rcal .rl span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.rcal .rl span.gap { color: var(--warn) }
+.rcal .rl em { font-style: normal; color: var(--now); font-size: 11.5px }
+.overlay.inmain .dialog .cell { display: flex; flex-wrap: wrap; gap: 6px }
+.remlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px }
+.remlist li { display: flex; align-items: center; gap: 10px; justify-content: space-between; padding: 10px 12px; border: 1px solid var(--warn); border-radius: 10px; background: var(--warn-soft); font-weight: 600 }
+.dialog p.pwarn { color: var(--warn) }
+
 /* Arbeitsplan-Import */
 .roster .rtime { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; margin-bottom: 4px }
 .chip small { font-weight: 500; opacity: .8 }
@@ -309,7 +358,10 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
   .status { width: auto; max-width: 220px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
   main { flex: 1; min-height: 0; display: flex; flex-direction: column }
   main.scroll { overflow: auto }
-  .dash, .shiftview { flex: 1; min-height: 0; grid-template-rows: minmax(0, 1fr) }
+  .dash, .shiftview, .schicht { flex: 1; min-height: 0; grid-template-rows: minmax(0, 1fr) }
+  .schicht .side > .card { min-height: 0 }
+  .schicht .side > .card.grow { flex: 1 }
+  .boardcard { min-height: 0 }
   .dash > .col > .card, .side > .card { min-height: 0 }
   .dash > .col > .card.grow, .side > .card.grow { flex: 1 }
   .card .cbody { overflow-y: auto; flex: 1 }
@@ -318,7 +370,8 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
 }
 @media (orientation: portrait), (max-width: 899px) {
   .dash { grid-template-columns: minmax(0, 1fr) }
-  .shiftview { grid-template-columns: minmax(0, 1fr) }
+  .shiftview, .schicht { grid-template-columns: minmax(0, 1fr) }
+  .rcal { gap: 2px } .rcal .rc { min-height: 64px; padding: 3px 4px; font-size: 11px }
   .clock { font-size: 28px }
 }
 @media (max-width: 760px) { .editor { grid-template-columns: minmax(0, 1fr) } .datenav { margin-left: 0 } }

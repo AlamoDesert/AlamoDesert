@@ -1,4 +1,4 @@
-// Baut die Mac-App für Apple-Chip (arm64) und Intel (x64) als ZIP.
+// Baut die Mac-App als ZIP – standardmäßig für Apple-Chip (arm64), mit ARCHS=arm64,x64 auch für Intel.
 // Aufruf (im Ordner mac/): npm install && npm run build
 // Optional: RCODESIGN=/pfad/zu/rcodesign → Ad-hoc-Signatur (nötig, damit die App auf Apple-Chips startet).
 // Optional: ELECTRON_ZIP_DIR=/ordner mit electron-v<version>-darwin-<arch>.zip → kein Download durch den Packer.
@@ -28,7 +28,8 @@ writeFileSync(join(stage, "package.json"), JSON.stringify({ name: pkg.name, prod
 rmSync(dist, { recursive: true, force: true });
 const paths = await packager({
   dir: stage, out: dist, overwrite: true, asar: true, prune: false,
-  platform: "darwin", arch: ["arm64", "x64"],
+  // Standard: nur Apple-Chip (M1 …). ARCHS=arm64,x64 baut zusätzlich die Intel-Version.
+  platform: "darwin", arch: (process.env.ARCHS || "arm64").split(","),
   name: "Rezeption", executableName: "Rezeption",
   appBundleId: "de.rezeption.schichtcheck", appCategoryType: "public.app-category.business",
   appVersion: pkg.version, buildVersion: pkg.version,

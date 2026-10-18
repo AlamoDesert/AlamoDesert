@@ -1,4 +1,4 @@
-const MARKUP = "<div class=\"wrap\">\n  <header class=\"top\">\n    <h1 class=\"brand\">Rezeption<small id=\"weekday\">–</small></h1>\n    <div class=\"clock\" id=\"clock\">--:--</div>\n    <button class=\"whobtn none\" id=\"whoBtn\" aria-label=\"Person wechseln\"><span class=\"av\" id=\"whoAv\">?</span><span id=\"whoName\">Name wählen</span></button>\n    <div class=\"tabs\" role=\"tablist\">\n      <button class=\"tab\" role=\"tab\" data-view=\"uebersicht\"><b>Übersicht</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"frueh\"><b>Früh</b><span class=\"meta\" id=\"meta-frueh\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"spaet\"><b>Spät</b><span class=\"meta\" id=\"meta-spaet\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"dienst\"><b>Dienstplan</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"monat\"><b>Monat</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"admin\"><b>Verwaltung</b></button>\n    </div>\n    <div class=\"datenav\">\n      <button class=\"iconbtn\" id=\"prev\" aria-label=\"Vorheriger Tag\">‹</button>\n      <label class=\"datebtn\"><span id=\"datelabel\">–</span><span class=\"src\" id=\"datesrc\"></span><input type=\"date\" id=\"datepick\" aria-label=\"Datum wählen\"></label>\n      <button class=\"iconbtn\" id=\"next\" aria-label=\"Nächster Tag\">›</button>\n      <button class=\"todaybtn\" id=\"today\">Heute</button>\n    </div>\n    <div class=\"status\" id=\"status\">Verbinde…</div>\n  </header>\n  <main id=\"main\"></main>\n</div>\n<div id=\"picker\" hidden></div>";
+const MARKUP = "<div class=\"wrap\">\n  <header class=\"top\">\n    <h1 class=\"brand\">Rezeption<small id=\"weekday\">–</small></h1>\n    <div class=\"clock\" id=\"clock\">--:--</div>\n    <button class=\"whobtn none\" id=\"whoBtn\" aria-label=\"Person wechseln\"><span class=\"av\" id=\"whoAv\">?</span><span id=\"whoName\">Name wählen</span></button>\n    <div class=\"tabs\" role=\"tablist\">\n      <button class=\"tab\" role=\"tab\" data-view=\"schicht\"><b>Schicht</b><span class=\"meta\" id=\"meta-shift\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"dienst\"><b>Dienstplan</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"monat\"><b>Monat</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"admin\"><b>Verwaltung</b></button>\n    </div>\n    <div class=\"datenav\">\n      <button class=\"iconbtn\" id=\"prev\" aria-label=\"Vorheriger Tag\">‹</button>\n      <label class=\"datebtn\"><span id=\"datelabel\">–</span><span class=\"src\" id=\"datesrc\"></span><input type=\"date\" id=\"datepick\" aria-label=\"Datum wählen\"></label>\n      <button class=\"iconbtn\" id=\"next\" aria-label=\"Nächster Tag\">›</button>\n      <button class=\"todaybtn\" id=\"today\">Heute</button>\n    </div>\n    <div class=\"status\" id=\"status\">Verbinde…</div>\n  </header>\n  <main id=\"main\"></main>\n</div>\n<div id=\"picker\" hidden></div><div id=\"remind\" hidden></div>";
 
 /* Rezeption Schichtcheck – App-Kern.
    Wird von tools/build.mjs in index.html (eigenständig) und in das SharePoint-Webpart (app.gen.ts) eingebaut.
@@ -722,7 +722,10 @@ export function mount(container, opts = {}) {
         const t = str(a.t, 200).trim();
         if (!t) return null;
         const every = Number.isInteger(a.every) && a.every >= 0 && a.every <= 480 ? a.every : (a.rounds === true ? 60 : 0);
-        return { id: ID_RE.test(a.id) ? a.id : newId("a"), t, s: str(a.s, 200), important: a.important === true, every };
+        // Art: rhythm (Zähler + fällig), confirm (Pflicht, einmal pro Schicht bestätigen), hint (nur Hinweis).
+        // Ältere Pläne ohne Art: mit Rhythmus → rhythm, Laptop/Handy/Spülbecken → confirm, sonst hint.
+        let kind = ["rhythm", "confirm", "hint"].includes(a.kind) ? a.kind : every > 0 ? "rhythm" : /laptop|handy|spülbecken|spuelbecken/i.test(t) ? "confirm" : "hint";
+        return { id: ID_RE.test(a.id) ? a.id : newId("a"), t, s: str(a.s, 200), important: a.important === true, kind, every: kind === "rhythm" ? (every || 60) : 0 };
       }).filter(Boolean);
     }
     return out;
@@ -746,7 +749,11 @@ export function mount(container, opts = {}) {
   const DEFAULT = normalizePlan(DEFAULT_PLAN);
   const state = {
     date: isoDate(new Date()),
-    view: "uebersicht",
+    view: "schicht",
+    shiftSel: null,      // null = laufende Schicht automatisch, sonst "frueh" | "spaet"
+    rosterMonth: null,   // "JJJJ-MM" im Dienstplan
+    rosterDay: null,     // Tag im Bearbeiten-Fenster des Dienstplans
+    remindOpen: false, remindSnoozeUntil: 0,
     checks: {}, notes: {}, prevNotes: {},
     logs: {},            // Daueraufgaben: { frueh|spaet: { <id>: { <key>: {at, by} | null } } }
     dayPlan: null,       // Tagesanpassung (normalisiert) oder null
@@ -764,7 +771,6 @@ export function mount(container, opts = {}) {
     pickerOpen: false, pickerSnoozeUntil: 0,
     unlockedUntil: 0,    // Leitungsbereich entsperrt bis (ms)
     pinStage: null,      // { mode: "unlock"|"set", first?: string, next: view }
-    rosterWeek: null,    // Montag der angezeigten Dienstplan-Woche
     rosterEdit: false,
     importPreview: null, // eingelesener Arbeitsplan vor dem Übernehmen
   };
@@ -1080,7 +1086,7 @@ export function mount(container, opts = {}) {
   }
   // Fälligkeit bei festem Rhythmus: Referenz = letzter Haken, sonst Schichtbeginn.
   function dueInfo(plan, shift, a, ctx) {
-    if (!a.every || typeof ctx !== "number" || activeShift(plan, ctx) !== shift) return null;
+    if (a.kind !== "rhythm" || !a.every || typeof ctx !== "number" || activeShift(plan, ctx) !== shift) return null;
     const list = logEntries(shift, a.id);
     const last = list.length ? list[list.length - 1] : null;
     const ref = last ? (() => { const d = new Date(last.at); return d.getHours() * 60 + d.getMinutes(); })() : toMin(plan[shift].start);
@@ -1118,37 +1124,46 @@ export function mount(container, opts = {}) {
     </li>`;
   }
 
+  const pendingConfirms = (plan, key) => plan.always[key].filter(a => a.kind === "confirm" && !logEntries(key, a.id).length);
   function alwaysHtml(plan, key, ctx) {
     const list = plan.always[key];
     if (!list.length) return `<div class="empty">Keine Daueraufgaben.</div>`;
     const canLog = typeof ctx === "number";
-    return `<ul class="always">${list.map(a => {
+    const lastLine = (last) => { if (!last) return ""; const n = personName(last.by); return `${fmtTime(last.at)}${n ? " · " + esc(n) : ""}`; };
+    const rhythm = list.filter(a => a.kind === "rhythm").map(a => {
       const entries = logEntries(key, a.id), last = entries[entries.length - 1];
       const info = canLog ? dueInfo(plan, key, a, ctx) : null;
-      let sub = "";
-      if (a.every) {
-        const rhythm = a.every % 60 === 0 ? (a.every === 60 ? "1× pro Stunde" : `alle ${a.every / 60} Std.`) : `alle ${a.every} Min.`;
-        sub = rhythm;
-        if (info && info.due !== null) sub += info.state === "ok" ? ` · nächster um <b>${fmtMin(info.due)}</b>` : ` · <b>fällig seit ${fmtMin(info.due)}</b>`;
-      } else if (a.s) sub = esc(a.s);
-      const name = last && personName(last.by);
-      const lastTxt = last ? `zuletzt ${fmtTime(last.at)}${name ? " · " + esc(name) : ""}` : "";
-      const cls = [a.important ? "important" : "", info ? info.state : ""].join(" ");
-      return `<li class="${cls}">
+      let sub = a.every % 60 === 0 ? (a.every === 60 ? "1× pro Stunde" : `alle ${a.every / 60} Std.`) : `alle ${a.every} Min.`;
+      if (info && info.due !== null) sub += info.state === "ok" ? ` · nächster um <b>${fmtMin(info.due)}</b>` : ` · <b>fällig seit ${fmtMin(info.due)}</b>`;
+      return `<li class="${[a.important ? "important" : "", info ? info.state : ""].join(" ")}">
         <button class="tap" data-log="${esc(a.id)}" data-shift="${key}" ${canLog ? "" : 'disabled title="Nur am heutigen Tag"'} aria-label="${esc(a.t)} erledigt – eintragen">
           <span class="ic" aria-hidden="true">${LOOP_SVG}</span>
-          <span><span class="label">${esc(a.t)}</span>${sub ? `<span class="sub">${sub}</span>` : ""}${lastTxt ? `<span class="last">${lastTxt}</span>` : ""}</span>
+          <span><span class="label">${esc(a.t)}</span><span class="sub">${sub}</span>${last ? `<span class="last">zuletzt ${lastLine(last)}</span>` : ""}</span>
           <span class="cnt${entries.length ? "" : " zero"}" title="heute in dieser Schicht">${entries.length}×</span>
         </button>
         ${last && canLog ? `<button class="undo" data-unlog="${esc(a.id)}" data-shift="${key}" aria-label="Letzten Eintrag zurücknehmen">↶</button>` : ""}
       </li>`;
-    }).join("")}</ul>`;
+    }).join("");
+    const confirm = list.filter(a => a.kind === "confirm").map(a => {
+      const entries = logEntries(key, a.id), last = entries[entries.length - 1];
+      return `<li class="confirm ${last ? "ok" : "open"}${a.important ? " important" : ""}">
+        <button class="tap" data-log="${esc(a.id)}" data-shift="${key}" ${canLog && !last ? "" : "disabled"} aria-label="${esc(a.t)} bestätigen">
+          <span class="box" aria-hidden="true">${CHECK_SVG}</span>
+          <span><span class="label">${esc(a.t)}</span>${last ? `<span class="last">bestätigt ${lastLine(last)}</span>` : `<span class="sub">${a.s ? esc(a.s) + " · " : ""}vor Schichtende bestätigen</span>`}</span>
+        </button>
+        ${last && canLog ? `<button class="undo" data-unlog="${esc(a.id)}" data-shift="${key}" aria-label="Bestätigung zurücknehmen">↶</button>` : ""}
+      </li>`;
+    }).join("");
+    const hint = list.filter(a => a.kind === "hint").map(a => `<li class="${a.important ? "important" : ""}"><span class="label">${esc(a.t)}</span>${a.s ? ` <span class="sub">${esc(a.s)}</span>` : ""}</li>`).join("");
+    return `${rhythm ? `<div class="sublabel">Regelmäßig</div><ul class="always">${rhythm}</ul>` : ""}
+      ${confirm ? `<div class="sublabel">Pflicht · einmal pro Schicht bestätigen</div><ul class="always">${confirm}</ul>` : ""}
+      ${hint ? `<div class="sublabel">Im Blick behalten</div><ul class="hints">${hint}</ul>` : ""}`;
   }
 
   // Jeder Tipp = neuer Eintrag unter eigenem Schlüssel; gleichzeitige Tipps verschiedener Geräte überschreiben sich nicht.
   function logAlways(shift, id) {
     if (state.readOnly) { setStatus("Nur Lesezugriff – Änderungen werden nicht gespeichert", true); return; }
-    if (needPerson()) return;
+    if (needPerson()) { state.remindOpen = false; renderRemind(); return; }
     const k = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     const val = { at: new Date().toISOString(), by: actorId() };
     const sh = { ...(state.logs[shift] || {}) };
@@ -1198,72 +1213,11 @@ export function mount(container, opts = {}) {
     return `<div class="duty"><span>Dienst Früh: <b>${esc(names("frueh"))}</b></span><span>Spät: <b>${esc(names("spaet"))}</b></span></div>`;
   }
 
-  // ---------- Übersicht ----------
-  function renderOverview() {
+  // ---------- Schicht (eine Ansicht für Früh und Spät) ----------
+  // Links der Fahrplan der gewählten Schicht, rechts Immer im Blick, Dienst und Übergabe.
+  function renderSchicht() {
     const plan = P(), ctx = timeCtx(), d = derive(plan);
-    const focus = focusShift(plan, ctx), s = plan[focus], meta = SHIFT_META[focus];
-
-    const nowItems = [], lateItems = [];
-    let nowPhase = null;
-    for (const p of s.phases) {
-      const st = phaseState(p, ctx);
-      const open = p.items.filter(i => !state.checks[i.id]).map(i => d.item[i.id]);
-      if (st === "now") { nowItems.push(...open); nowPhase = nowPhase || p; }
-      if (st === "late") lateItems.push(...open);
-    }
-    const nextPhase = typeof ctx === "number"
-      ? s.phases.find(p => toMin(p.from) > ctx && p !== nowPhase && phaseState(p, ctx) !== "done") || null
-      : (ctx === "future" ? s.phases.find(p => phaseState(p, ctx) !== "done") || null : null);
-
-    let body = "";
-    if (lateItems.length) body += `<li class="sublabel late">Überfällig (${lateItems.length})</li>${lateItems.map(i => itemHtml(i, { showPhase: true })).join("")}`;
-    if (nowItems.length) body += `<li class="sublabel now">Jetzt · ${esc(nowPhase.title)} bis ${nowPhase.to}</li>${nowItems.map(i => itemHtml(i)).join("")}`;
-    if (nextPhase) {
-      const open = nextPhase.items.filter(i => !state.checks[i.id]).map(i => d.item[i.id]);
-      body += `<li class="sublabel">Als Nächstes · ${esc(nextPhase.title)} ab ${nextPhase.from}</li>${open.map(i => itemHtml(i, { upcoming: true })).join("")}`;
-    }
-    if (!body) body = `<li class="empty">${ctx === "past" ? "Alles erledigt." : "Für diese Schicht ist alles erledigt."}</li>`;
-
-    const other = focus === "frueh" ? "spaet" : "frueh";
-    const otherOpen = plan[other].phases.filter(p => phaseState(p, ctx) === "late").reduce((n, p) => n + p.items.filter(i => !state.checks[i.id]).length, 0);
-    const otherPr = progress(plan, other, state.checks);
-
-    const pr = progress(plan, focus, state.checks);
-    const rows = s.phases.map(p => {
-      const st = phaseState(p, ctx);
-      const done = p.items.filter(i => state.checks[i.id]).length;
-      return `<li class="${st === "now" ? "cur" : ""}"><button data-goto="${focus}" data-phase="${esc(p.id)}"><span class="t">${p.from}</span><span class="n">${esc(p.title)}<small>${done}/${p.items.length}</small></span>${PILL[st]}</button></li>`;
-    }).join("");
-
-    const title = ctx === "past" ? "Rückblick" : ctx === "future" ? "Vorschau" : "Jetzt dran";
-    return `<div class="dash">
-      <div class="col">
-        <section class="card grow"><div class="chead"><h2>${title}</h2><span class="hint">${meta.label} · ${s.start}–${s.end}</span></div>
-          <div class="cbody"><ul class="items">${body}</ul></div></section>
-      </div>
-      <div class="col">
-        <section class="card grow"><div class="chead"><h2>Schichtplan</h2><span class="hint">antippen zum Öffnen</span></div>
-          <div class="cbody">
-            <div class="shiftsum"><b>${meta.label}</b><span>${pr.done}/${pr.total}</span></div>
-            <div class="bar"><i style="width:${pr.pct}%"></i></div>
-            <ul class="plan">${rows}</ul>
-            ${dutyLine(state.date)}
-            <button class="othersum" data-view-go="${other}">${SHIFT_META[other].label} ${plan[other].start}–${plan[other].end}: ${otherPr.done}/${otherPr.total}${otherOpen ? ` · <b>${otherOpen} offen geblieben</b>` : ""}</button>
-          </div></section>
-      </div>
-      <div class="col">
-        <section class="card grow"><div class="chead"><h2>Immer im Blick</h2><span class="hint">antippen, wenn erledigt</span></div>
-          <div class="cbody">${alwaysHtml(plan, focus, ctx)}</div></section>
-        <section class="card"><div class="chead"><h2>Übergabe</h2></div><div class="cbody">${handoverHtml(focus)}</div></section>
-      </div>
-    </div>`;
-  }
-
-  // ---------- Schichtansicht: Fahrplan ----------
-  // Chronologische Liste: erledigt = eine Zeile, aktuell/überfällig = groß, später = kompakt (trotzdem abhakbar).
-  function renderShift(key) {
-    const plan = P(), s = plan[key], ctx = timeCtx(), d = derive(plan);
-    if (!s.phases.length) return `<div class="empty">Für diese Schicht sind keine Abschnitte geplant. Unter „Plan anpassen“ hinzufügen.</div>`;
+    const auto = focusShift(plan, ctx), key = state.shiftSel || auto, s = plan[key], meta = SHIFT_META[key];
     const MARK = { done: "✓", now: "▶", late: "!", later: "" };
     const stops = s.phases.map(p => {
       const st = phaseState(p, ctx);
@@ -1277,13 +1231,24 @@ export function mount(container, opts = {}) {
       const hint = p.hint && (st === "now" || st === "late") ? `<div class="phint">${esc(p.hint)}</div>` : "";
       const items = collapsed ? "" : `<ul class="items">${p.items.map(i => itemHtml(d.item[i.id])).join("") || '<li class="empty">Keine Aufgaben.</li>'}</ul>`;
       return `<section class="stop is-${st}" id="phase-${esc(p.id)}">${headEl}${hint}${items}</section>`;
-    }).join("");
-    return `<div class="shiftview">
+    }).join("") || `<div class="empty">Für diese Schicht sind keine Abschnitte geplant (Verwaltung › Aufgaben-Plan).</div>`;
+    const other = key === "frueh" ? "spaet" : "frueh";
+    const otherOpen = plan[other].phases.filter(p => phaseState(p, ctx) === "late").reduce((n, p) => n + p.items.filter(i => !state.checks[i.id]).length, 0)
+      + (typeof ctx === "number" && toMin(plan[other].end) <= ctx ? pendingConfirms(plan, other).length : 0);
+    const pr = progress(plan, key, state.checks);
+    const seg = KEYS.map(k => `<button class="segbtn${k === key ? " on" : ""}" data-shiftsel="${k}" aria-pressed="${k === key}">${SHIFT_META[k].short}${k === auto && typeof ctx === "number" && activeShift(plan, ctx) === k ? " ·&nbsp;jetzt" : ""}</button>`).join("");
+    const title = ctx === "past" ? "Rückblick" : ctx === "future" ? "Vorschau" : "Fahrplan";
+    return `<div class="schicht">
+      <section class="card boardcard">
+        <div class="chead"><h2>${title} ${meta.label}</h2><span class="hint">${s.start}–${s.end} · ${pr.done}/${pr.total} erledigt</span><div class="seg" role="group" aria-label="Schicht wählen">${seg}</div></div>
+        <div class="bar flat"><i style="width:${pr.pct}%"></i></div>
+        ${otherOpen ? `<button class="othersum" data-shiftsel="${other}">${SHIFT_META[other].label}: <b>${otherOpen} offen geblieben</b> – ansehen</button>` : ""}
+        <div class="cbody board"><div class="board-in">${stops}</div></div>
+      </section>
       <div class="side">
-        <section class="card grow"><div class="chead"><h2>Immer im Blick</h2><span class="hint">${s.start}–${s.end}</span></div><div class="cbody">${alwaysHtml(plan, key, ctx)}</div></section>
-        <section class="card"><div class="chead"><h2>Übergabe</h2></div><div class="cbody">${handoverHtml(key)}</div></section>
+        <section class="card grow"><div class="chead"><h2>Immer im Blick</h2><span class="hint">${meta.label}</span></div><div class="cbody">${alwaysHtml(plan, key, ctx)}</div></section>
+        <section class="card"><div class="chead"><h2>Dienst &amp; Übergabe</h2></div><div class="cbody">${dutyLine(state.date)}${handoverHtml(key)}</div></section>
       </div>
-      <div class="board"><div class="board-in">${stops}</div></div>
     </div>`;
   }
 
@@ -1316,34 +1281,53 @@ export function mount(container, opts = {}) {
   // ---------- Dienstplan ----------
   function mondayOf(iso) { const d = parseIso(iso); const wd = (d.getDay() + 6) % 7; d.setDate(d.getDate() - wd); return isoDate(d); }
   function renderRoster() {
-    const mon = state.rosterWeek || mondayOf(state.date);
-    const days = Array.from({ length: 7 }, (_, i) => addDays(mon, i)), today = isoDate(new Date());
-    const edit = state.rosterEdit && isUnlocked();
-    const head = days.map(d => { const x = parseIso(d); return `<th class="${d === today ? "today" : ""}">${WD[x.getDay()].slice(0, 2)} ${pad(x.getDate())}.${pad(x.getMonth() + 1)}.</th>`; }).join("");
-    const row = (k) => days.map(d => {
-      const ids = rosterFor(d)[k];
-      if (edit) return `<td><div class="cell">${state.cfg.people.map(p => `<button class="chip${ids.includes(p.id) ? "" : " off"}" data-roster="${d}" data-shift="${k}" data-pid="${esc(p.id)}" aria-pressed="${ids.includes(p.id)}">${esc(p.name)}</button>`).join("") || '<span class="empty">Kein Team</span>'}</div></td>`;
-      const entry = rosterFor(d);
-      const time = entry.times && entry.times[k] ? `<div class="rtime">${esc(entry.times[k].replace("-", "–"))}</div>` : "";
-      const chips = ids.filter(id => personName(id)).map(id => `<span class="chip">${esc(personName(id))}${entry.info && entry.info[id] ? ` <small>${esc(entry.info[id])}</small>` : ""}</span>`).join("");
-      const note = entry.notes && entry.notes[k] ? `<div class="rnote">${esc(entry.notes[k])}</div>` : "";
-      return `<td>${time}<div class="cell">${chips || '<span class="empty">–</span>'}</div>${note}</td>`;
-    }).join("");
-    const e = parseIso(days[6]), m = parseIso(mon);
+    const ym = state.rosterMonth || state.date.slice(0, 7);
+    const [y, m] = ym.split("-").map(Number);
+    const first = new Date(y, m - 1, 1), daysIn = new Date(y, m, 0).getDate(), lead = (first.getDay() + 6) % 7;
+    const today = isoDate(new Date()), edit = state.rosterEdit && isUnlocked();
+    const line = (entry, k) => {
+      const names = entry[k].map(personName).filter(Boolean).join(", ");
+      const note = entry.notes && entry.notes[k] ? ` <em>${esc(entry.notes[k])}</em>` : "";
+      return `<div class="rl"><b>${k === "frueh" ? "F" : "S"}</b><span class="${names ? "" : "gap"}">${names ? esc(names) : "–"}${note}</span></div>`;
+    };
+    const cells = [];
+    for (let i = 0; i < lead; i++) cells.push(`<div class="rc blank"></div>`);
+    for (let day = 1; day <= daysIn; day++) {
+      const date = `${ym}-${pad(day)}`, entry = rosterFor(date), wd = new Date(y, m - 1, day).getDay();
+      const cls = ["rc", date === today ? "today" : "", wd === 0 || wd === 6 ? "we" : "", date === state.date ? "sel" : ""].join(" ");
+      const inner = `<div class="rd">${day}.</div>${line(entry, "frueh")}${line(entry, "spaet")}`;
+      cells.push(edit ? `<button class="${cls}" data-rday="${date}" aria-label="${day}. bearbeiten">${inner}</button>` : `<div class="${cls}">${inner}</div>`);
+    }
+    const dayEditor = edit && state.rosterDay ? (() => {
+      const date = state.rosterDay, entry = rosterFor(date), dd = parseIso(date);
+      const chips = (k) => state.cfg.people.map(p => `<button class="chip${entry[k].includes(p.id) ? "" : " off"}" data-roster="${date}" data-shift="${k}" data-pid="${esc(p.id)}" aria-pressed="${entry[k].includes(p.id)}">${esc(p.name)}</button>`).join("") || '<span class="empty">Kein Team angelegt</span>';
+      return `<div class="overlay inmain" role="dialog" aria-modal="true"><div class="dialog">
+        <h2>${WD[dd.getDay()]}, ${pad(dd.getDate())}.${pad(dd.getMonth() + 1)}.</h2>
+        ${KEYS.map(k => `<div class="grp">${SHIFT_META[k].label}${entry.times && entry.times[k] ? " · " + esc(entry.times[k].replace("-", "–")) : ""}${entry.notes && entry.notes[k] ? " · " + esc(entry.notes[k]) : ""}</div><div class="cell">${chips(k)}</div>`).join("")}
+        <div class="row"><button class="btn primary" data-act2="rday-close">Fertig</button></div>
+      </div></div>`;
+    })() : "";
     return `<div class="monthhead">
-        <button class="iconbtn" id="wprev" aria-label="Vorherige Woche">‹</button>
-        <h2>Dienstplan ${pad(m.getDate())}.${pad(m.getMonth() + 1)}. – ${pad(e.getDate())}.${pad(e.getMonth() + 1)}.</h2>
-        <button class="iconbtn" id="wnext" aria-label="Nächste Woche">›</button>
-        ${edit ? `<label class="btn" style="cursor:pointer">Monatsplan einlesen (PDF/Excel)<input type="file" id="planfile" accept=".pdf,.xlsx,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></label><button class="btn${state.confirm === "copy-week" ? " danger" : ""}" data-act2="copy-week">${state.confirm === "copy-week" ? "Woche überschreiben?" : "Vorwoche übernehmen"}</button><button class="btn primary" data-act2="roster-done">Fertig</button>`
+        <button class="iconbtn" id="mrprev" aria-label="Vorheriger Monat">‹</button>
+        <h2>Dienstplan ${MONTHS[m - 1]} ${y}</h2>
+        <button class="iconbtn" id="mrnext" aria-label="Nächster Monat">›</button>
+        ${edit ? `<label class="btn" style="cursor:pointer">Monatsplan einlesen (PDF/Excel)<input type="file" id="planfile" accept=".pdf,.xlsx,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></label><button class="btn primary" data-act2="roster-done">Fertig</button>`
                : `<button class="btn" data-act2="roster-edit">Bearbeiten</button>`}
       </div>
       ${edit ? renderImportPreview() : ""}
-      <div class="roster"><table>
-        <thead><tr><th class="rowh"></th>${head}</tr></thead>
-        <tbody><tr><th class="rowh" scope="row">Früh</th>${row("frueh")}</tr><tr><th class="rowh" scope="row">Spät</th>${row("spaet")}</tr></tbody>
-      </table></div>
-      <div class="legend">${edit ? "Namen antippen, um sie für die Schicht einzutragen oder auszutragen." : "Bearbeiten braucht die Leitungs-PIN."}</div>`;
+      <div class="rcal">${["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].map(w => `<div class="rh">${w}</div>`).join("")}${cells.join("")}</div>
+      <div class="legend">${edit ? "Tag antippen, um die Einteilung zu ändern." : "F = Frühschicht, S = Spätschicht. Bearbeiten braucht die Leitungs-PIN."}</div>
+      ${dayEditor}`;
   }
+  function toggleRoster(date, shift, pid) {
+    const cur = rosterFor(date);
+    const ids = cur[shift].includes(pid) ? cur[shift].filter(x => x !== pid) : [...cur[shift], pid];
+    const entry = { ...cur, [shift]: ids };
+    state.cfg = { ...state.cfg, roster: { ...state.cfg.roster, [date]: entry } };
+    render();
+    persistCfg({ roster: { [date]: entry } });
+  }
+
   // ---------- Monats-Arbeitsplan einlesen (PDF oder Excel) ----------
   // Aufbau (Kopfzeile): OKT | Tag | Vormittags | Uhrzeit | Anmerkung | Nachmittags/Abends | Uhrzeit | Anmerkung.
   // Pro Tag stehen die Namen in „Vormittags“ bzw. „Nachmittags/Abends“. Anmerkungen werden nur angezeigt.
@@ -1545,7 +1529,7 @@ export function mount(container, opts = {}) {
     }
     state.cfg = { ...state.cfg, roster };
     state.importPreview = null;
-    state.rosterWeek = mondayOf(`${ip.year}-${pad(ip.month + 1)}-01`);
+    state.rosterMonth = `${ip.year}-${pad(ip.month + 1)}`;
     state.rosterEdit = false;
     render();
     const ok = await persistCfg({ roster: patch });
@@ -1558,26 +1542,7 @@ export function mount(container, opts = {}) {
     render();
   }
 
-  function toggleRoster(date, shift, pid) {
-    const cur = rosterFor(date);
-    const ids = cur[shift].includes(pid) ? cur[shift].filter(x => x !== pid) : [...cur[shift], pid];
-    const entry = { ...cur, [shift]: ids };
-    state.cfg = { ...state.cfg, roster: { ...state.cfg.roster, [date]: entry } };
-    render();
-    persistCfg({ roster: { [date]: entry } });
-  }
-  function copyPrevWeek() {
-    const mon = state.rosterWeek || mondayOf(state.date);
-    const roster = { ...state.cfg.roster }, patch = {};
-    for (let i = 0; i < 7; i++) {
-      const src = rosterFor(addDays(mon, i - 7)), d = addDays(mon, i);
-      roster[d] = clone(src);
-      patch[d] = roster[d];
-    }
-    state.cfg = { ...state.cfg, roster };
-    render();
-    persistCfg({ roster: patch });
-  }
+
 
   // ---------- Leitungsbereich (PIN) ----------
   // Einfacher Schutz gegen versehentliche Änderungen auf dem Gemeinschaftsrechner – keine echte Zugriffskontrolle.
@@ -1883,6 +1848,7 @@ export function mount(container, opts = {}) {
       <h2 id="pick-title">Wer arbeitet gerade?</h2>
       <p>${SHIFT_META[shift].label} ${plan[shift].start}–${plan[shift].end}. Deine Haken und Notizen werden mit deinem Namen gespeichert.</p>
       ${(rosterFor(today).notes || {})[shift] ? `<p class="pnote">Anmerkung im Dienstplan: <b>${esc(rosterFor(today).notes[shift])}</b></p>` : ""}
+      ${shift === "spaet" && state.date === today && pendingConfirms(plan, "frueh").length ? `<p class="pwarn">Von der Frühschicht nicht bestätigt: <b>${pendingConfirms(plan, "frueh").map(a => esc(a.t)).join(", ")}</b> – bitte prüfen.</p>` : ""}
       ${people.length ? `
         ${inSched.length ? `<div class="grp">Laut Dienstplan</div><div class="names">${inSched.map(p => btn(p, "sched")).join("")}</div>` : ""}
         ${others.length ? `<div class="grp">${inSched.length ? "Andere" : "Team"}</div><div class="names">${others.map(p => btn(p, "")).join("")}</div>` : ""}`
@@ -1914,10 +1880,44 @@ export function mount(container, opts = {}) {
   };
   document.addEventListener("keydown", onKey);
   cleanups.push(() => document.removeEventListener("keydown", onKey));
+  // ---------- Pflicht-Erinnerung ----------
+  // In den letzten 30 Minuten der laufenden Schicht: Fenster mit allen Pflichtpunkten, die noch nicht bestätigt sind.
+  function remindTarget() {
+    const today = isoDate(new Date());
+    if (state.date !== today || state.mode === "loading") return null;
+    const plan = P(), now = nowMin(), key = activeShift(plan, now);
+    if (!key || toMin(plan[key].end) - now > 30) return null;
+    const pending = pendingConfirms(plan, key);
+    return pending.length ? { key, pending, end: plan[key].end } : null;
+  }
+  function maybeRemind() {
+    if (state.pickerOpen || state.remindOpen || Date.now() < state.remindSnoozeUntil) return;
+    if (!["schicht", "dienst", "monat"].includes(state.view)) return;
+    if (remindTarget()) { state.remindOpen = true; renderRemind(); }
+  }
+  function renderRemind() {
+    const el = $("remind");
+    const t = state.remindOpen ? remindTarget() : null;
+    if (!t) { state.remindOpen = false; el.hidden = true; el.innerHTML = ""; return; }
+    el.hidden = false;
+    el.innerHTML = `<div class="overlay" role="dialog" aria-modal="true" aria-labelledby="rem-title"><div class="dialog">
+      <h2 id="rem-title">Vor Schichtende bestätigen</h2>
+      <p>${SHIFT_META[t.key].label} endet um ${t.end} Uhr. Diese Punkte sind noch nicht bestätigt:</p>
+      <ul class="remlist">${t.pending.map(a => `<li><span>${esc(a.t)}</span><button class="btn primary" data-rconfirm="${esc(a.id)}" data-shift="${t.key}">Erledigt</button></li>`).join("")}</ul>
+      <div class="row"><button class="btn ghost" data-rsnooze="1">In 10 Minuten erinnern</button></div>
+    </div></div>`;
+  }
+  $("remind").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (b.dataset.rconfirm) { logAlways(b.dataset.shift, b.dataset.rconfirm); renderRemind(); return; }
+    if (b.dataset.rsnooze) { state.remindOpen = false; state.remindSnoozeUntil = Date.now() + 10 * 60000; renderRemind(); }
+  });
+
   // Zu Schichtbeginn bzw. bei Schichtwechsel automatisch nachfragen.
   function maybeAskPerson() {
     if (state.mode === "loading" || state.pickerOpen || !state.cfg.people.length) return;
-    if (!["uebersicht", "frueh", "spaet"].includes(state.view)) return;
+    if (state.view !== "schicht") return;
     if (state.date !== isoDate(new Date()) || currentPerson()) return;
     openPicker(false);
   }
@@ -1978,7 +1978,7 @@ export function mount(container, opts = {}) {
           <div class="order"><button class="mini" data-act="up" data-path="${path}" ${ai === 0 ? "disabled" : ""} aria-label="Nach oben">▲</button><button class="mini" data-act="down" data-path="${path}" ${ai === plan.always[key].length - 1 ? "disabled" : ""} aria-label="Nach unten">▼</button></div>
           <div class="fields">
             <input class="in" id="ed-${path}-t" data-path="${path}.t" value="${esc(a.t)}" maxlength="200" aria-label="Daueraufgabe">
-            <div class="opts"><label><input type="checkbox" data-path="${path}.important" ${a.important ? "checked" : ""}> wichtig (rot)</label><label>Rhythmus alle <input class="in time" data-num="${path}.every" id="ed-${path}-every" value="${a.every || ""}" inputmode="numeric" maxlength="3" placeholder="–" aria-label="Rhythmus in Minuten"> Min.</label></div>
+            <div class="opts"><label><input type="checkbox" data-path="${path}.important" ${a.important ? "checked" : ""}> wichtig (rot)</label><label>Art <select data-kind="${path}" aria-label="Art"><option value="rhythm"${a.kind === "rhythm" ? " selected" : ""}>Regelmäßig</option><option value="confirm"${a.kind === "confirm" ? " selected" : ""}>Pflicht – einmal pro Schicht bestätigen</option><option value="hint"${a.kind === "hint" ? " selected" : ""}>Nur Hinweis</option></select></label>${a.kind === "rhythm" ? `<label>alle <input class="in time" data-num="${path}.every" id="ed-${path}-every" value="${a.every || ""}" inputmode="numeric" maxlength="3" aria-label="Rhythmus in Minuten"> Min.</label>` : ""}</div>
           </div>
           ${del(path)}
         </li>`;
@@ -1990,7 +1990,7 @@ export function mount(container, opts = {}) {
         </h2>
         ${phases}
         <button class="btn" data-act="add-phase" data-path="${key}">+ Abschnitt</button>
-        <section class="card"><div class="chead"><h2>Immer im Blick</h2><span class="hint">beliebig oft abhakbar · Rhythmus 0 = ohne</span></div>
+        <section class="card"><div class="chead"><h2>Immer im Blick</h2><span class="hint">Regelmäßig · Pflicht · Hinweis</span></div>
           <ul class="ed-items">${always}</ul>
           <button class="addrow" data-act="add-always" data-path="always.${key}">+ Daueraufgabe</button></section>
       </div>`;
@@ -2046,7 +2046,7 @@ export function mount(container, opts = {}) {
       s.phases = sortPhases(s.phases);
     } else if (act === "add-always") {
       const { parent, key } = getRef(path);
-      parent[key].push({ id: newId("a"), t: "Neue Daueraufgabe", s: "", important: false, every: 0 });
+      parent[key].push({ id: newId("a"), t: "Neue Daueraufgabe", s: "", important: false, kind: "hint", every: 0 });
     } else return;
     state.confirm = null;
     markDirty();
@@ -2095,7 +2095,7 @@ export function mount(container, opts = {}) {
     $("datepick").value = state.date;
     const act = activeShift(plan, ctx);
     $("clock").innerHTML = `${fmtMin(nowMin())}${act ? `<small>${SHIFT_META[act].label} bis ${plan[act].end}</small>` : ""}`;
-    for (const key of KEYS) { const p = progress(plan, key, state.checks); $("meta-" + key).textContent = `${p.done}/${p.total}`; }
+    { const k = state.shiftSel || focusShift(plan, ctx), pr = progress(plan, k, state.checks); $("meta-shift").textContent = `${SHIFT_META[k].short} ${pr.done}/${pr.total}`; }
     const tabView = state.view === "plan" || state.view === "pin" ? "admin" : state.view;
     root.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", String(t.dataset.view === tabView)));
     const p = currentPerson(), wb = $("whoBtn");
@@ -2114,10 +2114,11 @@ export function mount(container, opts = {}) {
     const v = state.view, main = $("main");
     if ((v === "plan" || v === "admin") && !isUnlocked()) { state.pinStage = { mode: state.cfg.adminPin ? "unlock" : "set", next: v }; state.view = "pin"; return render(); }
     main.className = ["plan", "monat", "dienst", "admin", "pin"].includes(v) ? "scroll" : "";
-    main.innerHTML = v === "monat" ? renderMonth() : v === "uebersicht" ? renderOverview() : v === "plan" ? renderEditor()
-      : v === "dienst" ? renderRoster() : v === "admin" ? renderAdmin() : v === "pin" ? renderPin() : renderShift(v);
+    main.innerHTML = v === "monat" ? renderMonth() : v === "plan" ? renderEditor()
+      : v === "dienst" ? renderRoster() : v === "admin" ? renderAdmin() : v === "pin" ? renderPin() : renderSchicht();
     maybeAskPerson();
-    if (v === "frueh" || v === "spaet") scrollToNow();
+    maybeRemind();
+    if (v === "schicht") scrollToNow();
   }
   // Querformat: aktuelle Spalte ins Bild holen.
   function scrollToNow() {
@@ -2158,8 +2159,9 @@ export function mount(container, opts = {}) {
     if (state.view === "plan" && v !== "plan" && state.draftDirty && !confirmLeave()) return;
     if (v !== "plan") { state.draft = null; state.draftDirty = false; }
     if (v === "admin" || v === "plan") { if (!requireAdmin(v)) return; }
+    if (v === "schicht") state.shiftSel = null; // Tab „Schicht“ zeigt immer die laufende Schicht
     if (v !== "dienst") state.rosterEdit = false;
-    if (v === "dienst") state.rosterWeek = mondayOf(state.date);
+    if (v === "dienst") { state.rosterMonth = state.date.slice(0, 7); state.rosterDay = null; }
     state.view = v; state.confirm = null; scrolledOnce = false;
     if (opts.standalone) window.scrollTo(0, 0);
     render();
@@ -2190,14 +2192,10 @@ export function mount(container, opts = {}) {
       const a = t.dataset.act2;
       if (a === "roster-edit") { if (requireAdmin("dienst-edit")) { state.rosterEdit = true; render(); } return; }
       if (a === "roster-done") { state.rosterEdit = false; render(); return; }
-      if (a === "copy-week") {
-        if (!isUnlocked()) return;
-        if (state.confirm !== "copy-week") { state.confirm = "copy-week"; render(); return; }
-        state.confirm = null; copyPrevWeek(); return;
-      }
-      if (a === "pin-cancel") { state.pinStage = null; state.view = "uebersicht"; render(); return; }
+      if (a === "rday-close") { state.rosterDay = null; render(); return; }
+      if (a === "pin-cancel") { state.pinStage = null; state.view = "schicht"; render(); return; }
       if (a === "open-plan") return setView("plan");
-      if (a === "open-roster") { state.view = "dienst"; state.rosterWeek = mondayOf(state.date); state.rosterEdit = true; render(); return; }
+      if (a === "open-roster") { state.view = "dienst"; state.rosterMonth = state.date.slice(0, 7); state.rosterEdit = true; render(); return; }
       if (a === "export") return downloadBackup();
       if (a === "import-cancel") { state.importPreview = null; render(); return; }
       if (a === "import-apply") { if (isUnlocked()) applyImport(); return; }
@@ -2207,25 +2205,23 @@ export function mount(container, opts = {}) {
       if (a === "backup-forget") return forgetBackupDir();
       if (a === "person-del") return deletePerson(t.dataset.pid);
       if (a === "pin-change") { state.pinStage = { mode: "set", next: "admin" }; state.view = "pin"; render(); setTimeout(() => { const el = $("pin-in"); if (el) el.focus(); }, 0); return; }
-      if (a === "lock") { state.unlockedUntil = 0; state.view = "uebersicht"; render(); return; }
+      if (a === "lock") { state.unlockedUntil = 0; state.view = "schicht"; render(); return; }
       return;
     }
     if (t.dataset.roster) { if (isUnlocked()) { state.unlockedUntil = Date.now() + 10 * 60000; toggleRoster(t.dataset.roster, t.dataset.shift, t.dataset.pid); } else { state.rosterEdit = false; render(); } return; }
-    if (t.id === "wprev" || t.id === "wnext") { state.rosterWeek = addDays(state.rosterWeek || mondayOf(state.date), t.id === "wprev" ? -7 : 7); render(); return; }
+    if (t.id === "mrprev" || t.id === "mrnext") {
+      const [yy, mm] = (state.rosterMonth || state.date.slice(0, 7)).split("-").map(Number);
+      const nd = new Date(yy, mm - 1 + (t.id === "mrprev" ? -1 : 1), 1);
+      state.rosterMonth = `${nd.getFullYear()}-${pad(nd.getMonth() + 1)}`; state.rosterDay = null; render(); return;
+    }
+    if (t.dataset.rday) { if (isUnlocked()) { state.unlockedUntil = Date.now() + 10 * 60000; state.rosterDay = t.dataset.rday; render(); } return; }
+    if (t.dataset.shiftsel) { const k = t.dataset.shiftsel; const plan = P(); state.shiftSel = k === focusShift(plan, timeCtx()) ? null : k; state.expanded.clear(); scrolledOnce = false; render(); return; }
     if (t.dataset.log) return logAlways(t.dataset.shift, t.dataset.log);
     if (t.dataset.unlog) return unlogAlways(t.dataset.shift, t.dataset.unlog);
     if (t.dataset.toggle) { const id = t.dataset.toggle; state.expanded.has(id) ? state.expanded.delete(id) : state.expanded.add(id); render(); return; }
     if (t.id === "mprev") return shiftMonths(-1);
     if (t.id === "mnext") return shiftMonths(1);
-    if (t.dataset.viewGo) return setView(t.dataset.viewGo);
-    if (t.dataset.date) { const sh = t.dataset.shift; goDate(t.dataset.date); state.view = sh; render(); return; }
-    if (t.dataset.goto) {
-      state.expanded.add(t.dataset.phase);
-      setView(t.dataset.goto);
-      const el = $("phase-" + t.dataset.phase);
-      if (el) el.scrollIntoView({ block: "nearest", inline: "start" });
-      return;
-    }
+    if (t.dataset.date) { const sh = t.dataset.shift; goDate(t.dataset.date); state.view = "schicht"; state.shiftSel = sh; render(); return; }
     const stamp = (s) => ({ s, by: actorId(), at: new Date().toISOString() });
     if (t.dataset.id) { const c = state.checks[t.dataset.id]; setCheck(t.dataset.id, c && c.s === "done" ? null : stamp("done")); }
     else if (t.dataset.skip) { const c = state.checks[t.dataset.skip]; setCheck(t.dataset.skip, c && c.s === "na" ? null : stamp("na")); }
@@ -2251,6 +2247,12 @@ export function mount(container, opts = {}) {
       const { parent, key } = getRef(el.dataset.time); parent[key] = t;
       for (const k of KEYS) state.draft.plan[k].phases = sortPhases(state.draft.plan[k].phases);
       markDirty(); el.blur(); render(); return;
+    }
+    if (el.dataset.kind) {
+      const { parent, key } = getRef(el.dataset.kind);
+      parent[key].kind = el.value;
+      parent[key].every = el.value === "rhythm" ? (parent[key].every || 60) : 0;
+      markDirty(); render(); return;
     }
     if (el.dataset.move) {
       const parts = el.dataset.move.split(".");
@@ -2287,7 +2289,7 @@ export function mount(container, opts = {}) {
 
   // Uhr, Fälligkeiten und „mitlaufende" Spalten jede Minute aktualisieren (nur Anzeige).
   timers.push(setInterval(() => {
-    if (["plan", "monat", "admin", "pin", "dienst"].includes(state.view)) { renderHeader(); maybeAskPerson(); }
+    if (["plan", "monat", "admin", "pin", "dienst"].includes(state.view)) { renderHeader(); maybeAskPerson(); maybeRemind(); }
     else render();
   }, 30000));
 
