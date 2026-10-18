@@ -782,6 +782,7 @@ export function mount(container, opts = {}) {
     unlockedUntil: 0,    // Leitungsbereich entsperrt bis (ms)
     pinStage: null,      // { mode: "unlock"|"set", first?: string, next: view }
     rosterEdit: false,
+    edScope: "day",      // Aufgaben-Plan bearbeiten für: "day" | "wk" (Mo–Fr) | "we" (Sa+So)
     rosterHi: "",        // Dienstplan: Name, dessen Tage hervorgehoben werden
     importPreview: null, // eingelesener Arbeitsplan vor dem Übernehmen
   };
@@ -827,7 +828,7 @@ export function mount(container, opts = {}) {
       try {
         for (let i = 0; i < localStorage.length; i++) {
           const k = localStorage.key(i);
-          if (k && k.startsWith("rz2:" + ym)) { const d = JSON.parse(localStorage.getItem(k) || "{}"); out[k.slice(4)] = { checks: d.checks || {}, plan: normalizePlan(d.plan), time: normTime(d.time) }; }
+          if (k && k.startsWith("rz2:" + ym)) { const d = JSON.parse(localStorage.getItem(k) || "{}"); out[k.slice(4)] = { checks: d.checks || {}, plan: normalizePlan(d.plan), time: normTimes(d.time) }; }
         }
       } catch { /* blockiert */ }
       return out;
@@ -847,7 +848,7 @@ export function mount(container, opts = {}) {
     state.notes = (data && data.notes && typeof data.notes === "object") ? data.notes : {};
     state.read = (data && data.read && typeof data.read === "object") ? data.read : {};
     state.logs = (data && data.logs && typeof data.logs === "object") ? data.logs : {};
-    state.time = normTime(data && data.time);
+    state.time = normTimes(data && data.time);
     state.dayPlan = data ? normalizePlan(data.plan) : null;
   }
   function applyCfg(data) {
@@ -934,7 +935,7 @@ export function mount(container, opts = {}) {
     unsubMonth = db.collection("days").where("month", "==", ym).onSnapshot(
       (snap) => {
         const m = {};
-        snap.docs.forEach(d => { if (d.exists) { const x = d.data(); m[d.id] = { checks: x.checks || {}, plan: normalizePlan(x.plan), time: normTime(x.time) }; } });
+        snap.docs.forEach(d => { if (d.exists) { const x = d.data(); m[d.id] = { checks: x.checks || {}, plan: normalizePlan(x.plan), time: normTimes(x.time) }; } });
         state.month = m;
         if (state.view === "monat") render();
       },
@@ -1095,7 +1096,7 @@ export function mount(container, opts = {}) {
   const ROLE_LABEL = { frueh: "Früh", spaet: "Spät", aushilfe: "Sonstiges" };
   const QUARTERS = Array.from({ length: 96 }, (_, i) => fmtMin(i * 15));
   const roundQ = (m) => Math.min(1425, Math.round(m / 15) * 15);
-  function normTime(raw) {
+  function normTimes(raw) {
     const out = {};
     if (!raw || typeof raw !== "object") return out;
     for (const [id, e] of Object.entries(raw)) {
@@ -1110,7 +1111,7 @@ export function mount(container, opts = {}) {
     }
     return out;
   }
-  const timeOf = (date) => date === state.date ? state.time : ((state.month[date] && state.month[date].time) || (state.mode === "local" ? normTime(LS.get("rz2:" + date, {}).time) : {}));
+  const timeOf = (date) => date === state.date ? state.time : ((state.month[date] && state.month[date].time) || (state.mode === "local" ? normTimes(LS.get("rz2:" + date, {}).time) : {}));
   function openEntry(date, pid) {
     const t = timeOf(date);
     const hit = Object.entries(t).find(([, e]) => e && e.pid === pid && !e.out);
@@ -2293,7 +2294,7 @@ export function mount(container, opts = {}) {
     try {
       if (state.mode === "shared") {
         const snap = await db.collection("days").where("month", "==", ym).get();
-        snap.docs.forEach(d => { if (d.exists) days[d.id] = normTime(d.data().time); });
+        snap.docs.forEach(d => { if (d.exists) days[d.id] = normTimes(d.data().time); });
       } else {
         for (const [date, m] of Object.entries(LS.month(ym))) days[date] = m.time || {};
       }
@@ -2503,9 +2504,29 @@ export function mount(container, opts = {}) {
   // ---------- Plan-Editor ----------
   const SOURCE_LABEL = { day: "Tagesanpassung", weekday: "Wochentag-Vorlage", base: "Standard", default: "Standard (Aushang)" };
 
+  // Bearbeiten-Bereich: "day" = angezeigter Tag, "wk" = Mo–Fr, "we" = Sa+So (Wochentag-Vorlagen für alle Tage der Gruppe).
+  const GROUPS = { wk: { days: [1, 2, 3, 4, 5], label: "Mo–Fr", long: "Montag bis Freitag" }, we: { days: [6, 0], label: "Sa+So", long: "Samstag und Sonntag" } };
+  // Nächstes Datum ab dem angezeigten Tag mit diesem Wochentag – liefert den Plan, der dort ohne Tagesanpassung gilt.
+  function dateForWeekday(wd) {
+    let d = state.date;
+    for (let i = 0; i < 7 && parseIso(d).getDay() !== wd; i++) d = addDays(d, 1);
+    return d;
+  }
   function ensureDraft() {
-    if (!state.draft || state.draft.date !== state.date) { state.draft = { date: state.date, plan: clone(resolvePlan(state.date, state.dayPlan, true).plan) }; state.draftDirty = false; }
+    const scope = state.edScope || "day";
+    if (!state.draft || state.draft.date !== state.date || state.draft.scope !== scope) {
+      const src = scope === "day" ? resolvePlan(state.date, state.dayPlan, true) : resolvePlan(dateForWeekday(GROUPS[scope].days[0]), null, true);
+      state.draft = { date: state.date, scope, plan: clone(src.plan) }; state.draftDirty = false;
+    }
     return state.draft.plan;
+  }
+  // Schichtbeginn/-ende wachsen mit, wenn ein Abschnitt früher beginnt oder später endet.
+  function fitShift(s) {
+    s.phases = sortPhases(s.phases);
+    if (!s.phases.length) return;
+    const first = Math.min(...s.phases.map(p => toMin(p.from))), last = Math.max(...s.phases.map(p => toMin(p.to)));
+    if (first < toMin(s.start)) s.start = fmtMin(first);
+    if (last > toMin(s.end)) s.end = fmtMin(last);
   }
 
   function renderEditor() {
@@ -2574,18 +2595,30 @@ export function mount(container, opts = {}) {
       </div>`;
     };
 
-    const removeBtns = [
-      source === "day" ? `<button class="btn ghost danger" data-act="reset-day">Tagesanpassung entfernen</button>` : "",
-      state.cfg.weekday[String(wd)] ? `<button class="btn ghost danger" data-act="reset-weekday">${WD[wd]}-Vorlage entfernen</button>` : "",
-    ].join("");
+    const scope = state.draft.scope, g = GROUPS[scope], dirty = state.draftDirty ? "" : "disabled";
+    const scopeSeg = `<div class="seg" role="group" aria-label="Plan bearbeiten für">${[["day", dateTxt], ["wk", "Mo–Fr"], ["we", "Sa+So"]].map(([v, l]) => `<button class="segbtn${scope === v ? " on" : ""}" data-edscope="${v}" aria-pressed="${scope === v}">${l}</button>`).join("")}</div>`;
+    const unsaved = state.draftDirty ? " · <b style=\"color:var(--now)\">ungespeicherte Änderungen</b>" : "";
+    let info, btns;
+    if (g) {
+      const has = g.days.filter(d => state.cfg.weekday[String(d)]);
+      info = `Plan für <b>${g.long}</b>${unsaved}<br>${has.length ? `Vorlage vorhanden für ${has.map(d => WD[d].slice(0, 2)).join(", ")}.` : "Noch keine Vorlage – es gilt der Standard."} Speichern überschreibt alle ${g.days.length} Tage.`;
+      btns = `<button class="btn primary" data-act="save-${scope}" ${dirty}>Für ${g.label} speichern</button>
+        <button class="btn ghost" data-act="discard" ${dirty}>Verwerfen</button>
+        ${has.length ? `<button class="btn ghost danger" data-act="reset-${scope}">${g.label}-Vorlage entfernen</button>` : ""}`;
+    } else {
+      info = `Plan für <b>${dateTxt}</b> · aktuell gilt: <b>${SOURCE_LABEL[source]}</b>${unsaved}<br>
+          ${wdTemplates.length ? "Wochentag-Vorlagen: " + wdTemplates.map(i => WD[i].slice(0, 2)).join(", ") + ". " : ""}Abschnitte sortieren sich nach Uhrzeit, die Schichtzeiten wachsen mit.`;
+      btns = `<button class="btn primary" data-act="save-day" ${dirty}>Nur ${dateTxt} speichern</button>
+        <button class="btn" data-act="save-weekday" ${dirty}>Für alle ${WD_PL[wd]}</button>
+        <button class="btn" data-act="save-base" ${dirty}>Als Standard</button>
+        <button class="btn ghost" data-act="discard" ${dirty}>Verwerfen</button>
+        ${source === "day" ? `<button class="btn ghost danger" data-act="reset-day">Tagesanpassung entfernen</button>` : ""}
+        ${state.cfg.weekday[String(wd)] ? `<button class="btn ghost danger" data-act="reset-weekday">${WD[wd]}-Vorlage entfernen</button>` : ""}`;
+    }
     return `<div class="edbar">
-        <div class="info">Plan für <b>${dateTxt}</b> · aktuell gilt: <b>${SOURCE_LABEL[source]}</b>${state.draftDirty ? " · <b style=\"color:var(--now)\">ungespeicherte Änderungen</b>" : ""}<br>
-          ${wdTemplates.length ? "Wochentag-Vorlagen: " + wdTemplates.map(i => WD[i]).join(", ") + ". " : ""}Abschnitte sortieren sich nach Uhrzeit, Aufgaben mit ▲▼.</div>
-        <button class="btn primary" data-act="save-day" ${state.draftDirty ? "" : "disabled"}>Nur ${dateTxt} speichern</button>
-        <button class="btn" data-act="save-weekday" ${state.draftDirty ? "" : "disabled"}>Für alle ${WD_PL[wd]}</button>
-        <button class="btn" data-act="save-base" ${state.draftDirty ? "" : "disabled"}>Als Standard</button>
-        <button class="btn ghost" data-act="discard" ${state.draftDirty ? "" : "disabled"}>Verwerfen</button>
-        ${removeBtns}
+        ${scopeSeg}
+        <div class="info">${info}</div>
+        ${btns}
       </div>
       <div class="editor">${shiftHtml("frueh")}${shiftHtml("spaet")}</div>`;
   }
@@ -2616,12 +2649,12 @@ export function mount(container, opts = {}) {
       const shift = path.split(".")[0];
       parent[key].items.push({ id: newId(SHIFT_META[shift].prefix), t: "Neue Aufgabe", s: "", important: false, optional: false });
     } else if (act === "add-phase") {
+      // Neuer Abschnitt direkt nach dem letzten, 30 Min. lang; das Schichtende rückt bei Bedarf mit.
       const s = plan[path];
-      const last = s.phases[s.phases.length - 1];
-      const from = last ? last.to : s.start;
-      const to = fmtMin(Math.min(toMin(from) + 30, 23 * 60 + 59));
-      s.phases.push({ id: newId("p"), title: "Neuer Abschnitt", from, to, hint: "", items: [] });
-      s.phases = sortPhases(s.phases);
+      const lastEnd = s.phases.length ? Math.max(...s.phases.map(p => toMin(p.to))) : toMin(s.start);
+      const from = Math.min(lastEnd, 23 * 60 + 29), to = Math.min(from + 30, 23 * 60 + 59);
+      s.phases.push({ id: newId("p"), title: "Neuer Abschnitt", from: fmtMin(from), to: fmtMin(to), hint: "", items: [] });
+      fitShift(s);
     } else if (act === "add-always") {
       const { parent, key } = getRef(path);
       parent[key].push({ id: newId("a"), t: "Neue Daueraufgabe", s: "", important: false, kind: "hint", every: 0 });
@@ -2636,6 +2669,14 @@ export function mount(container, opts = {}) {
     if (!plan) { setStatus("Plan ungültig – bitte Uhrzeiten prüfen", true); return; }
     const wd = String(parseIso(state.date).getDay());
     let ok;
+    if (GROUPS[scope]) {
+      const patch = {};
+      for (const d of GROUPS[scope].days) patch[String(d)] = plan;
+      state.cfg = { ...state.cfg, weekday: { ...state.cfg.weekday, ...patch } };
+      ok = await persistCfg({ weekday: patch });
+      if (ok) { state.draft = null; state.draftDirty = false; setStatus(`Plan für ${GROUPS[scope].long} gespeichert.${state.dayPlan && GROUPS[scope].days.includes(Number(wd)) ? " Für den angezeigten Tag gilt weiter die Tagesanpassung." : ""}`, false); }
+      return render();
+    }
     if (scope === "day") {
       state.dayPlan = plan;
       ok = await persistDay(state.date, { plan });
@@ -2657,7 +2698,11 @@ export function mount(container, opts = {}) {
 
   async function resetScope(scope) {
     const wd = String(parseIso(state.date).getDay());
-    if (scope === "day") { state.dayPlan = null; await persistDay(state.date, { plan: null }); }
+    if (GROUPS[scope]) {
+      const w = { ...state.cfg.weekday }, patch = {};
+      for (const d of GROUPS[scope].days) { delete w[String(d)]; patch[String(d)] = null; }
+      state.cfg = { ...state.cfg, weekday: w }; await persistCfg({ weekday: patch });
+    } else if (scope === "day") { state.dayPlan = null; await persistDay(state.date, { plan: null }); }
     else { const w = { ...state.cfg.weekday }; delete w[wd]; state.cfg = { ...state.cfg, weekday: w }; await persistCfg({ weekday: { [wd]: null } }); }
     state.draft = null; state.draftDirty = false;
     render();
@@ -2764,9 +2809,11 @@ export function mount(container, opts = {}) {
       if (a === "save-day") return saveDraft("day");
       if (a === "save-weekday") return saveDraft("weekday");
       if (a === "save-base") return saveDraft("base");
+      if (a === "save-wk" || a === "save-we") return saveDraft(a.slice(5));
       if (a === "discard") { state.draft = null; state.draftDirty = false; render(); return; }
       if (a === "reset-day") return resetScope("day");
       if (a === "reset-weekday") return resetScope("weekday");
+      if (a === "reset-wk" || a === "reset-we") return resetScope(a.slice(6));
       return editorAction(a, t.dataset.path);
     }
     if (t.dataset.act2) {
@@ -2826,6 +2873,11 @@ export function mount(container, opts = {}) {
     }
     if (t.dataset.rday) { if (isUnlocked()) { state.unlockedUntil = Date.now() + 10 * 60000; state.rosterDay = t.dataset.rday; render(); } return; }
     if (t.dataset.shiftsel) { const k = t.dataset.shiftsel; const plan = P(); state.shiftSel = k === focusShift(plan, timeCtx()) ? null : k; state.expanded.clear(); scrolledOnce = false; render(); return; }
+    if (t.dataset.edscope) {
+      if (t.dataset.edscope === state.edScope) return;
+      if (state.draftDirty) { setStatus("Erst speichern oder verwerfen, dann wechseln", true); return; }
+      state.edScope = t.dataset.edscope; state.draft = null; render(); return;
+    }
     if (t.dataset.hread) { markHandRead(t.dataset.hread); render(); return; }
     if (t.dataset.log) return logAlways(t.dataset.shift, t.dataset.log);
     if (t.dataset.unlog) return unlogAlways(t.dataset.shift, t.dataset.unlog);
@@ -2876,7 +2928,12 @@ export function mount(container, opts = {}) {
       const t = normTime(el.value);
       if (!t) { setStatus("Bitte eine Uhrzeit wie 07:30 eingeben", true); el.value = getRef(el.dataset.time).parent[getRef(el.dataset.time).key]; return; }
       const { parent, key } = getRef(el.dataset.time); parent[key] = t;
-      for (const k of KEYS) state.draft.plan[k].phases = sortPhases(state.draft.plan[k].phases);
+      if (parent.from && parent.to && toMin(parent.to) <= toMin(parent.from)) {
+        // Ende vor Beginn: Abschnitt behält seine Länge (mind. 15 Min.).
+        if (key === "from") parent.to = fmtMin(Math.min(toMin(t) + 30, 23 * 60 + 59)); else parent.from = fmtMin(Math.max(toMin(t) - 30, 0));
+      }
+      // Abschnittszeiten ziehen die Schichtzeiten mit; ein bewusst geändertes Schichtende bleibt stehen.
+      for (const k of KEYS) { if (key === "from" || key === "to") fitShift(state.draft.plan[k]); else state.draft.plan[k].phases = sortPhases(state.draft.plan[k].phases); }
       markDirty(); el.blur(); render(); return;
     }
     if (el.dataset.kind) {
