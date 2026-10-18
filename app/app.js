@@ -1050,7 +1050,8 @@ export function mount(container, opts = {}) {
 
   // ---------- Zeiterfassung ----------
   // Ein Eintrag pro Einchecken im Tagesdokument (Tag des Beginns). Zeiten immer in 15-Minuten-Schritten.
-  const ROLE_LABEL = { frueh: "Früh", spaet: "Spät", aushilfe: "Aushilfe" };
+  // Schlüssel „aushilfe“ bleibt wegen gespeicherter Daten, angezeigt wird „Sonstiges“.
+  const ROLE_LABEL = { frueh: "Früh", spaet: "Spät", aushilfe: "Sonstiges" };
   const QUARTERS = Array.from({ length: 96 }, (_, i) => fmtMin(i * 15));
   const roundQ = (m) => Math.min(1425, Math.round(m / 15) * 15);
   function normTime(raw) {
@@ -1061,6 +1062,7 @@ export function mount(container, opts = {}) {
       out[id] = {
         pid: e.pid, role: ["frueh", "spaet", "aushilfe"].includes(e.role) ? e.role : "aushilfe", in: e.in,
         out: TIME_RE.test(e.out || "") ? e.out : null, pause: Number.isInteger(e.pause) && e.pause >= 0 && e.pause <= 600 ? e.pause : null,
+        note: str(e.note, 200).trim(),
         at: typeof e.at === "string" ? e.at : null, editedAt: typeof e.editedAt === "string" ? e.editedAt : null,
         orig: e.orig && typeof e.orig === "object" ? { in: e.orig.in || null, out: e.orig.out || null, pause: Number.isInteger(e.orig.pause) ? e.orig.pause : null } : null,
       };
@@ -1322,18 +1324,54 @@ export function mount(container, opts = {}) {
     const pr = progress(plan, key, state.checks);
     const seg = KEYS.map(k => `<button class="segbtn${k === key ? " on" : ""}" data-shiftsel="${k}" aria-pressed="${k === key}">${SHIFT_META[k].short}${k === auto && typeof ctx === "number" && activeShift(plan, ctx) === k ? " ·&nbsp;jetzt" : ""}</button>`).join("");
     const title = ctx === "past" ? "Rückblick" : ctx === "future" ? "Vorschau" : "Fahrplan";
-    return `<div class="schicht">
+    const lay = getLayout();
+    const colBtns = `<div class="seg" role="group" aria-label="Spalten im Fahrplan">${[["auto", "Auto"], ["1", "1 Spalte"], ["2", "2 Spalten"]].map(([v, l]) => `<button class="segbtn${lay.cols === v ? " on" : ""}" data-cols="${v}" aria-pressed="${lay.cols === v}">${l}</button>`).join("")}</div>`;
+    return `<div class="schicht cols-${lay.cols}" style="--side:${lay.side}px">
       <section class="card boardcard">
-        <div class="chead"><h2>${title} ${meta.label}</h2><span class="hint">${s.start}–${s.end} · ${pr.done}/${pr.total} erledigt</span><div class="seg" role="group" aria-label="Schicht wählen">${seg}</div></div>
+        <div class="chead"><h2>${title} ${meta.label}</h2><span class="hint">${s.start}–${s.end} · ${pr.done}/${pr.total} erledigt</span><div class="seg" role="group" aria-label="Schicht wählen">${seg}</div>${colBtns}</div>
         <div class="bar flat"><i style="width:${pr.pct}%"></i></div>
         ${otherOpen ? `<button class="othersum" data-shiftsel="${other}">${SHIFT_META[other].label}: <b>${otherOpen} offen geblieben</b> – ansehen</button>` : ""}
         <div class="cbody board"><div class="board-in">${stops}</div></div>
       </section>
+      <div class="splitter" role="separator" aria-orientation="vertical" aria-label="Spaltenbreite – ziehen oder Pfeiltasten, Doppelklick setzt zurück" tabindex="0" title="Ziehen zum Anpassen · Doppelklick = Standard"></div>
       <div class="side">
         <section class="card grow"><div class="chead"><h2>Immer im Blick</h2><span class="hint">${meta.label}</span></div><div class="cbody">${alwaysHtml(plan, key, ctx)}</div></section>
         <section class="card"><div class="chead"><h2>Dienst &amp; Übergabe</h2></div><div class="cbody">${dutyLine(state.date)}${handoverHtml(key)}</div></section>
       </div>
     </div>`;
+  }
+
+  // Spaltenaufteilung der Schicht-Ansicht, gespeichert pro Person (sonst „Standard“) im Browser-Speicher des Geräts.
+  const LAYOUT_DEFAULT = { side: 460, cols: "auto" };
+  const layoutKey = () => { const p = currentPerson(); return p ? p.id : "_"; };
+  function getLayout() {
+    const all = LS.get("rz2layout", {}), l = (all && all[layoutKey()]) || (all && all._) || {};
+    const side = Number.isFinite(l.side) ? Math.min(900, Math.max(280, Math.round(l.side))) : LAYOUT_DEFAULT.side;
+    return { side, cols: ["auto", "1", "2"].includes(l.cols) ? l.cols : LAYOUT_DEFAULT.cols };
+  }
+  function saveLayout(patch) {
+    const all = LS.get("rz2layout", {}) || {}, key = layoutKey();
+    all[key] = { ...getLayout(), ...patch };
+    LS.set("rz2layout", all);
+  }
+  let drag = null;
+  function startDrag(e, el) {
+    const wrap = el.closest(".schicht"); if (!wrap) return;
+    e.preventDefault();
+    const rect = wrap.getBoundingClientRect();
+    drag = { wrap, rect, side: getLayout().side };
+    el.setPointerCapture && el.setPointerCapture(e.pointerId);
+    const move = (ev) => {
+      const side = Math.min(rect.width - 380, Math.max(280, rect.right - ev.clientX - 6));
+      drag.side = Math.round(side); wrap.style.setProperty("--side", drag.side + "px");
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up);
+      if (drag) saveLayout({ side: drag.side });
+      drag = null;
+      if (renderPending) render();
+    };
+    window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
   }
 
   // ---------- Monat ----------
@@ -1981,6 +2019,7 @@ export function mount(container, opts = {}) {
       <div class="trow big"><label>Beginn ${timeSelect("ci-time", c.time)}</label>
         <span class="quick"><button class="chip${c.time === now ? "" : " off"}" data-ciq="${now}">Jetzt ${now}</button>${c.planned ? `<button class="chip${c.time === c.planned ? "" : " off"}" data-ciq="${c.planned}">laut Plan ${c.planned}</button>` : ""}</span></div>
       <div class="trow"><span>Als</span><div class="seg">${["frueh", "spaet", "aushilfe"].map(r => `<button class="segbtn${c.role === r ? " on" : ""}" data-cirole="${r}">${ROLE_LABEL[r]}</button>`).join("")}</div></div>
+      <label class="tnote">Notiz (optional) <input class="in" id="ci-note" maxlength="200" value="${esc(c.note || "")}" placeholder="z. B. Einarbeitung mit Lisa"></label>
       <div class="row"><button class="btn ghost" data-ci="cancel">Abbrechen</button><button class="btn primary" data-ci="ok">Einchecken</button></div>
     </div></div>`;
   }
@@ -1993,7 +2032,7 @@ export function mount(container, opts = {}) {
       if (out) persistTime(x.date, x.id, { ...x.entry, out, pause });
     });
     const id = newId("t");
-    const entry = { pid: c.pid, role: c.role, in: c.time, out: null, pause: null, at: new Date().toISOString(), editedAt: null, orig: null };
+    const entry = { pid: c.pid, role: c.role, in: c.time, out: null, pause: null, note: (c.note || "").trim().slice(0, 200), at: new Date().toISOString(), editedAt: null, orig: null };
     state.checkin = null;
     persistTime(today, id, entry);
     setActive(c.pid, c.role);
@@ -2011,7 +2050,7 @@ export function mount(container, opts = {}) {
     if (!open) { openPicker(true); return; }
     const out = fmtMin(roundQ(nowMin()));
     let gross = toMin(out) - toMin(open.entry.in); if (gross < 0) gross += 1440;
-    state.checkout = { ...open, out, pause: suggestPause(gross), pauseTouched: false };
+    state.checkout = { ...open, out, pause: suggestPause(gross), pauseTouched: false, note: open.entry.note || "" };
     renderCheckout();
   }
   function renderCheckout() {
@@ -2026,6 +2065,7 @@ export function mount(container, opts = {}) {
       <h2 id="co-title">Auschecken</h2>
       ${others.length > 1 ? `<div class="trow"><span>Wer</span><div class="seg">${others.map(([id, e]) => `<button class="segbtn${id === c.id ? " on" : ""}" data-coid="${esc(id)}">${esc(personName(e.pid))}</button>`).join("")}</div></div>` : `<p><b>${esc(personName(c.entry.pid))}</b> · ${ROLE_LABEL[c.entry.role]} · eingecheckt um ${c.entry.in}</p>`}
       <div class="trow big"><label>Ende ${timeSelect("co-time", c.out)}</label><label>Pause ${pauseSelect("co-pause", c.pause)}</label></div>
+      <label class="tnote">Notiz (optional) <input class="in" id="co-note" maxlength="200" value="${esc(c.note || "")}" placeholder="z. B. Einarbeitung mit Lisa"></label>
       <p>Arbeitszeit: <b>${fmtHours(mins)} Std.</b> (${c.entry.in}–${c.out}, ${c.pause} Min. Pause)</p>
       ${pend.length ? `<p class="pwarn">Noch nicht bestätigt: <b>${pend.map(a => esc(a.t)).join(", ")}</b></p>` : ""}
       <div class="row"><button class="btn ghost" data-co="cancel">Abbrechen</button><button class="btn primary" data-co="ok">Auschecken</button></div>
@@ -2033,7 +2073,7 @@ export function mount(container, opts = {}) {
   }
   function confirmCheckout() {
     const c = state.checkout; if (!c) return;
-    persistTime(c.date, c.id, { ...c.entry, out: c.out, pause: c.pause });
+    persistTime(c.date, c.id, { ...c.entry, out: c.out, pause: c.pause, note: (c.note || "").trim().slice(0, 200) });
     if (state.who && state.who.id === c.entry.pid) { state.who = null; LS.set("rz2who", null); }
     state.checkout = null;
     renderCheckout(); render();
@@ -2041,6 +2081,8 @@ export function mount(container, opts = {}) {
     autoBackup("shift");
   }
   $("outBtn").addEventListener("click", () => openCheckout());
+  $("remind").addEventListener("input", (e) => { if (e.target.id === "co-note" && state.checkout) state.checkout.note = e.target.value; });
+  $("picker").addEventListener("input", (e) => { if (e.target.id === "ci-note" && state.checkin) state.checkin.note = e.target.value; });
   // Klicks/Änderungen im Ein-/Auschecken (Overlays liegen außerhalb von <main>)
   const stepSelect = (b) => { const sel = $(b.dataset.tstep); if (!sel) return; sel.selectedIndex = Math.max(0, Math.min(sel.options.length - 1, sel.selectedIndex + Number(b.dataset.dir))); sel.dispatchEvent(new Event("change", { bubbles: true })); };
   $("remind").addEventListener("click", (e) => {
@@ -2048,7 +2090,7 @@ export function mount(container, opts = {}) {
     if (b.dataset.tstep) return stepSelect(b);
     if (b.dataset.coid) {
       const t = timeOf(state.checkout.date)[b.dataset.coid];
-      if (t) { let g = toMin(state.checkout.out) - toMin(t.in); if (g < 0) g += 1440; state.checkout = { ...state.checkout, id: b.dataset.coid, entry: t, pause: suggestPause(g), pauseTouched: false }; renderCheckout(); }
+      if (t) { let g = toMin(state.checkout.out) - toMin(t.in); if (g < 0) g += 1440; state.checkout = { ...state.checkout, id: b.dataset.coid, entry: t, pause: suggestPause(g), pauseTouched: false, note: t.note || "" }; renderCheckout(); }
       return;
     }
     if (b.dataset.co === "cancel") { state.checkout = null; renderCheckout(); return; }
@@ -2180,12 +2222,12 @@ export function mount(container, opts = {}) {
     const body = rows.map(r => {
       const planned = plannedFor(r.date, r.e.pid, r.e.role);
       const edited = r.e.orig ? ` <span class="pill later" title="ursprünglich ${esc([r.e.orig.in, r.e.orig.out].filter(Boolean).join("–"))}${r.e.orig.pause !== null ? ", Pause " + r.e.orig.pause : ""}">korrigiert</span>` : "";
-      return `<tr class="${r.e.out ? "" : "openrow"}"><td>${dateLabel(r.date)}</td><td>${esc(personName(r.e.pid) || "?")}</td><td>${ROLE_LABEL[r.e.role]}</td><td>${r.e.in}</td><td>${r.e.out || "<b>offen</b>"}</td><td>${r.e.pause !== null ? r.e.pause + " Min." : "–"}</td><td class="num">${fmtHours(r.mins)}</td><td class="muted">${planned || "–"}</td><td>${edited}${state.timesAll && isUnlocked() ? ` <button class="mini edit" data-tedit="${esc(r.date)}|${esc(r.id)}" aria-label="Bearbeiten">✎</button>` : ""}</td></tr>`;
+      return `<tr class="${r.e.out ? "" : "openrow"}"><td>${dateLabel(r.date)}</td><td>${esc(personName(r.e.pid) || "?")}</td><td>${ROLE_LABEL[r.e.role]}</td><td>${r.e.in}</td><td>${r.e.out || "<b>offen</b>"}</td><td>${r.e.pause !== null ? r.e.pause + " Min." : "–"}</td><td class="num">${fmtHours(r.mins)}</td><td class="muted">${planned || "–"}</td><td class="tnotecell" title="${esc(r.e.note || "")}">${esc(r.e.note || "")}</td><td>${edited}${state.timesAll && isUnlocked() ? ` <button class="mini edit" data-tedit="${esc(r.date)}|${esc(r.id)}" aria-label="Bearbeiten">✎</button>` : ""}</td></tr>`;
     }).join("");
     const sm = sums(rows);
     return head + `<div class="times">
       <section class="card"><div class="chead"><h2>${pid ? esc(personName(pid)) : "Alle"}</h2><span class="hint">${rows.length} Einträge${loading ? " · lädt…" : ""}</span>${!state.timesAll ? `<button class="btn ghost" data-act2="t-back">Andere Person</button>` : ""}</div>
-        <div class="cbody tscroll"><table class="ttab"><thead><tr><th>Datum</th><th>Name</th><th>Rolle</th><th>Ein</th><th>Aus</th><th>Pause</th><th>Stunden</th><th>Geplant</th><th></th></tr></thead><tbody>${body || `<tr><td colspan="9" class="empty">Keine Einträge in diesem Monat.</td></tr>`}</tbody></table></div></section>
+        <div class="cbody tscroll"><table class="ttab"><thead><tr><th>Datum</th><th>Name</th><th>Rolle</th><th>Ein</th><th>Aus</th><th>Pause</th><th>Stunden</th><th>Geplant</th><th>Notiz</th><th></th></tr></thead><tbody>${body || `<tr><td colspan="10" class="empty">Keine Einträge in diesem Monat.</td></tr>`}</tbody></table></div></section>
       <section class="card"><div class="chead"><h2>Summe</h2></div><div class="cbody"><table class="ttab"><thead><tr><th>Name</th><th>Tage</th><th>Stunden</th><th>Offen</th></tr></thead><tbody>${sm.map(x => `<tr><td>${esc(personName(x.pid))}</td><td>${x.days}</td><td class="num">${x.mins || !x.open ? fmtHours(x.mins) : "–"}</td><td>${x.open || ""}</td></tr>`).join("")}</tbody></table></div></section>
     </div>${state.timesEdit ? renderTimeEdit() : ""}`;
   }
@@ -2197,6 +2239,7 @@ export function mount(container, opts = {}) {
         <label>Person <select id="te-pid">${state.cfg.people.map(p => `<option value="${esc(p.id)}"${ed.e.pid === p.id ? " selected" : ""}>${esc(p.name)}</option>`).join("")}</select></label>
         <label>Rolle <select id="te-role">${Object.entries(ROLE_LABEL).map(([k, v]) => `<option value="${k}"${ed.e.role === k ? " selected" : ""}>${v}</option>`).join("")}</select></label></div>
       <div class="trow"><label>Ein ${timeSelect("te-in", ed.e.in)}</label><label>Aus ${timeSelect("te-out", ed.e.out || "", { allowOpen: true })}</label><label>Pause ${pauseSelect("te-pause", ed.e.pause || 0)}</label></div>
+      <label class="tnote">Notiz <input class="in" id="te-note" maxlength="200" value="${esc(ed.e.note || "")}"></label>
       ${ed.e.orig ? `<p class="muted">Ursprünglich: ${esc([ed.e.orig.in, ed.e.orig.out].filter(Boolean).join("–"))}${ed.e.orig.pause !== null ? `, Pause ${ed.e.orig.pause} Min.` : ""}</p>` : ""}
       <div class="row">${ed.id ? `<button class="btn ghost danger" data-act2="te-del">${state.confirm === "te-del" ? "Wirklich löschen?" : "Löschen"}</button>` : ""}<button class="btn ghost" data-act2="te-cancel">Abbrechen</button><button class="btn primary" data-act2="te-save">Speichern</button></div>
     </div></div>`;
@@ -2206,7 +2249,7 @@ export function mount(container, opts = {}) {
     const val = (id) => ($(id) || {}).value;
     const date = ed.id ? ed.date : val("te-date");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "")) { setStatus("Bitte ein Datum wählen", true); return; }
-    const e = { ...ed.e, pid: val("te-pid"), role: val("te-role"), in: val("te-in"), out: val("te-out") || null, pause: Number(val("te-pause") || 0) };
+    const e = { ...ed.e, pid: val("te-pid"), role: val("te-role"), in: val("te-in"), out: val("te-out") || null, pause: Number(val("te-pause") || 0), note: String(val("te-note") || "").trim().slice(0, 200) };
     if (ed.id) {
       const before = ed.e;
       if (before.in !== e.in || before.out !== e.out || (before.pause || 0) !== e.pause) {
@@ -2254,8 +2297,8 @@ export function mount(container, opts = {}) {
   }
   function exportTables() {
     const rows = timeRows(state.timesPerson || null), [y, m] = (state.timesMonth || state.date.slice(0, 7)).split("-").map(Number);
-    const detail = [["Datum", "Name", "Rolle", "Ein", "Aus", "Pause (Min.)", "Stunden", "Stunden (dezimal)", "Geplant", "Korrigiert"]]
-      .concat(rows.map(r => [`${dateLabel(r.date)}${y}`, personName(r.e.pid), ROLE_LABEL[r.e.role], r.e.in, r.e.out || "offen", r.e.pause ?? "", fmtHours(r.mins), r.mins === null ? "" : Math.round(r.mins / 60 * 100) / 100, plannedFor(r.date, r.e.pid, r.e.role) || "", r.e.orig ? "ja" : ""]));
+    const detail = [["Datum", "Name", "Rolle", "Ein", "Aus", "Pause (Min.)", "Stunden", "Stunden (dezimal)", "Geplant", "Korrigiert", "Notiz"]]
+      .concat(rows.map(r => [`${dateLabel(r.date)}${y}`, personName(r.e.pid), ROLE_LABEL[r.e.role], r.e.in, r.e.out || "offen", r.e.pause ?? "", fmtHours(r.mins), r.mins === null ? "" : Math.round(r.mins / 60 * 100) / 100, plannedFor(r.date, r.e.pid, r.e.role) || "", r.e.orig ? "ja" : "", r.e.note || ""]));
     const summary = [["Name", "Tage", "Stunden", "Stunden (dezimal)", "Offene Einträge"]]
       .concat(sums(rows).map(x => [personName(x.pid), x.days, x.mins || !x.open ? fmtHours(x.mins) : "–", Math.round(x.mins / 60 * 100) / 100, x.open || ""]));
     const who = state.timesPerson ? personName(state.timesPerson) : "Alle";
@@ -2269,7 +2312,7 @@ export function mount(container, opts = {}) {
       ["xl/workbook.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Zeiten" sheetId="1" r:id="rId1"/><sheet name="Summe" sheetId="2" r:id="rId2"/></sheets></workbook>`],
       ["xl/_rels/workbook.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
       ["xl/styles.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`],
-      ["xl/worksheets/sheet1.xml", sheetXml(t.detail, [14, 16, 10, 8, 8, 12, 9, 16, 14, 11])],
+      ["xl/worksheets/sheet1.xml", sheetXml(t.detail, [14, 16, 10, 8, 8, 12, 9, 16, 14, 11, 40])],
       ["xl/worksheets/sheet2.xml", sheetXml(t.summary, [18, 8, 10, 16, 15])],
     ];
     return { name: t.base + ".xlsx", bytes: zipStore(files), type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" };
@@ -2280,7 +2323,7 @@ export function mount(container, opts = {}) {
     const enc = (str) => { const out = []; for (const ch of String(str)) { const c = ch.codePointAt(0); out.push(c === 0x2013 ? 0x96 : c === 0x2026 ? 0x85 : c < 256 ? c : 0x3f); } return out; };
     const pdfStr = (str) => "(" + enc(str).map(b => b === 0x28 || b === 0x29 || b === 0x5c ? "\\" + String.fromCharCode(b) : b < 32 || b > 126 ? "\\" + b.toString(8).padStart(3, "0") : String.fromCharCode(b)).join("") + ")";
     const W = 842, H = 595, M = 36, RH = 16;
-    const cols = [[0, "Datum"], [80, "Name"], [190, "Rolle"], [255, "Ein"], [305, "Aus"], [355, "Pause"], [420, "Stunden"], [480, "Geplant"], [580, "Korrigiert"]];
+    const cols = [[0, "Datum"], [80, "Name"], [190, "Rolle"], [255, "Ein"], [305, "Aus"], [355, "Pause"], [410, "Stunden"], [465, "Geplant"], [540, "Korr."], [580, "Notiz"]];
     const pages = []; let ops = [], y = 0;
     const newPage = () => { if (ops.length) pages.push(ops.join("\n")); ops = []; y = H - M; text(M, y, t.title, 14, true); text(W - M - 160, y, `erstellt ${new Date().toLocaleDateString("de-DE")}`, 9); y -= 26; };
     const text = (x, yy, s2, size = 9, bold = false) => ops.push(`BT /${bold ? "F2" : "F1"} ${size} Tf ${x} ${yy} Td ${pdfStr(s2)} Tj ET`);
@@ -2290,8 +2333,8 @@ export function mount(container, opts = {}) {
     header(cols.map(c => c[1]), cols.map(c => c[0]));
     for (const r of t.detail.slice(1)) {
       if (y < M + RH) { newPage(); header(cols.map(c => c[1]), cols.map(c => c[0])); }
-      const v = [r[0], r[1], r[2], r[3], r[4], r[5] === "" ? "–" : r[5] + " Min.", r[6], r[8] || "–", r[9]];
-      v.forEach((s2, i) => text(M + cols[i][0], y, String(s2).slice(0, 26)));
+      const v = [r[0], r[1], r[2], r[3], r[4], r[5] === "" ? "–" : r[5] + " Min.", r[6], r[8] || "–", r[9], r[10]];
+      v.forEach((s2, i) => text(M + cols[i][0], y, String(s2).slice(0, i === 9 ? 48 : 22)));
       y -= RH;
     }
     y -= 12;
@@ -2528,7 +2571,7 @@ export function mount(container, opts = {}) {
   function render() {
     const active = root.activeElement;
     const typing = active && $("main").contains(active) && (active.tagName === "TEXTAREA" || (active.tagName === "INPUT" && active.type !== "checkbox"));
-    if (typing) { renderPending = true; renderHeader(); return; }
+    if (typing || drag) { renderPending = true; renderHeader(); return; }
     renderPending = false;
     renderHeader();
     const v = state.view, main = $("main");
@@ -2648,6 +2691,7 @@ export function mount(container, opts = {}) {
       const nd = new Date(yy, mm - 1 + (t.id === "mrprev" ? -1 : 1), 1);
       state.rosterMonth = `${nd.getFullYear()}-${pad(nd.getMonth() + 1)}`; state.rosterDay = null; render(); return;
     }
+    if (t.dataset.cols) { saveLayout({ cols: t.dataset.cols }); render(); return; }
     if (t.dataset.tperson) { state.timesPerson = t.dataset.tperson; render(); return; }
     if (t.dataset.tedit) {
       if (!isUnlocked()) return;
@@ -2673,6 +2717,14 @@ export function mount(container, opts = {}) {
     const stamp = (s) => ({ s, by: actorId(), at: new Date().toISOString() });
     if (t.dataset.id) { const c = state.checks[t.dataset.id]; setCheck(t.dataset.id, c && c.s === "done" ? null : stamp("done")); }
     else if (t.dataset.skip) { const c = state.checks[t.dataset.skip]; setCheck(t.dataset.skip, c && c.s === "na" ? null : stamp("na")); }
+  });
+  main.addEventListener("pointerdown", (e) => { const sp = e.target.closest && e.target.closest(".splitter"); if (sp) startDrag(e, sp); });
+  main.addEventListener("dblclick", (e) => { if (e.target.closest && e.target.closest(".splitter")) { saveLayout({ side: LAYOUT_DEFAULT.side }); render(); } });
+  main.addEventListener("keydown", (e) => {
+    if (!(e.target.classList && e.target.classList.contains("splitter")) || !["ArrowLeft", "ArrowRight"].includes(e.key)) return;
+    e.preventDefault();
+    saveLayout({ side: Math.min(900, Math.max(280, getLayout().side + (e.key === "ArrowLeft" ? 20 : -20))) });
+    render(); const sp = root.querySelector(".splitter"); if (sp) sp.focus();
   });
   main.addEventListener("input", (e) => {
     const el = e.target;

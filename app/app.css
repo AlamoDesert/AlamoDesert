@@ -263,7 +263,13 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
 .roster td .empty { padding: 0; font-size: 12px }
 
 /* Schicht-Ansicht */
-.schicht { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(340px, 1fr); gap: 12px; margin-top: 12px }
+.schicht { display: grid; grid-template-columns: minmax(380px, 1fr) 12px minmax(280px, var(--side, 460px)); gap: 0; margin-top: 12px }
+.splitter { cursor: col-resize; position: relative; touch-action: none; outline: none }
+.splitter::after { content: ""; position: absolute; top: 0; bottom: 0; left: 5px; width: 2px; border-radius: 2px; background: var(--line); transition: background .15s }
+.splitter:hover::after, .splitter:focus-visible::after { background: var(--accent); width: 4px; left: 4px }
+.schicht.cols-1 .board-in { columns: 1 !important }
+.schicht.cols-2 .board-in { columns: 2 !important; column-gap: 12px }
+.boardcard .chead .seg + .seg { margin-left: 6px }
 .schicht .side { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0 }
 .boardcard .chead { align-items: center }
 .boardcard .board { padding: 10px }
@@ -339,6 +345,10 @@ ul.hints .sub { font-size: 12px; color: var(--muted) }
 .tpick .cbody { padding: 12px }
 .monthhead select { font-size: 14px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface) }
 
+.tnote { display: grid; gap: 4px; font-size: 13px; font-weight: 600; color: var(--muted) }
+.tnote .in { font-size: 15px; padding: 8px 10px; font-weight: 400; color: var(--ink) }
+.ttab td.tnotecell { max-width: 260px; overflow: hidden; text-overflow: ellipsis; color: var(--muted) }
+
 /* Arbeitsplan-Import */
 .roster .rtime { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; margin-bottom: 4px }
 .chip small { font-weight: 500; opacity: .8 }
@@ -398,7 +408,8 @@ ul.hints .sub { font-size: 12px; color: var(--muted) }
 }
 @media (orientation: portrait), (max-width: 899px) {
   .dash { grid-template-columns: minmax(0, 1fr) }
-  .shiftview, .schicht { grid-template-columns: minmax(0, 1fr) }
+  .shiftview, .schicht { grid-template-columns: minmax(0, 1fr); gap: 12px }
+  .splitter { display: none }
   .times { grid-template-columns: minmax(0, 1fr) }
   .rcal { gap: 2px } .rcal .rc { min-height: 64px; padding: 3px 4px; font-size: 11px }
   .clock { font-size: 28px }
