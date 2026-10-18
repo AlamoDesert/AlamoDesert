@@ -792,7 +792,7 @@ function mount(container, opts = {}) {
     mode: "loading",
     readOnly: false,
     who: null,           // { date, shift, id } – wer gerade an der Rezeption arbeitet (pro Gerät)
-    pickerOpen: false, pickerSnoozeUntil: 0,
+    pickerOpen: false, pickerSnoozeUntil: 0, // nach dem Auschecken nicht sofort neu fragen (gerätebezogen, rz2noask)
     unlockedUntil: 0,    // Leitungsbereich entsperrt bis (ms)
     pinStage: null,      // { mode: "unlock"|"set", first?: string, next: view }
     rosterEdit: false,
@@ -1087,7 +1087,7 @@ function mount(container, opts = {}) {
     if (p) return p.name;
     return state.names[id] || (id === myId ? "dir" : "");
   }
-  function loadWho() { state.who = LS.get("rz2who", null); }
+  function loadWho() { state.who = LS.get("rz2who", null); state.pickerSnoozeUntil = Math.max(state.pickerSnoozeUntil, Number(LS.get("rz2noask", 0)) || 0); }
   // Aktive Person: heute eingecheckt (noch nicht ausgecheckt) und an diesem Gerät gewählt.
   function currentPerson() {
     const w = state.who, today = isoDate(new Date());
@@ -1958,7 +1958,7 @@ function mount(container, opts = {}) {
   }
   function backupPayload() {
     const data = {};
-    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith("rz2") && k !== "rz2who") data[k] = localStorage.getItem(k); }
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith("rz2") && k !== "rz2who" && k !== "rz2noask") data[k] = localStorage.getItem(k); }
     return JSON.stringify({ app: "rezeption-schichtcheck", version: 1, exportedAt: new Date().toISOString(), data }, null, 1);
   }
   async function writeFile(dir, name, text) {
@@ -2193,9 +2193,20 @@ function mount(container, opts = {}) {
     persistTime(c.date, c.id, { ...c.entry, out: c.out, pause: c.pause, note: (c.note || "").trim().slice(0, 200) });
     if (state.who && state.who.id === c.entry.pid) { state.who = null; LS.set("rz2who", null); }
     state.checkout = null;
+    pauseAskAfterCheckout();
     renderCheckout(); render();
     setStatus(`${personName(c.entry.pid)} ausgecheckt um ${c.out} · ${fmtHours(workedMin({ in: c.entry.in, out: c.out, pause: c.pause }))} Std.`);
     autoBackup("shift");
+  }
+  // Nach dem Auschecken nicht sofort „Wer arbeitet?“ zeigen: erst 15 Min. vor dem nächsten Schichtbeginn,
+  // nach der letzten Schicht des Tages gar nicht mehr (Laptop wird zugeklappt). Einchecken per Knopf geht jederzeit.
+  function pauseAskAfterCheckout() {
+    const now = new Date(), cur = now.getHours() * 60 + now.getMinutes(), plan = P();
+    const next = KEYS.map(k => toMin(plan[k].start) - 15).filter(m => m > cur).sort((a, b) => a - b)[0];
+    const until = new Date(now); until.setSeconds(0, 0);
+    if (next === undefined) until.setHours(24, 0, 0, 0); else until.setHours(0, Math.max(next, cur + 15), 0, 0);
+    state.pickerSnoozeUntil = until.getTime();
+    LS.set("rz2noask", state.pickerSnoozeUntil);
   }
   $("outBtn").addEventListener("click", () => openCheckout());
   $("remind").addEventListener("input", (e) => { if (e.target.id === "co-note" && state.checkout) state.checkout.note = e.target.value; });
@@ -2249,6 +2260,8 @@ function mount(container, opts = {}) {
   function remindTarget() {
     const today = isoDate(new Date());
     if (state.date !== today || state.mode === "loading") return null;
+    // Niemand eingecheckt (z. B. nach dem Auschecken) → keine Erinnerung; das Auschecken warnt selbst vor offenen Pflichtpunkten.
+    if (state.cfg.people.length && !currentPerson()) return null;
     const plan = P(), now = nowMin(), key = activeShift(plan, now);
     if (!key || toMin(plan[key].end) - now > 30) return null;
     const pending = pendingConfirms(plan, key);
