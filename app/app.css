@@ -263,14 +263,17 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
 .roster td .empty { padding: 0; font-size: 12px }
 
 /* Schicht-Ansicht */
-.schicht { display: grid; grid-template-columns: minmax(380px, 1fr) 12px minmax(280px, var(--side, 460px)); gap: 0; margin-top: 12px }
+.schicht { display: grid; grid-template-columns: minmax(380px, 1fr) 12px minmax(280px, min(var(--side, 460px), calc(100% - 392px))); gap: 0; margin-top: 12px }
 .splitter { cursor: col-resize; position: relative; touch-action: none; outline: none }
 .splitter::after { content: ""; position: absolute; top: 0; bottom: 0; left: 5px; width: 2px; border-radius: 2px; background: var(--line); transition: background .15s }
 .splitter:hover::after, .splitter:focus-visible::after { background: var(--accent); width: 4px; left: 4px }
 .schicht.cols-1 .board-in { columns: 1 !important }
 .schicht.cols-2 .board-in { columns: 2 !important; column-gap: 12px }
 .boardcard .chead .seg + .seg { margin-left: 6px }
-.schicht .side { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0 }
+.schicht .side { display: flex; flex-direction: column; gap: 0; min-width: 0; min-height: 0 }
+.hsplit { flex: 0 0 12px; cursor: row-resize; position: relative; touch-action: none; outline: none }
+.hsplit::after { content: ""; position: absolute; left: 0; right: 0; top: 5px; height: 2px; border-radius: 2px; background: var(--line); transition: background .15s }
+.hsplit:hover::after, .hsplit:focus-visible::after { background: var(--accent); height: 4px; top: 4px }
 .boardcard .chead { align-items: center }
 .boardcard .board { padding: 10px }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-left: auto }
@@ -399,6 +402,10 @@ ul.hints .sub { font-size: 12px; color: var(--muted) }
   .dash, .shiftview, .schicht { flex: 1; min-height: 0; grid-template-rows: minmax(0, 1fr) }
   .schicht .side > .card { min-height: 0 }
   .schicht .side > .card.grow { flex: 1 }
+  .schicht .side.has-hand > .card.hand { flex: 0 1 var(--hand); min-height: 120px }
+  .schicht .side.has-hand > .card.hand .cbody { display: flex; flex-direction: column }
+  .schicht .side.has-hand > .card.hand .note:last-child { flex: 1; grid-template-rows: auto minmax(60px, 1fr) auto }
+  .schicht .side.has-hand > .card.hand .note:last-child textarea { height: 100%; resize: none }
   .boardcard { min-height: 0 }
   .dash > .col > .card, .side > .card { min-height: 0 }
   .dash > .col > .card.grow, .side > .card.grow { flex: 1 }
@@ -409,7 +416,8 @@ ul.hints .sub { font-size: 12px; color: var(--muted) }
 @media (orientation: portrait), (max-width: 899px) {
   .dash { grid-template-columns: minmax(0, 1fr) }
   .shiftview, .schicht { grid-template-columns: minmax(0, 1fr); gap: 12px }
-  .splitter { display: none }
+  .splitter, .hsplit { display: none }
+  .schicht .side { gap: 12px }
   .times { grid-template-columns: minmax(0, 1fr) }
   .rcal { gap: 2px } .rcal .rc { min-height: 64px; padding: 3px 4px; font-size: 11px }
   .clock { font-size: 28px }

@@ -1333,21 +1333,28 @@ export function mount(container, opts = {}) {
         ${otherOpen ? `<button class="othersum" data-shiftsel="${other}">${SHIFT_META[other].label}: <b>${otherOpen} offen geblieben</b> – ansehen</button>` : ""}
         <div class="cbody board"><div class="board-in">${stops}</div></div>
       </section>
-      <div class="splitter" role="separator" aria-orientation="vertical" aria-label="Spaltenbreite – ziehen oder Pfeiltasten, Doppelklick setzt zurück" tabindex="0" title="Ziehen zum Anpassen · Doppelklick = Standard"></div>
-      <div class="side">
+      <div class="splitter" data-split="side" role="separator" aria-orientation="vertical" aria-label="Spaltenbreite – ziehen oder Pfeiltasten, Doppelklick setzt zurück" tabindex="0" title="Ziehen zum Anpassen · Doppelklick = Standard"></div>
+      <div class="side${lay.hand ? " has-hand" : ""}"${lay.hand ? ` style="--hand:${lay.hand}px"` : ""}>
         <section class="card grow"><div class="chead"><h2>Immer im Blick</h2><span class="hint">${meta.label}</span></div><div class="cbody">${alwaysHtml(plan, key, ctx)}</div></section>
-        <section class="card"><div class="chead"><h2>Dienst &amp; Übergabe</h2></div><div class="cbody">${dutyLine(state.date)}${handoverHtml(key)}</div></section>
+        <div class="hsplit" data-split="hand" role="separator" aria-orientation="horizontal" aria-label="Höhe von Dienst und Übergabe – ziehen oder Pfeiltasten, Doppelklick setzt zurück" tabindex="0" title="Ziehen zum Anpassen · Doppelklick = Standard"></div>
+        <section class="card hand"><div class="chead"><h2>Dienst &amp; Übergabe</h2></div><div class="cbody">${dutyLine(state.date)}${handoverHtml(key)}</div></section>
       </div>
     </div>`;
   }
 
   // Spaltenaufteilung der Schicht-Ansicht, gespeichert pro Person (sonst „Standard“) im Browser-Speicher des Geräts.
-  const LAYOUT_DEFAULT = { side: 460, cols: "auto" };
+  // hand = Höhe der Karte „Dienst & Übergabe“ in px, null = so hoch wie der Inhalt.
+  const LAYOUT_DEFAULT = { side: 460, cols: "auto", hand: null };
+  const clampSide = (v) => Math.min(900, Math.max(280, Math.round(v)));
+  const clampHand = (v) => Math.min(1200, Math.max(120, Math.round(v)));
   const layoutKey = () => { const p = currentPerson(); return p ? p.id : "_"; };
   function getLayout() {
     const all = LS.get("rz2layout", {}), l = (all && all[layoutKey()]) || (all && all._) || {};
-    const side = Number.isFinite(l.side) ? Math.min(900, Math.max(280, Math.round(l.side))) : LAYOUT_DEFAULT.side;
-    return { side, cols: ["auto", "1", "2"].includes(l.cols) ? l.cols : LAYOUT_DEFAULT.cols };
+    return {
+      side: Number.isFinite(l.side) ? clampSide(l.side) : LAYOUT_DEFAULT.side,
+      cols: ["auto", "1", "2"].includes(l.cols) ? l.cols : LAYOUT_DEFAULT.cols,
+      hand: Number.isFinite(l.hand) ? clampHand(l.hand) : LAYOUT_DEFAULT.hand,
+    };
   }
   function saveLayout(patch) {
     const all = LS.get("rz2layout", {}) || {}, key = layoutKey();
@@ -1355,19 +1362,25 @@ export function mount(container, opts = {}) {
     LS.set("rz2layout", all);
   }
   let drag = null;
+  // Trennlinien ziehen: data-split="side" (Breite rechte Spalte) oder "hand" (Höhe Dienst & Übergabe).
   function startDrag(e, el) {
-    const wrap = el.closest(".schicht"); if (!wrap) return;
+    const kind = el.dataset.split, wrap = el.closest(kind === "hand" ? ".side" : ".schicht"); if (!wrap) return;
     e.preventDefault();
     const rect = wrap.getBoundingClientRect();
-    drag = { wrap, rect, side: getLayout().side };
+    drag = { kind, value: null };
     el.setPointerCapture && el.setPointerCapture(e.pointerId);
     const move = (ev) => {
-      const side = Math.min(rect.width - 380, Math.max(280, rect.right - ev.clientX - 6));
-      drag.side = Math.round(side); wrap.style.setProperty("--side", drag.side + "px");
+      if (kind === "hand") {
+        drag.value = Math.round(Math.min(rect.height - 140, Math.max(120, rect.bottom - ev.clientY - 6)));
+        wrap.classList.add("has-hand"); wrap.style.setProperty("--hand", drag.value + "px");
+      } else {
+        drag.value = Math.round(Math.min(rect.width - 380, Math.max(280, rect.right - ev.clientX - 6)));
+        wrap.style.setProperty("--side", drag.value + "px");
+      }
     };
     const up = () => {
       window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up);
-      if (drag) saveLayout({ side: drag.side });
+      if (drag && drag.value != null) saveLayout({ [drag.kind]: drag.value });
       drag = null;
       if (renderPending) render();
     };
@@ -2718,13 +2731,22 @@ export function mount(container, opts = {}) {
     if (t.dataset.id) { const c = state.checks[t.dataset.id]; setCheck(t.dataset.id, c && c.s === "done" ? null : stamp("done")); }
     else if (t.dataset.skip) { const c = state.checks[t.dataset.skip]; setCheck(t.dataset.skip, c && c.s === "na" ? null : stamp("na")); }
   });
-  main.addEventListener("pointerdown", (e) => { const sp = e.target.closest && e.target.closest(".splitter"); if (sp) startDrag(e, sp); });
-  main.addEventListener("dblclick", (e) => { if (e.target.closest && e.target.closest(".splitter")) { saveLayout({ side: LAYOUT_DEFAULT.side }); render(); } });
+  main.addEventListener("pointerdown", (e) => { const sp = e.target.closest && e.target.closest("[data-split]"); if (sp && e.button === 0) startDrag(e, sp); });
+  main.addEventListener("dblclick", (e) => {
+    const sp = e.target.closest && e.target.closest("[data-split]"); if (!sp) return;
+    saveLayout({ [sp.dataset.split]: LAYOUT_DEFAULT[sp.dataset.split] }); render();
+  });
   main.addEventListener("keydown", (e) => {
-    if (!(e.target.classList && e.target.classList.contains("splitter")) || !["ArrowLeft", "ArrowRight"].includes(e.key)) return;
+    const kind = e.target.dataset && e.target.dataset.split; if (!kind) return;
+    const step = kind === "side" ? { ArrowLeft: 20, ArrowRight: -20 }[e.key] : { ArrowUp: 20, ArrowDown: -20 }[e.key];
+    if (!step) return;
     e.preventDefault();
-    saveLayout({ side: Math.min(900, Math.max(280, getLayout().side + (e.key === "ArrowLeft" ? 20 : -20))) });
-    render(); const sp = root.querySelector(".splitter"); if (sp) sp.focus();
+    if (kind === "side") saveLayout({ side: clampSide(getLayout().side + step) });
+    else {
+      const card = root.querySelector(".side > .card.hand");
+      saveLayout({ hand: clampHand((getLayout().hand || (card ? card.getBoundingClientRect().height : 240)) + step) });
+    }
+    render(); const sp = root.querySelector(`[data-split="${kind}"]`); if (sp) sp.focus();
   });
   main.addEventListener("input", (e) => {
     const el = e.target;
