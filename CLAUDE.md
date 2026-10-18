@@ -29,6 +29,10 @@ Live unter https://courtside-turniere.netlify.app (Netlify-Site-ID `5bae8eb4-f74
 - `public/sw.js` – Offline-Cache, `/api/*` geht immer ans Netz. Bei Änderungen an Dateien `CACHE` hochzählen.
 - `public/vendor/qrcode.js` – QR-Code-Generator (Kazuhiko Arase, MIT), unverändert.
 
+## Verfügbarkeiten (`verfuegbarkeit/index.html`)
+
+Eigenständiges Werkzeug (eine HTML-Datei, kein Build) zum Ausfüllen des monatlichen Arbeitsplans (.xlsx, gleicher Aufbau wie beim Monatsplan-Import): Felder in den Spalten Vormittags/Nachmittags/Anmerkung markieren (Tippen, Ziehen, Spaltenkopf, Tag, Wochentag-Chips, Tagesliste „3-7, 12“), Text einmal eingeben, Excel speichern. Schreibt die geänderten Zellen als Inline-Strings direkt ins Blatt-XML (Formatierung bleibt), verbreitert Spalten bei Bedarf und baut die ZIP-Datei neu. Als claude.ai-Artifact speichert es über die Capability `downloads`, lokal per Download-Link. Die eingebettete Vorlage (`SAMPLE`) ist der November-Plan.
+
 ## Testen
 
 Checkliste: kein automatisiertes Test-Setup. Lokal: `index.html` im Browser öffnen. SharePoint ohne Tenant: `node tools/sp-mock.mjs 8899` startet einen Nachbau der genutzten REST-Endpunkte und liefert `http://localhost:8899/sites/rez/test.html` (App im SharePoint-Modus, Abgleich jede Sekunde). `/__dump` zeigt die gespeicherten Dateien, `/__fail?n=3` lässt die nächsten Schreibzugriffe scheitern. Mit `PDFJS_DIR=<pdfjs-dist>/build` liefert der Nachbau pdf.js lokal aus (für PDF-Import-Tests ohne Internet).

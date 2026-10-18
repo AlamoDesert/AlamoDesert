@@ -1,0 +1,564 @@
+<title>Verfügbarkeiten eintragen</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,700&display=swap">
+<style>
+/* Layout: Kopfzeile mit Datei, Auswahlhilfen, Tabelle wie im Excel-Blatt, unten feste Eingabeleiste. */
+:root {
+  --bg: #f6f7f5; --surface: #ffffff; --fg: #1d2421; --muted: #66706b; --line: #d7dcd8;
+  --accent: #1f6f5c; --accent-fg: #ffffff; --sel: #cfe9df; --sel-line: #1f6f5c;
+  --weekend: #eef1ee; --filled: #fff6d6; --danger: #a33a2b;
+  --font-body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Bricolage Grotesque", var(--font-body);
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121614; --surface: #1a201d; --fg: #e6ebe8; --muted: #9aa49f; --line: #2f3833;
+  --accent: #5cc4a6; --accent-fg: #0b1a15; --sel: #1f4a3d; --sel-line: #5cc4a6;
+  --weekend: #161b18; --filled: #3a3420; --danger: #f08a7a; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #121614; --surface: #1a201d; --fg: #e6ebe8; --muted: #9aa49f; --line: #2f3833;
+  --accent: #5cc4a6; --accent-fg: #0b1a15; --sel: #1f4a3d; --sel-line: #5cc4a6;
+  --weekend: #161b18; --filled: #3a3420; --danger: #f08a7a; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font: 15px/1.45 var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px 140px; }
+.wrap { max-width: 980px; margin: 0 auto; display: grid; gap: 14px }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; justify-content: space-between }
+h1 { font: 700 1.5rem/1.1 var(--font-display); margin: 0; text-wrap: balance }
+.file { color: var(--muted); font-size: .9rem; overflow-wrap: anywhere }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
+button, .btn { font: inherit; border: 1px solid var(--line); background: var(--surface); color: var(--fg);
+  border-radius: 8px; padding: 7px 12px; cursor: pointer; min-height: 38px }
+button:hover, .btn:hover { border-color: var(--accent) }
+button:focus-visible, input:focus-visible, .btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px }
+button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-weight: 700 }
+button:disabled { opacity: .45; cursor: default }
+.btn input { position: absolute; width: 1px; height: 1px; opacity: 0 }
+.btn { position: relative; display: inline-flex; align-items: center }
+.chip { padding: 5px 11px; min-height: 34px; border-radius: 999px; font-size: .92rem }
+.chip[aria-pressed="true"] { background: var(--sel); border-color: var(--sel-line); font-weight: 700 }
+.label { font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); min-width: 64px }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 10px }
+#days { font: inherit; width: 150px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); min-height: 34px }
+.hint { color: var(--muted); font-size: .88rem; margin: 0 }
+.tablebox { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; user-select: none; -webkit-user-select: none }
+th, td { border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); padding: 6px 8px; text-align: left; white-space: nowrap; font-size: .92rem }
+th { position: sticky; top: 0; background: var(--surface); font-weight: 700; z-index: 1 }
+th.in { cursor: pointer; color: var(--accent) }
+th.in:hover { text-decoration: underline }
+td.ro { color: var(--muted) }
+td.day { cursor: pointer; font-weight: 700; color: var(--fg) }
+tr.we td { background: var(--weekend) }
+td.in { cursor: pointer; min-width: 110px; white-space: normal; max-width: 260px }
+td.in.has { background: var(--filled) }
+td.in.sel { background: var(--sel); box-shadow: inset 0 0 0 2px var(--sel-line) }
+td.in:empty::after { content: "·"; color: var(--line) }
+.bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; background: var(--surface); border-top: 1px solid var(--line);
+  padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)) }
+.bar .inner { max-width: 980px; margin: 0 auto; display: grid; gap: 8px }
+.bar form { display: flex; gap: 8px; flex-wrap: wrap }
+#text { flex: 1 1 220px; min-width: 0; font: inherit; font-size: 16px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg) }
+#count { color: var(--muted); font-size: .88rem }
+#recent:empty { display: none }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(130px + env(safe-area-inset-bottom, 0px)); background: var(--fg); color: var(--bg);
+  padding: 8px 14px; border-radius: 8px; font-size: .9rem; z-index: 6; max-width: calc(100% - 32px) }
+.err { color: var(--danger) }
+@media (prefers-reduced-motion: no-preference) { td.in { transition: background-color .12s } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Verfügbarkeiten eintragen</h1>
+      <div class="file" id="fileinfo"></div>
+    </div>
+    <div class="row">
+      <label class="btn" for="file">Excel öffnen<input id="file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label>
+      <button class="primary" id="save" type="button" disabled>Excel speichern</button>
+    </div>
+  </header>
+
+  <section class="panel" aria-label="Auswahlhilfen">
+    <div class="row"><span class="label">Spalten</span><span class="row" id="cols"></span></div>
+    <div class="row"><span class="label">Tage</span><span class="row" id="wd"></span></div>
+    <div class="row"><span class="label">Datum</span>
+      <input id="days" type="text" inputmode="numeric" placeholder="z. B. 3-7, 12" aria-label="Tage auswählen, z. B. 3-7, 12">
+      <button class="chip" type="button" id="daysgo">Auswählen</button>
+      <button class="chip" type="button" id="none">Auswahl aufheben</button>
+    </div>
+    <p class="hint">Felder antippen oder mit der Maus über mehrere ziehen. Ein Tipp auf die Spaltenüberschrift wählt die ganze Spalte, ein Tipp auf den Tag die ganze Zeile. Dann unten Text eingeben und „Eintragen“.</p>
+  </section>
+
+  <div class="tablebox"><table id="grid"></table></div>
+  <p class="hint err" id="error" hidden></p>
+</div>
+
+<div class="bar">
+  <div class="inner">
+    <div class="row" id="recent"></div>
+    <form id="form">
+      <input id="text" type="text" autocomplete="off" placeholder="Text für die markierten Felder" aria-label="Text für die markierten Felder">
+      <button class="primary" type="submit" id="apply">Eintragen</button>
+      <button type="button" id="clear">Leeren</button>
+      <button type="button" id="undo" disabled>Rückgängig</button>
+    </form>
+    <div id="count">Keine Felder markiert</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+// Vorlage: Arbeitsplan November (wird angezeigt, bis du eine eigene Datei öffnest).
+const SAMPLE = { name: "ArbeitsplanMJ-NOV.xlsx", b64: "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" };
+
+const NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+const WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+const $ = (id) => document.getElementById(id);
+
+let book = null;        // { name, entries, sheetPath, doc, shared }
+let grid = null;        // { rows: [{r, cells: {col: text}}], header, cols, inputCols, dayCol, wdCol }
+let edits = new Map();  // "C5" -> neuer Text
+const original = new Map();
+let selected = new Set();
+let colFilter = new Set();
+const undoStack = [];
+
+// ---------- ZIP ----------
+const CRC_TABLE = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(u8) { let c = 0xffffffff; for (let i = 0; i < u8.length; i++) c = CRC_TABLE[(c ^ u8[i]) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; }
+async function pipe(u8, stream) { return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(stream)).arrayBuffer()); }
+
+function readZip(buf) {
+  const dv = new DataView(buf), u8 = new Uint8Array(buf);
+  let eocd = -1;
+  for (let i = buf.byteLength - 22; i >= Math.max(0, buf.byteLength - 66000); i--) if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  if (eocd < 0) throw new Error("Das ist keine gültige Excel-Datei (.xlsx).");
+  const count = dv.getUint16(eocd + 10, true);
+  let p = dv.getUint32(eocd + 16, true);
+  const entries = [];
+  for (let n = 0; n < count; n++) {
+    if (dv.getUint32(p, true) !== 0x02014b50) throw new Error("Die Excel-Datei ist beschädigt.");
+    const flags = dv.getUint16(p + 8, true), method = dv.getUint16(p + 10, true);
+    const crc = dv.getUint32(p + 16, true), csize = dv.getUint32(p + 20, true), usize = dv.getUint32(p + 24, true);
+    const nlen = dv.getUint16(p + 28, true), xlen = dv.getUint16(p + 30, true), clen = dv.getUint16(p + 32, true), off = dv.getUint32(p + 42, true);
+    const nameBytes = u8.slice(p + 46, p + 46 + nlen);
+    p += 46 + nlen + xlen + clen;
+    const start = off + 30 + dv.getUint16(off + 26, true) + dv.getUint16(off + 28, true);
+    entries.push({ name: new TextDecoder().decode(nameBytes), nameBytes, flags: flags & 0x0800, method, crc, csize, usize, data: u8.slice(start, start + csize) });
+  }
+  return entries;
+}
+async function entryText(e) {
+  if (e.method === 0) return new TextDecoder().decode(e.data);
+  if (e.method === 8) return new TextDecoder().decode(await pipe(e.data, new DecompressionStream("deflate-raw")));
+  throw new Error("Unbekannte Komprimierung in der Excel-Datei.");
+}
+async function makeEntry(e, text) {
+  const raw = new TextEncoder().encode(text);
+  let data = raw, method = 0;
+  if (typeof CompressionStream === "function") { data = await pipe(raw, new CompressionStream("deflate-raw")); method = 8; }
+  return { ...e, method, crc: crc32(raw), csize: data.length, usize: raw.length, data };
+}
+function writeZip(entries) {
+  const parts = [], central = [];
+  let offset = 0;
+  for (const e of entries) {
+    const h = new DataView(new ArrayBuffer(30));
+    h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, e.flags, true); h.setUint16(8, e.method, true);
+    h.setUint16(10, 0, true); h.setUint16(12, 0x21, true); h.setUint32(14, e.crc, true); h.setUint32(18, e.csize, true);
+    h.setUint32(22, e.usize, true); h.setUint16(26, e.nameBytes.length, true); h.setUint16(28, 0, true);
+    parts.push(new Uint8Array(h.buffer), e.nameBytes, e.data);
+    const c = new DataView(new ArrayBuffer(46));
+    c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, e.flags, true);
+    c.setUint16(10, e.method, true); c.setUint16(12, 0, true); c.setUint16(14, 0x21, true); c.setUint32(16, e.crc, true);
+    c.setUint32(20, e.csize, true); c.setUint32(24, e.usize, true); c.setUint16(28, e.nameBytes.length, true);
+    c.setUint32(42, offset, true);
+    central.push(new Uint8Array(c.buffer), e.nameBytes);
+    offset += 30 + e.nameBytes.length + e.data.length;
+  }
+  const cdSize = central.reduce((s, a) => s + a.length, 0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, entries.length, true); end.setUint16(10, entries.length, true);
+  end.setUint32(12, cdSize, true); end.setUint32(16, offset, true);
+  return new Blob([...parts, ...central, new Uint8Array(end.buffer)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+}
+
+// ---------- Excel-Blatt ----------
+const colIndex = (letters) => [...letters].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0);
+const colName = (i) => { let s = ""; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
+const splitRef = (ref) => { const m = /^([A-Z]+)(\d+)$/.exec(ref); return m ? { col: colIndex(m[1]), row: +m[2] } : null; };
+const parseXml = (t) => { const d = new DOMParser().parseFromString(t, "application/xml"); if (d.getElementsByTagName("parsererror").length) throw new Error("Die Excel-Datei lässt sich nicht lesen."); return d; };
+
+function cellText(c, shared) {
+  const t = c.getAttribute("t");
+  if (t === "inlineStr") return [...c.getElementsByTagNameNS(NS, "t")].map(x => x.textContent).join("");
+  const v = c.getElementsByTagNameNS(NS, "v")[0];
+  if (!v) return "";
+  if (t === "s") return shared[+v.textContent] ?? "";
+  return v.textContent;
+}
+
+async function openBook(name, buf) {
+  const entries = readZip(buf);
+  const byName = (n) => entries.find(e => e.name === n);
+  const wbRels = byName("xl/_rels/workbook.xml.rels"), wb = byName("xl/workbook.xml");
+  let sheetPath = null;
+  if (wb && wbRels) {
+    const first = parseXml(await entryText(wb)).getElementsByTagNameNS(NS, "sheet")[0];
+    const rid = first?.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id");
+    const rel = [...parseXml(await entryText(wbRels)).getElementsByTagName("Relationship")].find(r => r.getAttribute("Id") === rid);
+    if (rel) { const target = rel.getAttribute("Target"); sheetPath = target.startsWith("/") ? target.slice(1) : "xl/" + target.replace(/^\.\//, ""); }
+  }
+  if (!sheetPath || !byName(sheetPath)) sheetPath = entries.map(e => e.name).filter(n => /^xl\/worksheets\/sheet\d+\.xml$/.test(n)).sort()[0];
+  if (!sheetPath) throw new Error("In der Datei steckt kein Tabellenblatt.");
+  const sst = byName("xl/sharedStrings.xml");
+  const shared = sst ? [...parseXml(await entryText(sst)).getElementsByTagNameNS(NS, "si")].map(si => [...si.getElementsByTagNameNS(NS, "t")].map(t => t.textContent).join("")) : [];
+  const doc = parseXml(await entryText(byName(sheetPath)));
+  book = { name, entries, sheetPath, doc, shared };
+  buildGrid();
+}
+
+function buildGrid() {
+  const rows = [];
+  let maxCol = 0;
+  for (const r of book.doc.getElementsByTagNameNS(NS, "row")) {
+    const cells = {};
+    for (const c of r.getElementsByTagNameNS(NS, "c")) {
+      const ref = splitRef(c.getAttribute("r") || "");
+      if (!ref) continue;
+      cells[ref.col] = cellText(c, book.shared);
+      maxCol = Math.max(maxCol, ref.col);
+    }
+    rows.push({ r: +r.getAttribute("r"), cells });
+  }
+  if (!rows.length) throw new Error("Das Tabellenblatt ist leer.");
+  // Kopfzeile = erste Zeile mit mindestens zwei Texten, bevorzugt eine mit „Vormittags“.
+  const isHead = (row) => Object.values(row.cells).some(v => /vormittag|nachmittag|anmerkung/i.test(v));
+  let hi = rows.findIndex(isHead);
+  if (hi < 0) hi = rows.findIndex(row => Object.values(row.cells).filter(v => v.trim()).length >= 2);
+  if (hi < 0) hi = 0;
+  const header = rows[hi], body = rows.slice(hi + 1).filter(row => Object.values(row.cells).some(v => v.trim()));
+  const cols = Array.from({ length: maxCol }, (_, i) => i + 1);
+  const headText = (c) => (header.cells[c] || "").trim();
+  const dayCol = cols.find(c => /^tag$/i.test(headText(c))) ?? cols.find(c => body.filter(r => /^\d{1,2}$/.test(r.cells[c] || "")).length > body.length / 2);
+  const wdCol = cols.find(c => body.filter(r => /^(mo|di|mi|do|fr|sa|so)/i.test(r.cells[c] || "")).length > body.length / 2);
+  let inputCols = cols.filter(c => /vormittag|nachmittag|abend|anmerkung|früh|spät/i.test(headText(c)));
+  if (!inputCols.length) inputCols = cols.filter(c => c !== dayCol && c !== wdCol && !/uhrzeit|zeit/i.test(headText(c)));
+  grid = { rows: body, header, cols, inputCols, dayCol, wdCol, headText };
+  edits = new Map(); original.clear(); selected = new Set(); undoStack.length = 0;
+  for (const row of body) for (const c of inputCols) original.set(colName(c) + row.r, row.cells[c] || "");
+  colFilter = new Set(inputCols.filter(c => /vormittag|nachmittag|abend|früh|spät/i.test(headText(c))));
+  if (!colFilter.size) colFilter = new Set(inputCols);
+  render();
+}
+
+const valueOf = (ref) => edits.has(ref) ? edits.get(ref) : (original.get(ref) ?? "");
+const weekdayOf = (row) => { const m = /^(mo|di|mi|do|fr|sa|so)/i.exec(row.cells[grid.wdCol] || ""); return m ? m[1][0].toUpperCase() + m[1][1].toLowerCase() : null; };
+const dayOf = (row) => parseInt(row.cells[grid.dayCol], 10);
+
+// ---------- Oberfläche ----------
+function render() {
+  const t = $("grid");
+  t.textContent = "";
+  const thead = t.createTHead().insertRow();
+  for (const c of grid.cols) {
+    const th = document.createElement("th");
+    th.textContent = grid.headText(c) || colName(c);
+    if (grid.inputCols.includes(c)) { th.className = "in"; th.dataset.col = c; th.title = "Ganze Spalte auswählen"; }
+    thead.appendChild(th);
+  }
+  const tb = t.createTBody();
+  for (const row of grid.rows) {
+    const tr = tb.insertRow();
+    if (["Sa", "So"].includes(weekdayOf(row))) tr.className = "we";
+    for (const c of grid.cols) {
+      const td = tr.insertCell();
+      if (grid.inputCols.includes(c)) {
+        const ref = colName(c) + row.r;
+        td.className = "in"; td.dataset.ref = ref;
+        paintCell(td);
+      } else {
+        td.className = c === grid.dayCol || c === grid.wdCol ? "ro day" : "ro";
+        if (c === grid.dayCol || c === grid.wdCol) { td.dataset.row = row.r; td.title = "Ganze Zeile auswählen"; }
+        td.textContent = row.cells[c] || "";
+      }
+    }
+  }
+  $("cols").textContent = "";
+  for (const c of grid.inputCols) {
+    const b = chip(grid.headText(c) || colName(c), () => { colFilter.has(c) ? colFilter.delete(c) : colFilter.add(c); b.setAttribute("aria-pressed", colFilter.has(c)); });
+    b.setAttribute("aria-pressed", colFilter.has(c));
+    $("cols").appendChild(b);
+  }
+  $("wd").textContent = "";
+  const groups = [...WEEKDAYS.map(w => [w, (r) => weekdayOf(r) === w]), ["Werktags", (r) => !["Sa", "So", null].includes(weekdayOf(r))], ["Wochenende", (r) => ["Sa", "So"].includes(weekdayOf(r))], ["Alle", () => true]];
+  for (const [label, pred] of groups) {
+    if (grid.wdCol == null && label !== "Alle") continue;
+    $("wd").appendChild(chip(label, () => selectRows(grid.rows.filter(pred))));
+  }
+  $("fileinfo").textContent = book.name + (book.sample ? " (Vorlage)" : "");
+  $("save").disabled = false;
+  updateCount();
+}
+function chip(label, onClick) {
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "chip"; b.textContent = label;
+  b.addEventListener("click", onClick);
+  return b;
+}
+function paintCell(td) {
+  const ref = td.dataset.ref, v = valueOf(ref);
+  td.textContent = v;
+  td.classList.toggle("has", v.trim() !== "");
+  td.classList.toggle("sel", selected.has(ref));
+}
+function repaint() { for (const td of $("grid").querySelectorAll("td.in")) paintCell(td); updateCount(); }
+function updateCount() {
+  const n = selected.size, changed = [...edits].filter(([k, v]) => v !== (original.get(k) ?? "")).length;
+  $("count").textContent = (n ? `${n} ${n === 1 ? "Feld" : "Felder"} markiert` : "Keine Felder markiert") + (changed ? ` · ${changed} geändert` : "");
+  $("apply").disabled = $("clear").disabled = !n;
+  $("undo").disabled = !undoStack.length;
+}
+function selectRows(rows) {
+  const cols = [...colFilter];
+  if (!cols.length) return toast("Wähle oben mindestens eine Spalte.");
+  const refs = rows.flatMap(r => cols.map(c => colName(c) + r.r));
+  const allIn = refs.length && refs.every(r => selected.has(r));
+  for (const r of refs) allIn ? selected.delete(r) : selected.add(r);
+  afterSelect();
+}
+function afterSelect() {
+  repaint();
+  if (selected.size === 1) $("text").value = valueOf([...selected][0]);
+}
+
+// Antippen schaltet um, Ziehen mit der Maus markiert ein Rechteck, Umschalt-Klick vom letzten Feld aus.
+let drag = null, anchor = null;
+function rectRefs(a, b) {
+  const pa = splitRef(a), pb = splitRef(b);
+  const cols = grid.inputCols.filter(c => c >= Math.min(pa.col, pb.col) && c <= Math.max(pa.col, pb.col));
+  const rows = grid.rows.filter(r => r.r >= Math.min(pa.row, pb.row) && r.r <= Math.max(pa.row, pb.row));
+  return rows.flatMap(r => cols.map(c => colName(c) + r.r));
+}
+$("grid").addEventListener("pointerdown", (ev) => {
+  const td = ev.target.closest("td.in");
+  if (!td) return;
+  const ref = td.dataset.ref;
+  if (ev.shiftKey && anchor) { for (const r of rectRefs(anchor, ref)) selected.add(r); afterSelect(); return; }
+  if (ev.pointerType !== "mouse") { drag = null; return; }
+  ev.preventDefault();
+  drag = { start: ref, add: !selected.has(ref), base: new Set(selected) };
+  drag.add ? selected.add(ref) : selected.delete(ref);
+  repaint();
+});
+$("grid").addEventListener("pointerover", (ev) => {
+  if (!drag) return;
+  const td = ev.target.closest("td.in");
+  if (!td) return;
+  selected = new Set(drag.base);
+  for (const r of rectRefs(drag.start, td.dataset.ref)) drag.add ? selected.add(r) : selected.delete(r);
+  repaint();
+});
+window.addEventListener("pointerup", () => { if (drag) { anchor = drag.start; drag = null; afterSelect(); } });
+$("grid").addEventListener("click", (ev) => {
+  const th = ev.target.closest("th.in");
+  if (th) {
+    const c = +th.dataset.col, refs = grid.rows.map(r => colName(c) + r.r), allIn = refs.every(r => selected.has(r));
+    for (const r of refs) allIn ? selected.delete(r) : selected.add(r);
+    return afterSelect();
+  }
+  const day = ev.target.closest("td.day");
+  if (day) return selectRows(grid.rows.filter(r => r.r === +day.dataset.row));
+  // Touch/Stift: hier umschalten (die Maus erledigt das schon bei pointerdown).
+  const td = ev.target.closest("td.in");
+  if (td && !ev.shiftKey && lastPointer !== "mouse") {
+    const ref = td.dataset.ref;
+    selected.has(ref) ? selected.delete(ref) : selected.add(ref);
+    anchor = ref;
+    afterSelect();
+  }
+});
+let lastPointer = "mouse";
+$("grid").addEventListener("pointerdown", (ev) => { lastPointer = ev.pointerType; }, true);
+
+$("none").addEventListener("click", () => { selected.clear(); afterSelect(); });
+function parseDays(s) {
+  const out = new Set();
+  for (const part of s.split(/[,;\s]+/).filter(Boolean)) {
+    const m = /^(\d{1,2})(?:\s*[-–]\s*(\d{1,2}))?\.?$/.exec(part);
+    if (!m) return null;
+    const a = +m[1], b = m[2] ? +m[2] : a;
+    for (let d = Math.min(a, b); d <= Math.max(a, b); d++) out.add(d);
+  }
+  return out;
+}
+function selectDays() {
+  const days = parseDays($("days").value.trim());
+  if (!days || !days.size) return toast("Schreib die Tage z. B. als 3-7, 12, 20");
+  if (grid.dayCol == null) return toast("In dieser Datei gibt es keine Spalte „Tag“.");
+  selectRows(grid.rows.filter(r => days.has(dayOf(r))));
+}
+$("daysgo").addEventListener("click", selectDays);
+$("days").addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); selectDays(); } });
+
+function setSelected(text) {
+  if (!selected.size) return;
+  const before = new Map([...selected].map(r => [r, edits.has(r) ? edits.get(r) : undefined]));
+  undoStack.push(before);
+  for (const r of selected) edits.set(r, text);
+  selected.clear();
+  repaint();
+}
+$("form").addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  if (!selected.size) return toast("Markiere zuerst Felder in der Tabelle.");
+  const text = $("text").value.trim();
+  const n = selected.size;
+  setSelected(text);
+  if (text) remember(text);
+  toast(text ? `„${text}“ in ${n} ${n === 1 ? "Feld" : "Felder"} eingetragen` : `${n} ${n === 1 ? "Feld" : "Felder"} geleert`);
+});
+$("clear").addEventListener("click", () => { const n = selected.size; setSelected(""); toast(`${n} ${n === 1 ? "Feld" : "Felder"} geleert`); });
+$("undo").addEventListener("click", () => {
+  const before = undoStack.pop();
+  if (!before) return;
+  for (const [r, v] of before) v === undefined ? edits.delete(r) : edits.set(r, v);
+  repaint();
+});
+
+// Zuletzt benutzte Texte (nur in diesem Browser).
+const RECENT_KEY = "verfuegbarkeit.recent";
+function loadRecent() { try { const v = JSON.parse(localStorage.getItem(RECENT_KEY) || "[]"); return Array.isArray(v) ? v.filter(x => typeof x === "string") : []; } catch { return []; } }
+function remember(text) {
+  const list = [text, ...loadRecent().filter(x => x !== text)].slice(0, 8);
+  try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch { /* Speicher gesperrt: Liste gilt nur für diese Sitzung */ }
+  renderRecent(list);
+}
+function renderRecent(list = loadRecent()) {
+  $("recent").textContent = "";
+  for (const t of list) $("recent").appendChild(chip(t, () => { $("text").value = t; if (selected.size) $("form").requestSubmit(); else $("text").focus(); }));
+}
+
+let toastTimer = 0;
+function toast(msg) {
+  let el = document.querySelector(".toast");
+  if (!el) { el = document.createElement("div"); el.className = "toast"; el.setAttribute("role", "status"); document.body.appendChild(el); }
+  el.textContent = msg; el.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 2600);
+}
+function showError(e) { $("error").textContent = e?.message || String(e); $("error").hidden = false; }
+
+// ---------- Speichern ----------
+function setCell(rowEl, ref, text) {
+  const { col } = splitRef(ref);
+  let c = [...rowEl.getElementsByTagNameNS(NS, "c")].find(x => x.getAttribute("r") === ref);
+  if (!c) {
+    c = book.doc.createElementNS(NS, "c");
+    c.setAttribute("r", ref);
+    const next = [...rowEl.getElementsByTagNameNS(NS, "c")].find(x => (splitRef(x.getAttribute("r") || "")?.col ?? 0) > col);
+    rowEl.insertBefore(c, next || null);
+  }
+  while (c.firstChild) c.removeChild(c.firstChild);
+  c.removeAttribute("t");
+  if (!text) return;
+  c.setAttribute("t", "inlineStr");
+  const is = book.doc.createElementNS(NS, "is"), t = book.doc.createElementNS(NS, "t");
+  t.setAttributeNS("http://www.w3.org/XML/1998/namespace", "xml:space", "preserve");
+  t.textContent = text;
+  is.appendChild(t); c.appendChild(is);
+}
+// Spalten verbreitern, damit eingetragener Text sichtbar bleibt (Excel-Breite ≈ Zeichenzahl).
+function widenColumns(changed) {
+  const need = new Map();
+  for (const [ref, text] of changed) { const { col } = splitRef(ref); need.set(col, Math.max(need.get(col) || 0, Math.min(40, text.length * 1.1 + 2))); }
+  const ws = book.doc.documentElement;
+  let colsEl = ws.getElementsByTagNameNS(NS, "cols")[0];
+  if (!colsEl) {
+    colsEl = book.doc.createElementNS(NS, "cols");
+    const sheetData = ws.getElementsByTagNameNS(NS, "sheetData")[0];
+    ws.insertBefore(colsEl, sheetData);
+  }
+  const fmt = book.doc.getElementsByTagNameNS(NS, "sheetFormatPr")[0];
+  const defWidth = parseFloat(fmt?.getAttribute("defaultColWidth") || fmt?.getAttribute("baseColWidth") || "8.43") + 0.7;
+  for (const [col, width] of need) {
+    let el = [...colsEl.getElementsByTagNameNS(NS, "col")].find(x => +x.getAttribute("min") <= col && +x.getAttribute("max") >= col);
+    if (!el) {
+      if (width <= defWidth) continue;
+      el = book.doc.createElementNS(NS, "col");
+      el.setAttribute("min", col); el.setAttribute("max", col); el.setAttribute("width", width.toFixed(2)); el.setAttribute("customWidth", "1");
+      const next = [...colsEl.getElementsByTagNameNS(NS, "col")].find(x => +x.getAttribute("min") > col);
+      colsEl.insertBefore(el, next || null);
+      continue;
+    }
+    if (parseFloat(el.getAttribute("width") || "0") >= width) continue;
+    const min = +el.getAttribute("min"), max = +el.getAttribute("max");
+    // Bereich aufteilen, damit nur diese Spalte breiter wird.
+    if (min < col) { const a = el.cloneNode(); a.setAttribute("max", col - 1); colsEl.insertBefore(a, el); }
+    if (max > col) { const b = el.cloneNode(); b.setAttribute("min", col + 1); colsEl.insertBefore(b, el.nextSibling); }
+    el.setAttribute("min", col); el.setAttribute("max", col);
+    el.setAttribute("width", width.toFixed(2)); el.setAttribute("customWidth", "1");
+  }
+}
+async function buildFile() {
+  const changed = [...edits].filter(([k, v]) => v !== (original.get(k) ?? ""));
+  const rowsByNum = new Map([...book.doc.getElementsByTagNameNS(NS, "row")].map(r => [+r.getAttribute("r"), r]));
+  for (const [ref, text] of changed) setCell(rowsByNum.get(splitRef(ref).row), ref, text);
+  if (changed.length) widenColumns(changed.filter(([, t]) => t));
+  let xml = new XMLSerializer().serializeToString(book.doc);
+  if (!xml.startsWith("<?xml")) xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' + xml;
+  // Neuberechnung beim Öffnen erzwingen ist nicht nötig; calcChain bleibt unverändert, da keine Formeln entstehen.
+  const out = [];
+  for (const e of book.entries) out.push(e.name === book.sheetPath ? await makeEntry(e, xml) : e);
+  // Gespeicherte Werte werden neue Ausgangslage, damit erneutes Speichern konsistent bleibt.
+  for (const [ref, text] of changed) original.set(ref, text);
+  edits = new Map();
+  book.entries = out;
+  return writeZip(out);
+}
+function outName() { return book.name.replace(/\.xlsx$/i, "") + ".xlsx"; }
+$("save").addEventListener("click", async () => {
+  const btn = $("save");
+  btn.disabled = true;
+  try {
+    const blob = await buildFile();
+    updateCount();
+    const downloads = window.claude?.use ? await Promise.race([window.claude.use("downloads"), new Promise(r => setTimeout(() => r(null), 3000))]) : null;
+    if (downloads) {
+      try { await downloads.save({ filename: outName(), data: blob }); toast("Gespeichert"); }
+      catch (e) { if (e?.code !== "declined") toast(e?.code === "rate_limited" ? "Bitte kurz warten und nochmal speichern." : "Speichern ist in dieser Ansicht nicht möglich."); }
+    } else {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = outName();
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+      toast("Datei gespeichert: " + outName());
+    }
+  } catch (e) { showError(e); }
+  finally { btn.disabled = false; }
+});
+
+// ---------- Datei laden ----------
+async function loadFile(name, buf, sample = false) {
+  $("error").hidden = true;
+  try { await openBook(name, buf); book.sample = sample; render(); }
+  catch (e) { showError(e); }
+}
+$("file").addEventListener("change", async (ev) => {
+  const f = ev.target.files?.[0];
+  if (!f) return;
+  await loadFile(f.name, await f.arrayBuffer());
+  ev.target.value = "";
+});
+document.addEventListener("dragover", (ev) => ev.preventDefault());
+document.addEventListener("drop", async (ev) => {
+  ev.preventDefault();
+  const f = ev.dataTransfer?.files?.[0];
+  if (f) await loadFile(f.name, await f.arrayBuffer());
+});
+
+renderRecent();
+if (typeof DecompressionStream !== "function") showError("Dieser Browser ist zu alt. Bitte Safari 16.4+, Chrome oder Firefox nehmen.");
+else loadFile(SAMPLE.name, Uint8Array.from(atob(SAMPLE.b64), ch => ch.charCodeAt(0)).buffer, true);
+</script>
