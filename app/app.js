@@ -759,6 +759,8 @@ export function mount(container, opts = {}) {
     checkout: null,      // offenes Auschecken-Fenster
     timesMonth: null, timesPerson: null, timesData: null, timesEdit: null, timesAll: false,
     checks: {}, notes: {}, prevNotes: {},
+    read: {},            // Übergabe gelesen: { <Empfänger-Schicht>: { by, at, noteAt } } – noteAt = Stand der gelesenen Notiz
+    handPop: null,       // Schicht, deren wichtige Übergabe gerade als Fenster angezeigt wird
     logs: {},            // Daueraufgaben: { frueh|spaet: { <id>: { <key>: {at, by} | null } } }
     dayPlan: null,       // Tagesanpassung (normalisiert) oder null
     cfg: { base: null, weekday: {}, people: [], roster: {}, adminPin: null }, // Pläne, Team, Dienstplan, Leitungs-PIN
@@ -838,6 +840,7 @@ export function mount(container, opts = {}) {
   function applyDoc(data) {
     state.checks = (data && data.checks && typeof data.checks === "object") ? data.checks : {};
     state.notes = (data && data.notes && typeof data.notes === "object") ? data.notes : {};
+    state.read = (data && data.read && typeof data.read === "object") ? data.read : {};
     state.logs = (data && data.logs && typeof data.logs === "object") ? data.logs : {};
     state.time = normTime(data && data.time);
     state.dayPlan = data ? normalizePlan(data.plan) : null;
@@ -882,7 +885,7 @@ export function mount(container, opts = {}) {
   }
 
   function currentDayDoc() {
-    return { month: state.date.slice(0, 7), checks: state.checks, notes: state.notes, logs: state.logs, time: state.time, plan: state.dayPlan };
+    return { month: state.date.slice(0, 7), checks: state.checks, notes: state.notes, read: state.read, logs: state.logs, time: state.time, plan: state.dayPlan };
   }
 
   async function loadPrevNotes() {
@@ -1015,12 +1018,45 @@ export function mount(container, opts = {}) {
     if (el) el.textContent = "Speichert…";
     noteTimers[shift] = setTimeout(async () => {
       if (date !== state.date) return;
-      const val = { text: text.slice(0, 4000), by: actorId(), at: new Date().toISOString() };
+      const prev = state.notes[shift];
+      const val = { text: text.slice(0, 4000), by: actorId(), at: new Date().toISOString(), important: !!(prev && prev.important) };
       state.notes = { ...state.notes, [shift]: val };
       const ok = await persistDay(date, { notes: { [shift]: val } });
       const el2 = $("saved-" + shift);
       if (el2) el2.textContent = ok ? "Gespeichert " + fmtTime(val.at) : "Nicht gespeichert";
     }, 700);
+  }
+
+  // „Wichtig“ umschalten, ohne den Zeitstempel zu ändern (eine schon gelesene Notiz bleibt gelesen).
+  function setNoteImportant(shift, on) {
+    const prev = state.notes[shift] || { text: "", by: actorId(), at: new Date().toISOString() };
+    const val = { ...prev, important: !!on };
+    state.notes = { ...state.notes, [shift]: val };
+    persistDay(state.date, { notes: { [shift]: val } });
+    render();
+  }
+
+  // Übergabe an die Schicht key: Früh liest die Spät-Notiz vom Vortag, Spät die Früh-Notiz von heute.
+  function handIn(key) {
+    const n = key === "frueh" ? state.prevNotes.spaet : state.notes.frueh;
+    return n && typeof n.text === "string" && n.text.trim() ? n : null;
+  }
+  function handRead(key, n = handIn(key)) {
+    const r = state.read && state.read[key];
+    return n && r && r.noteAt === n.at ? r : null;
+  }
+  function markHandRead(key) {
+    const n = handIn(key); if (!n) return;
+    const val = { by: actorId(), at: new Date().toISOString(), noteAt: n.at };
+    state.read = { ...state.read, [key]: val };
+    persistDay(state.date, { read: { [key]: val } });
+  }
+  // Nach dem Einchecken: wichtige, ungelesene Übergabe der eigenen Schicht als Fenster zeigen.
+  function maybeShowHandover(role) {
+    if (state.date !== isoDate(new Date())) return;
+    const key = KEYS.includes(role) ? role : activeShift(P(), timeCtx());
+    const n = key && handIn(key);
+    if (n && n.important && !handRead(key, n)) { state.handPop = key; renderRemind(); }
   }
 
   // ---------- Personen ----------
@@ -1274,21 +1310,31 @@ export function mount(container, opts = {}) {
     const name = personName(n.by);
     return ` · ${fmtTime(n.at)}${name ? " · " + esc(name) : ""}`;
   }
-  function noteEditor(shift, label) {
-    const n = state.notes[shift];
-    return `<div class="note"><label for="note-${shift}">${esc(label)}</label>
-      <textarea id="note-${shift}" data-note="${shift}" placeholder="z. B. offene Check-ins, defekte Schläger, Rückrufe…" ${state.readOnly ? "readonly" : ""}>${esc((n && n.text) || "")}</textarea>
-      <span class="saved" id="saved-${shift}">${n && n.at ? "Gespeichert" + noteAuthor(n) : ""}</span></div>`;
+  function readLine(r) {
+    const name = personName(r.by);
+    return `Gelesen ${fmtTime(r.at)}${name ? " · " + esc(name) : ""}`;
   }
-  function noteReader(n, label) {
-    const has = n && typeof n.text === "string" && n.text.trim();
-    return `<div class="note"><label>${esc(label)}${has ? noteAuthor(n) : ""}</label>
-      <div class="read${has ? "" : " none"}">${has ? esc(n.text) : "Keine Notiz hinterlassen."}</div></div>`;
+  function noteEditor(shift, label) {
+    const n = state.notes[shift], imp = !!(n && n.important);
+    // Lesebestätigung der Spätschicht sieht die Frühschicht noch am selben Tag; die Spät-Notiz liest erst morgen jemand.
+    const r = shift === "frueh" ? handRead("spaet") : null;
+    return `<div class="note"><div class="nhead"><label for="note-${shift}">${esc(label)}</label>
+        <label class="impchk${imp ? " on" : ""}"><input type="checkbox" data-noteimp="${shift}" ${imp ? "checked" : ""} ${state.readOnly ? "disabled" : ""}> Wichtig</label></div>
+      <textarea id="note-${shift}" data-note="${shift}" placeholder="z. B. offene Check-ins, defekte Schläger, Rückrufe…" ${state.readOnly ? "readonly" : ""}>${esc((n && n.text) || "")}</textarea>
+      <span class="saved" id="saved-${shift}">${n && n.at ? "Gespeichert" + noteAuthor(n) : ""}${r ? ` · <b class="okread">✓ ${readLine(r)}</b>` : ""}</span></div>`;
+  }
+  function noteReader(key, label) {
+    const n = handIn(key), r = n && handRead(key, n), wasRead = n && state.read && state.read[key];
+    const canMark = n && !r && state.date === isoDate(new Date()) && !state.readOnly;
+    const foot = !n ? "" : r ? `<div class="rfoot"><b class="okread">✓ ${readLine(r)}</b></div>`
+      : `<div class="rfoot"><span>${wasRead ? "Nach dem Lesen geändert" : "Noch nicht gelesen"}</span>${canMark ? `<button class="btn primary sm" data-hread="${key}">Gelesen</button>` : ""}</div>`;
+    return `<div class="note"><label>${n && n.important ? '<span class="imptag">Wichtig</span> ' : ""}${esc(label)}${n ? noteAuthor(n) : ""}</label>
+      <div class="read${n ? (n.important && !r ? " imp" : "") : " none"}">${n ? esc(n.text) : "Keine Notiz hinterlassen."}</div>${foot}</div>`;
   }
   function handoverHtml(key) {
     return key === "frueh"
-      ? noteReader(state.prevNotes.spaet, "Von der Spätschicht (gestern)") + noteEditor("frueh", "Für die Spätschicht")
-      : noteReader(state.notes.frueh, "Von der Frühschicht") + noteEditor("spaet", "Für die Frühschicht morgen");
+      ? noteReader("frueh", "Von der Spätschicht (gestern)") + noteEditor("frueh", "Für die Spätschicht")
+      : noteReader("spaet", "Von der Frühschicht") + noteEditor("spaet", "Für die Frühschicht morgen");
   }
 
   function dutyLine(date) {
@@ -2053,6 +2099,7 @@ export function mount(container, opts = {}) {
     state.pickerOpen = false; renderPicker(); render();
     setStatus(`${personName(c.pid)} eingecheckt um ${entry.in}`);
     autoBackup("shift");
+    maybeShowHandover(c.role);
   }
 
   // ---------- Auschecken ----------
@@ -2151,13 +2198,25 @@ export function mount(container, opts = {}) {
     return pending.length ? { key, pending, end: plan[key].end } : null;
   }
   function maybeRemind() {
-    if (state.checkout || state.pickerOpen || state.remindOpen || Date.now() < state.remindSnoozeUntil) return;
+    if (state.checkout || state.handPop || state.pickerOpen || state.remindOpen || Date.now() < state.remindSnoozeUntil) return;
     if (!["schicht", "dienst", "monat"].includes(state.view)) return;
     if (remindTarget()) { state.remindOpen = true; renderRemind(); }
   }
   function renderRemind() {
     if (state.checkout) return;
     const el = $("remind");
+    const hk = state.handPop, hn = hk && handIn(hk);
+    if (hn && hn.important && !handRead(hk, hn)) {
+      el.hidden = false;
+      el.innerHTML = `<div class="overlay" role="dialog" aria-modal="true" aria-labelledby="hand-title"><div class="dialog">
+        <h2 id="hand-title"><span class="imptag">Wichtig</span> Übergabe ${hk === "frueh" ? "von der Spätschicht (gestern)" : "von der Frühschicht"}</h2>
+        <div class="handpop">${esc(hn.text)}</div>
+        <p class="hint">${noteAuthor(hn).replace(/^ · /, "")}</p>
+        <div class="row"><button class="btn ghost" data-hlater="1">Später</button><button class="btn primary" data-hread="${hk}">Gelesen</button></div>
+      </div></div>`;
+      return;
+    }
+    state.handPop = null;
     const t = state.remindOpen ? remindTarget() : null;
     if (!t) { state.remindOpen = false; el.hidden = true; el.innerHTML = ""; return; }
     el.hidden = false;
@@ -2171,6 +2230,8 @@ export function mount(container, opts = {}) {
   $("remind").addEventListener("click", (e) => {
     const b = e.target.closest("button");
     if (!b) return;
+    if (b.dataset.hread) { markHandRead(b.dataset.hread); state.handPop = null; renderRemind(); render(); return; }
+    if (b.dataset.hlater) { state.handPop = null; renderRemind(); return; }
     if (b.dataset.rconfirm) { logAlways(b.dataset.shift, b.dataset.rconfirm); renderRemind(); return; }
     if (b.dataset.rsnooze) { state.remindOpen = false; state.remindSnoozeUntil = Date.now() + 10 * 60000; renderRemind(); }
   });
@@ -2721,6 +2782,7 @@ export function mount(container, opts = {}) {
     }
     if (t.dataset.rday) { if (isUnlocked()) { state.unlockedUntil = Date.now() + 10 * 60000; state.rosterDay = t.dataset.rday; render(); } return; }
     if (t.dataset.shiftsel) { const k = t.dataset.shiftsel; const plan = P(); state.shiftSel = k === focusShift(plan, timeCtx()) ? null : k; state.expanded.clear(); scrolledOnce = false; render(); return; }
+    if (t.dataset.hread) { markHandRead(t.dataset.hread); render(); return; }
     if (t.dataset.log) return logAlways(t.dataset.shift, t.dataset.log);
     if (t.dataset.unlog) return unlogAlways(t.dataset.shift, t.dataset.unlog);
     if (t.dataset.toggle) { const id = t.dataset.toggle; state.expanded.has(id) ? state.expanded.delete(id) : state.expanded.add(id); render(); return; }
@@ -2760,6 +2822,7 @@ export function mount(container, opts = {}) {
     if (el.dataset.path && state.draft && el.type !== "checkbox") { const { parent, key } = getRef(el.dataset.path); parent[key] = el.value; markDirty(); }
   });
   main.addEventListener("change", (e) => {
+    if (e.target.dataset && e.target.dataset.noteimp) return setNoteImportant(e.target.dataset.noteimp, e.target.checked);
     const el = e.target;
     if (!state.draft) return;
     if (el.dataset.path && el.type === "checkbox") { const { parent, key } = getRef(el.dataset.path); parent[key] = el.checked; markDirty(); return; }

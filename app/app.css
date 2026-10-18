@@ -137,6 +137,16 @@ li.na .skip { color: var(--ink); background: var(--surface-2) }
 .note .read { background: var(--now-soft); border-radius: 8px; padding: 7px 9px; white-space: pre-wrap; overflow-wrap: anywhere }
 .note .read.none { background: var(--surface-2); color: var(--muted) }
 .note .saved { font-size: 11px; color: var(--muted); min-height: 14px }
+.note .nhead { display: flex; align-items: center; justify-content: space-between; gap: 8px }
+.impchk { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer }
+.impchk.on { color: var(--warn) }
+.impchk input { accent-color: var(--warn); margin: 0 }
+.imptag { display: inline-block; background: var(--warn); color: #fff; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; border-radius: 4px; padding: 1px 5px; vertical-align: 1px }
+.note .read.imp { background: var(--warn-soft); border: 1px solid var(--warn) }
+.note .rfoot { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); min-height: 26px }
+.note .rfoot .btn { padding: 4px 12px; min-height: 0; font-size: 13px }
+.okread { color: var(--done); font-weight: 600 }
+.handpop { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--warn-soft); border: 1px solid var(--warn); border-radius: 10px; padding: 12px 14px; font-size: 16px; max-height: 50vh; overflow: auto }
 
 /* Übersicht */
 .dash { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-top: 12px }
