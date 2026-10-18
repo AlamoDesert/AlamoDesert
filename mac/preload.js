@@ -8,4 +8,5 @@ contextBridge.exposeInMainWorld("rezeptionNative", {
   saveBackup: (text, date) => ipcRenderer.invoke("rz:saveBackup", text, date),
   openBackupDir: () => ipcRenderer.invoke("rz:openBackupDir"),
   setAutoStart: (on) => ipcRenderer.invoke("rz:setAutoStart", !!on),
+  saveExport: (name, bytes) => ipcRenderer.invoke("rz:saveExport", name, bytes),
 });

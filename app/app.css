@@ -311,6 +311,34 @@ ul.hints .sub { font-size: 12px; color: var(--muted) }
 .remlist li { display: flex; align-items: center; gap: 10px; justify-content: space-between; padding: 10px 12px; border: 1px solid var(--warn); border-radius: 10px; background: var(--warn-soft); font-weight: 600 }
 .dialog p.pwarn { color: var(--warn) }
 
+/* Ein-/Auschecken + Zeiten */
+.outbtn { height: 34px; padding: 0 12px; border-color: var(--warn); color: var(--warn); background: var(--surface) }
+.namebtn.inn { border-color: var(--done); background: var(--done-soft) }
+.namebtn.inn .av { background: var(--done); color: #fff }
+.trow { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center }
+.trow label { display: inline-flex; gap: 8px; align-items: center; font-weight: 600 }
+.trow.big { font-size: 17px }
+.trow select { font-size: 16px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2) }
+.trow.big select { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums }
+.tsel { display: inline-flex; gap: 4px; align-items: center }
+.tsel .mini { width: 34px; height: 34px; font-size: 18px }
+.quick { display: inline-flex; gap: 6px; flex-wrap: wrap }
+.quick .chip { font-size: 14px; padding: 6px 12px }
+.stale { border: 1px solid var(--warn); background: var(--warn-soft); border-radius: 10px; padding: 10px 12px; display: grid; gap: 8px; font-size: 14px }
+.times { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 12px; margin-top: 12px; align-items: start }
+.times .card .cbody { overflow: auto }
+.tscroll { max-height: calc(100vh - 240px) }
+.ttab { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums }
+.ttab th, .ttab td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap }
+.ttab thead th { position: sticky; top: 0; background: var(--surface-2); color: var(--muted); font-size: 12px; font-weight: 600 }
+.ttab td.num { font-weight: 700 }
+.ttab td.muted, .muted { color: var(--muted) }
+.ttab tr.openrow td { background: var(--now-soft) }
+.ttab .mini.edit { width: 28px }
+.tpick { margin-top: 12px; max-width: 760px }
+.tpick .cbody { padding: 12px }
+.monthhead select { font-size: 14px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface) }
+
 /* Arbeitsplan-Import */
 .roster .rtime { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; margin-bottom: 4px }
 .chip small { font-weight: 500; opacity: .8 }
@@ -371,6 +399,7 @@ ul.hints .sub { font-size: 12px; color: var(--muted) }
 @media (orientation: portrait), (max-width: 899px) {
   .dash { grid-template-columns: minmax(0, 1fr) }
   .shiftview, .schicht { grid-template-columns: minmax(0, 1fr) }
+  .times { grid-template-columns: minmax(0, 1fr) }
   .rcal { gap: 2px } .rcal .rc { min-height: 64px; padding: 3px 4px; font-size: 11px }
   .clock { font-size: 28px }
 }

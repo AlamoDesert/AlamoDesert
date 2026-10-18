@@ -2,7 +2,7 @@
 // Lädt die App über das eigene Schema rezeption://app/ (feste Herkunft → Daten bleiben dauerhaft im App-Speicher),
 // schreibt Sicherungen ohne Rückfrage nach ~/Dokumente/Rezeption Sicherungen und schaltet den Autostart.
 "use strict";
-const { app, BrowserWindow, ipcMain, protocol, net, shell, Menu } = require("electron");
+const { app, BrowserWindow, ipcMain, protocol, net, shell, Menu, dialog } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const { pathToFileURL } = require("node:url");
@@ -86,6 +86,22 @@ function registerIpc() {
     const dir = backupDir();
     fs.mkdirSync(dir, { recursive: true });
     await shell.openPath(dir);
+  });
+
+  // Export (Zeiten als PDF/XLSX): „Sichern unter“, Vorschlag ~/Dokumente/Rezeption Zeiten/<name>.
+  ipcMain.handle("rz:saveExport", async (_e, name, bytes) => {
+    try {
+      if (typeof name !== "string" || !/^[\w.\-ÄÖÜäöüß ]{1,120}\.(pdf|xlsx)$/.test(name)) throw new Error("Ungültiger Dateiname");
+      if (!(bytes instanceof Uint8Array) || bytes.length > 50 * 1024 * 1024) throw new Error("Ungültige Datei");
+      const dir = path.join(app.getPath("documents"), "Rezeption Zeiten");
+      fs.mkdirSync(dir, { recursive: true });
+      const r = await dialog.showSaveDialog(win, { defaultPath: path.join(dir, name), filters: [{ name: name.endsWith(".pdf") ? "PDF" : "Excel", extensions: [name.split(".").pop()] }] });
+      if (r.canceled || !r.filePath) return { ok: false, canceled: true };
+      fs.writeFileSync(r.filePath, Buffer.from(bytes));
+      return { ok: true, path: r.filePath };
+    } catch (err) {
+      return { ok: false, error: String((err && err.message) || err) };
+    }
   });
 
   ipcMain.handle("rz:setAutoStart", (_e, on) => {
