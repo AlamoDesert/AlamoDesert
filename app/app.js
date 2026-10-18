@@ -778,6 +778,7 @@ export function mount(container, opts = {}) {
     unlockedUntil: 0,    // Leitungsbereich entsperrt bis (ms)
     pinStage: null,      // { mode: "unlock"|"set", first?: string, next: view }
     rosterEdit: false,
+    rosterHi: "",        // Dienstplan: Name, dessen Tage hervorgehoben werden
     importPreview: null, // eingelesener Arbeitsplan vor dem Übernehmen
   };
   let db = null, user = null, myId = null, unsubDay = null, unsubMonth = null, unsubCfg = null, monthKey = null;
@@ -1468,8 +1469,9 @@ export function mount(container, opts = {}) {
     const today = isoDate(new Date()), edit = state.rosterEdit && isUnlocked();
     const line = (entry, k) => {
       const names = entry[k].map(personName).filter(Boolean).join(", ");
-      const note = entry.notes && entry.notes[k] ? ` <em>${esc(entry.notes[k])}</em>` : "";
-      return `<div class="rl"><b>${k === "frueh" ? "F" : "S"}</b><span class="${names ? "" : "gap"}">${names ? esc(names) : "–"}${note}</span></div>`;
+      const nt = entry.notes && entry.notes[k] ? entry.notes[k] : "";
+      const note = nt ? ` <em>${esc(nt)}</em>` : "";
+      return `<div class="rl" data-hay="${esc(`${names} ${nt}`.toLowerCase())}"${nt ? ` title="${esc(nt)}"` : ""}><b>${k === "frueh" ? "F" : "S"}</b><span class="${names ? "" : "gap"}">${names ? esc(names) : "–"}${note}</span></div>`;
     };
     const cells = [];
     for (let i = 0; i < lead; i++) cells.push(`<div class="rc blank"></div>`);
@@ -1484,7 +1486,8 @@ export function mount(container, opts = {}) {
       const chips = (k) => state.cfg.people.map(p => `<button class="chip${entry[k].includes(p.id) ? "" : " off"}" data-roster="${date}" data-shift="${k}" data-pid="${esc(p.id)}" aria-pressed="${entry[k].includes(p.id)}">${esc(p.name)}</button>`).join("") || '<span class="empty">Kein Team angelegt</span>';
       return `<div class="overlay inmain" role="dialog" aria-modal="true"><div class="dialog">
         <h2>${WD[dd.getDay()]}, ${pad(dd.getDate())}.${pad(dd.getMonth() + 1)}.</h2>
-        ${KEYS.map(k => `<div class="grp">${SHIFT_META[k].label}${entry.times && entry.times[k] ? " · " + esc(entry.times[k].replace("-", "–")) : ""}${entry.notes && entry.notes[k] ? " · " + esc(entry.notes[k]) : ""}</div><div class="cell">${chips(k)}</div>`).join("")}
+        ${KEYS.map(k => `<div class="grp">${SHIFT_META[k].label}${entry.times && entry.times[k] ? " · " + esc(entry.times[k].replace("-", "–")) : ""}</div><div class="cell">${chips(k)}</div>
+          <label class="rnote">Notiz <input class="in" data-rnote="${date}" data-shift="${k}" maxlength="80" value="${esc((entry.notes && entry.notes[k]) || "")}" placeholder="z. B. +Nia, ab 17 Uhr"></label>`).join("")}
         <div class="row"><button class="btn primary" data-act2="rday-close">Fertig</button></div>
       </div></div>`;
     })() : "";
@@ -1496,9 +1499,42 @@ export function mount(container, opts = {}) {
                : `<button class="btn" data-act2="roster-edit">Bearbeiten</button>`}
       </div>
       ${edit ? renderImportPreview() : ""}
+      <div class="rfind"><label>Hervorheben <input class="in" id="rhi" list="rhi-list" value="${esc(state.rosterHi)}" placeholder="Name eingeben" autocomplete="off"></label>
+        <datalist id="rhi-list">${state.cfg.people.map(p => `<option value="${esc(p.name)}">`).join("")}</datalist>
+        ${state.rosterHi ? `<button class="btn ghost sm" data-act2="rhi-clear">×</button>` : ""}<span id="rhicount" class="hint"></span></div>
       <div class="rcal">${["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].map(w => `<div class="rh">${w}</div>`).join("")}${cells.join("")}</div>
       <div class="legend">${edit ? "Tag antippen, um die Einteilung zu ändern." : "F = Frühschicht, S = Spätschicht. Bearbeiten braucht die Leitungs-PIN."}</div>
       ${dayEditor}`;
+  }
+  // Tage einer Person hervorheben: Treffer am Wortanfang in Namen und Notiz („ar“ → Arne, nicht Marc).
+  function applyRosterHi() {
+    const cal = root.querySelector(".rcal"); if (!cal) return;
+    const q = state.rosterHi.trim().toLowerCase();
+    const re = q ? new RegExp("(^|[^\\p{L}])" + q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "u") : null;
+    let days = 0; const per = { F: 0, S: 0 };
+    cal.querySelectorAll(".rc:not(.blank)").forEach(c => {
+      let any = false;
+      c.querySelectorAll(".rl").forEach(l => {
+        const hit = !!re && re.test(l.dataset.hay || "");
+        l.classList.toggle("hit", hit);
+        if (hit) { any = true; per[l.querySelector("b").textContent]++; }
+      });
+      if (any) days++;
+      c.classList.toggle("hit", any); c.classList.toggle("dim", !!re && !any);
+    });
+    const cnt = $("rhicount");
+    if (cnt) cnt.textContent = re ? `${days} Tag${days === 1 ? "" : "e"} · Früh ${per.F} · Spät ${per.S}` : "";
+  }
+  function setRosterNote(date, shift, text) {
+    const cur = rosterFor(date), notes = { ...(cur.notes || {}) }, t = String(text || "").trim().slice(0, 80);
+    if ((notes[shift] || "") === t) return;
+    if (t) notes[shift] = t; else delete notes[shift];
+    const entry = { ...cur, notes };
+    state.cfg = { ...state.cfg, roster: { ...state.cfg.roster, [date]: entry } };
+    // Leeres Objekt statt fehlendem Feld, damit der Merge eine gelöschte Notiz wirklich entfernt.
+    persistCfg({ roster: { [date]: { ...entry, notes: { frueh: notes.frueh || null, spaet: notes.spaet || null } } } });
+    // Kein render(): change feuert beim Klick auf „Fertig“ (Blur) – ein Neuaufbau würde diesen Klick verschlucken.
+    // Der Kalender aktualisiert sich beim Schließen des Fensters.
   }
   function toggleRoster(date, shift, pid) {
     const cur = rosterFor(date);
@@ -2656,6 +2692,7 @@ export function mount(container, opts = {}) {
     maybeAskPerson();
     maybeRemind();
     if (v === "schicht") scrollToNow();
+    if (v === "dienst") applyRosterHi();
   }
   // Querformat: aktuelle Spalte ins Bild holen.
   function scrollToNow() {
@@ -2731,6 +2768,7 @@ export function mount(container, opts = {}) {
       if (a === "roster-edit") { if (requireAdmin("dienst-edit")) { state.rosterEdit = true; render(); } return; }
       if (a === "roster-done") { state.rosterEdit = false; render(); return; }
       if (a === "rday-close") { state.rosterDay = null; render(); return; }
+      if (a === "rhi-clear") { state.rosterHi = ""; render(); return; }
       if (a === "t-all") { if (requireAdmin("zeiten-all")) { state.timesAll = true; state.timesPerson = ""; render(); } return; }
       if (a === "t-back") { state.timesPerson = null; render(); return; }
       if (a === "t-add") { if (isUnlocked()) { state.timesEdit = { id: null, date: state.date, e: { pid: (state.cfg.people[0] || {}).id, role: "frueh", in: "08:30", out: null, pause: 0 } }; render(); } return; }
@@ -2812,6 +2850,7 @@ export function mount(container, opts = {}) {
   });
   main.addEventListener("input", (e) => {
     const el = e.target;
+    if (el.id === "rhi") { state.rosterHi = el.value.slice(0, 40); return applyRosterHi(); }
     if (el.dataset.note) return queueNote(el.dataset.note, el.value);
     if (el.dataset.num && state.draft) {
       const n = parseInt(el.value, 10);
@@ -2823,6 +2862,7 @@ export function mount(container, opts = {}) {
   });
   main.addEventListener("change", (e) => {
     if (e.target.dataset && e.target.dataset.noteimp) return setNoteImportant(e.target.dataset.noteimp, e.target.checked);
+    if (e.target.dataset && e.target.dataset.rnote) return setRosterNote(e.target.dataset.rnote, e.target.dataset.shift, e.target.value);
     const el = e.target;
     if (!state.draft) return;
     if (el.dataset.path && el.type === "checkbox") { const { parent, key } = getRef(el.dataset.path); parent[key] = el.checked; markDirty(); return; }

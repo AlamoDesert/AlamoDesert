@@ -325,6 +325,14 @@ ul.hints .sub { font-size: 12px; color: var(--muted) }
 .rcal .rl span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 .rcal .rl span.gap { color: var(--warn) }
 .rcal .rl em { font-style: normal; color: var(--now); font-size: 11.5px }
+.rfind { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px }
+.rfind label { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; color: var(--muted) }
+.rfind .in { width: 200px }
+.rcal .rc.dim { opacity: .4 }
+.rcal .rc.hit { border-color: var(--now); box-shadow: inset 0 0 0 1px var(--now); background: var(--now-soft); opacity: 1 }
+.rcal .rl.hit span { font-weight: 700 }
+.rnote { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--now); margin: 4px 0 6px }
+.rnote .in { flex: 1; color: var(--now); border-color: var(--now) }
 .overlay.inmain .dialog .cell { display: flex; flex-wrap: wrap; gap: 6px }
 .remlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px }
 .remlist li { display: flex; align-items: center; gap: 10px; justify-content: space-between; padding: 10px 12px; border: 1px solid var(--warn); border-radius: 10px; background: var(--warn-soft); font-weight: 600 }
