@@ -1,4 +1,5 @@
 <title>Verfügbarkeiten eintragen</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,700&display=swap">
@@ -59,13 +60,49 @@ td.in:empty::after { content: "·"; color: var(--line) }
   padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)) }
 .bar .inner { max-width: 980px; margin: 0 auto; display: grid; gap: 8px }
 .bar form { display: flex; gap: 8px; flex-wrap: wrap }
-#text { flex: 1 1 220px; min-width: 0; font: inherit; font-size: 16px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg) }
-#count { color: var(--muted); font-size: .88rem }
+#text { flex: 1 1 0; min-width: 0; font: inherit; font-size: 16px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg) }
+#count { color: var(--muted); font-size: .84rem; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.tools { display: flex; gap: 8px; align-items: center }
+.tools button { min-height: 32px; padding: 4px 10px; font-size: .88rem }
+#recent { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-inline: -2px; padding: 2px }
+#recent .chip { flex: none }
+.m { display: none }
 #recent:empty { display: none }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(130px + env(safe-area-inset-bottom, 0px)); background: var(--fg); color: var(--bg);
   padding: 8px 14px; border-radius: 8px; font-size: .9rem; z-index: 6; max-width: calc(100% - 32px) }
 .err { color: var(--danger) }
-@media (prefers-reduced-motion: no-preference) { td.in { transition: background-color .12s } }
+.list { display: none }
+@media (max-width: 720px) {
+  body { padding-block: 12px 150px }
+  .wrap { gap: 10px }
+  h1 { font-size: 1.25rem }
+  .tablebox { display: none }
+  .list { display: grid; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden }
+  .lrow { display: grid; grid-template-columns: 44px repeat(var(--shifts, 2), minmax(0, 1fr)); gap: 6px; padding: 6px; border-bottom: 1px solid var(--line); align-items: stretch }
+  .lrow:last-child { border-bottom: 0 }
+  .lrow.we { background: var(--weekend) }
+  .lhead { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 2; background: var(--surface); font-size: .8rem; font-weight: 700; color: var(--muted); align-items: center }
+  .lhead button { min-height: 32px; padding: 4px 6px; color: var(--accent); font-weight: 700; font-size: .82rem; overflow-wrap: anywhere }
+  .lday { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2px; min-height: 0; font-size: .8rem; color: var(--muted); border-color: transparent; background: transparent }
+  .lday b { font-size: 1.05rem; color: var(--fg) }
+  .lshift { display: grid; gap: 4px; align-content: start; min-width: 0 }
+  .ltime { font-size: .74rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+  .lval, .lnote { border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; background: var(--surface); cursor: pointer; overflow-wrap: anywhere; -webkit-tap-highlight-color: transparent }
+  .lval { min-height: 38px; font-weight: 700 }
+  .lnote { min-height: 28px; padding-block: 3px; font-size: .84rem }
+  .lval.has, .lnote.has { background: var(--filled) }
+  .lval.sel, .lnote.sel { background: var(--sel); border-color: var(--sel-line); box-shadow: inset 0 0 0 1px var(--sel-line) }
+  .lval:empty::after { content: "–"; color: var(--muted); font-weight: 400; opacity: .5 }
+  .lnote:empty::after { content: "+ Anmerkung"; color: var(--muted); font-size: .78rem; opacity: .7 }
+  .label { min-width: 52px }
+  .m { display: block } .d { display: none }
+  .panel { padding: 10px; gap: 8px }
+  .bar { padding-top: 8px }
+  .bar .inner { gap: 6px }
+  .hint { font-size: .82rem }
+}
+.list { user-select: none; -webkit-user-select: none }
+@media (prefers-reduced-motion: no-preference) { td.in, .lval, .lnote { transition: background-color .12s } }
 </style>
 
 <div class="wrap">
@@ -88,10 +125,14 @@ td.in:empty::after { content: "·"; color: var(--line) }
       <button class="chip" type="button" id="daysgo">Auswählen</button>
       <button class="chip" type="button" id="none">Auswahl aufheben</button>
     </div>
-    <p class="hint">Felder antippen oder mit der Maus über mehrere ziehen. Ein Tipp auf die Spaltenüberschrift wählt die ganze Spalte, ein Tipp auf den Tag die ganze Zeile. Dann unten Text eingeben und „Eintragen“.</p>
+    <p class="hint m">Felder antippen (Tipp auf den Tag = ganze Zeile), dann unten Text eingeben und „Eintragen“.</p>
+    <p class="hint d">Felder antippen oder mit der Maus über mehrere ziehen. Ein Tipp auf die Spaltenüberschrift wählt die ganze Spalte, ein Tipp auf den Tag die ganze Zeile. Dann unten Text eingeben und „Eintragen“.</p>
   </section>
 
-  <div class="tablebox"><table id="grid"></table></div>
+  <div id="sheet">
+    <div class="tablebox"><table id="grid"></table></div>
+    <div class="list" id="list"></div>
+  </div>
   <p class="hint err" id="error" hidden></p>
 </div>
 
@@ -101,10 +142,12 @@ td.in:empty::after { content: "·"; color: var(--line) }
     <form id="form">
       <input id="text" type="text" autocomplete="off" placeholder="Text für die markierten Felder" aria-label="Text für die markierten Felder">
       <button class="primary" type="submit" id="apply">Eintragen</button>
+    </form>
+    <div class="tools">
+      <div id="count">Keine Felder markiert</div>
       <button type="button" id="clear">Leeren</button>
       <button type="button" id="undo" disabled>Rückgängig</button>
-    </form>
-    <div id="count">Keine Felder markiert</div>
+    </div>
   </div>
 </div>
 
@@ -286,9 +329,11 @@ function render() {
       }
     }
   }
+  renderList();
   $("cols").textContent = "";
+  const noteOf = new Map(shiftGroups().filter(g => g.noteCol).map(g => [g.noteCol, grid.headText(g.col).split(/[\/ ]/)[0]]));
   for (const c of grid.inputCols) {
-    const b = chip(grid.headText(c) || colName(c), () => { colFilter.has(c) ? colFilter.delete(c) : colFilter.add(c); b.setAttribute("aria-pressed", colFilter.has(c)); });
+    const b = chip(noteOf.has(c) ? `Anmerkung ${noteOf.get(c)}` : grid.headText(c) || colName(c), () => { colFilter.has(c) ? colFilter.delete(c) : colFilter.add(c); b.setAttribute("aria-pressed", colFilter.has(c)); });
     b.setAttribute("aria-pressed", colFilter.has(c));
     $("cols").appendChild(b);
   }
@@ -302,6 +347,59 @@ function render() {
   $("save").disabled = false;
   updateCount();
 }
+// Handyansicht: eine Zeile pro Tag, Schichten nebeneinander, Anmerkung jeweils darunter.
+function shiftGroups() {
+  const isNote = (c) => /anmerkung/i.test(grid.headText(c));
+  const shifts = grid.inputCols.filter(c => !isNote(c));
+  if (!shifts.length) return grid.inputCols.map(c => ({ col: c }));
+  return shifts.map((col, i) => {
+    const end = shifts[i + 1] ?? Infinity;
+    const between = (c) => c > col && c < end;
+    return {
+      col,
+      timeCol: grid.cols.find(c => between(c) && /uhrzeit|zeit/i.test(grid.headText(c))),
+      noteCol: grid.inputCols.find(c => between(c) && isNote(c)),
+    };
+  });
+}
+function renderList() {
+  const list = $("list"), groups = shiftGroups();
+  list.textContent = "";
+  list.style.setProperty("--shifts", groups.length);
+  const head = document.createElement("div");
+  head.className = "lrow lhead";
+  head.appendChild(Object.assign(document.createElement("span"), { textContent: "Tag" }));
+  for (const g of groups) {
+    const b = Object.assign(document.createElement("button"), { type: "button", textContent: (grid.headText(g.col) || colName(g.col)).split("/")[0] });
+    b.dataset.col = g.col;
+    b.title = "Ganze Spalte auswählen";
+    head.appendChild(b);
+  }
+  list.appendChild(head);
+  for (const row of grid.rows) {
+    const line = document.createElement("div");
+    line.className = "lrow" + (["Sa", "So"].includes(weekdayOf(row)) ? " we" : "");
+    const day = document.createElement("button");
+    day.type = "button"; day.className = "lday"; day.dataset.row = row.r; day.title = "Ganze Zeile auswählen";
+    day.append(weekdayOf(row) || "", Object.assign(document.createElement("b"), { textContent: row.cells[grid.dayCol] ?? row.r }));
+    line.appendChild(day);
+    for (const g of groups) {
+      const box = document.createElement("div");
+      box.className = "lshift";
+      if (g.timeCol && row.cells[g.timeCol]) box.appendChild(Object.assign(document.createElement("span"), { className: "ltime", textContent: row.cells[g.timeCol] }));
+      const v = document.createElement("div");
+      v.className = "in lval"; v.dataset.ref = colName(g.col) + row.r;
+      box.appendChild(v); paintCell(v);
+      if (g.noteCol) {
+        const n = document.createElement("div");
+        n.className = "in lnote"; n.dataset.ref = colName(g.noteCol) + row.r;
+        box.appendChild(n); paintCell(n);
+      }
+      line.appendChild(box);
+    }
+    list.appendChild(line);
+  }
+}
 function chip(label, onClick) {
   const b = document.createElement("button");
   b.type = "button"; b.className = "chip"; b.textContent = label;
@@ -314,7 +412,7 @@ function paintCell(td) {
   td.classList.toggle("has", v.trim() !== "");
   td.classList.toggle("sel", selected.has(ref));
 }
-function repaint() { for (const td of $("grid").querySelectorAll("td.in")) paintCell(td); updateCount(); }
+function repaint() { for (const td of $("sheet").querySelectorAll(".in[data-ref]")) paintCell(td); updateCount(); }
 function updateCount() {
   const n = selected.size, changed = [...edits].filter(([k, v]) => v !== (original.get(k) ?? "")).length;
   $("count").textContent = (n ? `${n} ${n === 1 ? "Feld" : "Felder"} markiert` : "Keine Felder markiert") + (changed ? ` · ${changed} geändert` : "");
@@ -342,8 +440,8 @@ function rectRefs(a, b) {
   const rows = grid.rows.filter(r => r.r >= Math.min(pa.row, pb.row) && r.r <= Math.max(pa.row, pb.row));
   return rows.flatMap(r => cols.map(c => colName(c) + r.r));
 }
-$("grid").addEventListener("pointerdown", (ev) => {
-  const td = ev.target.closest("td.in");
+$("sheet").addEventListener("pointerdown", (ev) => {
+  const td = ev.target.closest(".in[data-ref]");
   if (!td) return;
   const ref = td.dataset.ref;
   if (ev.shiftKey && anchor) { for (const r of rectRefs(anchor, ref)) selected.add(r); afterSelect(); return; }
@@ -353,26 +451,26 @@ $("grid").addEventListener("pointerdown", (ev) => {
   drag.add ? selected.add(ref) : selected.delete(ref);
   repaint();
 });
-$("grid").addEventListener("pointerover", (ev) => {
+$("sheet").addEventListener("pointerover", (ev) => {
   if (!drag) return;
-  const td = ev.target.closest("td.in");
+  const td = ev.target.closest(".in[data-ref]");
   if (!td) return;
   selected = new Set(drag.base);
   for (const r of rectRefs(drag.start, td.dataset.ref)) drag.add ? selected.add(r) : selected.delete(r);
   repaint();
 });
 window.addEventListener("pointerup", () => { if (drag) { anchor = drag.start; drag = null; afterSelect(); } });
-$("grid").addEventListener("click", (ev) => {
-  const th = ev.target.closest("th.in");
+$("sheet").addEventListener("click", (ev) => {
+  const th = ev.target.closest("[data-col]");
   if (th) {
     const c = +th.dataset.col, refs = grid.rows.map(r => colName(c) + r.r), allIn = refs.every(r => selected.has(r));
     for (const r of refs) allIn ? selected.delete(r) : selected.add(r);
     return afterSelect();
   }
-  const day = ev.target.closest("td.day");
+  const day = ev.target.closest("[data-row]");
   if (day) return selectRows(grid.rows.filter(r => r.r === +day.dataset.row));
   // Touch/Stift: hier umschalten (die Maus erledigt das schon bei pointerdown).
-  const td = ev.target.closest("td.in");
+  const td = ev.target.closest(".in[data-ref]");
   if (td && !ev.shiftKey && lastPointer !== "mouse") {
     const ref = td.dataset.ref;
     selected.has(ref) ? selected.delete(ref) : selected.add(ref);
@@ -381,7 +479,7 @@ $("grid").addEventListener("click", (ev) => {
   }
 });
 let lastPointer = "mouse";
-$("grid").addEventListener("pointerdown", (ev) => { lastPointer = ev.pointerType; }, true);
+$("sheet").addEventListener("pointerdown", (ev) => { lastPointer = ev.pointerType; }, true);
 
 $("none").addEventListener("click", () => { selected.clear(); afterSelect(); });
 function parseDays(s) {
@@ -446,6 +544,7 @@ function toast(msg) {
   let el = document.querySelector(".toast");
   if (!el) { el = document.createElement("div"); el.className = "toast"; el.setAttribute("role", "status"); document.body.appendChild(el); }
   el.textContent = msg; el.hidden = false;
+  el.style.bottom = (document.querySelector(".bar").offsetHeight + 12) + "px";
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 2600);
 }
 function showError(e) { $("error").textContent = e?.message || String(e); $("error").hidden = false; }

@@ -31,7 +31,7 @@ Live unter https://courtside-turniere.netlify.app (Netlify-Site-ID `5bae8eb4-f74
 
 ## Verfügbarkeiten (`verfuegbarkeit/index.html`)
 
-Eigenständiges Werkzeug (eine HTML-Datei, kein Build) zum Ausfüllen des monatlichen Arbeitsplans (.xlsx, gleicher Aufbau wie beim Monatsplan-Import): Felder in den Spalten Vormittags/Nachmittags/Anmerkung markieren (Tippen, Ziehen, Spaltenkopf, Tag, Wochentag-Chips, Tagesliste „3-7, 12“), Text einmal eingeben, Excel speichern. Schreibt die geänderten Zellen als Inline-Strings direkt ins Blatt-XML (Formatierung bleibt), verbreitert Spalten bei Bedarf und baut die ZIP-Datei neu. Als claude.ai-Artifact speichert es über die Capability `downloads`, lokal per Download-Link. Die eingebettete Vorlage (`SAMPLE`) ist der November-Plan.
+Eigenständiges Werkzeug (eine HTML-Datei, kein Build) zum Ausfüllen des monatlichen Arbeitsplans (.xlsx, gleicher Aufbau wie beim Monatsplan-Import): Felder in den Spalten Vormittags/Nachmittags/Anmerkung markieren (Tippen, Ziehen, Spaltenkopf, Tag, Wochentag-Chips, Tagesliste „3-7, 12“), Text einmal eingeben, Excel speichern. Unter 720 px Breite zeigt es statt der Tabelle eine Tagesliste (Schichten nebeneinander, Anmerkung darunter), damit nichts seitlich scrollt. Schreibt die geänderten Zellen als Inline-Strings direkt ins Blatt-XML (Formatierung bleibt), verbreitert Spalten bei Bedarf und baut die ZIP-Datei neu. Als claude.ai-Artifact speichert es über die Capability `downloads`, lokal per Download-Link. Die eingebettete Vorlage (`SAMPLE`) ist der November-Plan.
 
 ## Testen
 
