@@ -1,4 +1,4 @@
-const MARKUP = "<div class=\"wrap\">\n  <header class=\"top\">\n    <h1 class=\"brand\">Rezeption<small id=\"weekday\">–</small></h1>\n    <div class=\"clock\" id=\"clock\">--:--</div>\n    <button class=\"whobtn none\" id=\"whoBtn\" aria-label=\"Person wechseln\"><span class=\"av\" id=\"whoAv\">?</span><span id=\"whoName\">Name wählen</span></button>\n    <button class=\"btn outbtn\" id=\"outBtn\" hidden>Auschecken</button>\n    <div class=\"tabs\" role=\"tablist\">\n      <button class=\"tab\" role=\"tab\" data-view=\"schicht\"><b>Schicht</b><span class=\"meta\" id=\"meta-shift\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"dienst\"><b>Dienstplan</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"zeiten\"><b>Zeiten</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"monat\"><b>Monat</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"admin\"><b>Verwaltung</b></button>\n    </div>\n    <div class=\"datenav\">\n      <button class=\"iconbtn\" id=\"prev\" aria-label=\"Vorheriger Tag\">‹</button>\n      <label class=\"datebtn\"><span id=\"datelabel\">–</span><span class=\"src\" id=\"datesrc\"></span><input type=\"date\" id=\"datepick\" aria-label=\"Datum wählen\"></label>\n      <button class=\"iconbtn\" id=\"next\" aria-label=\"Nächster Tag\">›</button>\n      <button class=\"todaybtn\" id=\"today\">Heute</button>\n    </div>\n    <div class=\"status\" id=\"status\">Verbinde…</div>\n  </header>\n  <main id=\"main\"></main>\n</div>\n<div id=\"picker\" hidden></div><div id=\"remind\" hidden></div>";
+const MARKUP = "<div class=\"wrap\">\n  <header class=\"top\">\n    <h1 class=\"brand\">Rezeption<small id=\"weekday\">–</small></h1>\n    <div class=\"clock\" id=\"clock\">--:--</div>\n    <button class=\"whobtn none\" id=\"whoBtn\" aria-label=\"Person wechseln\"><span class=\"av\" id=\"whoAv\">?</span><span id=\"whoName\">Name wählen</span></button>\n    <button class=\"btn outbtn\" id=\"outBtn\" hidden>Auschecken</button>\n    <div class=\"tabs\" role=\"tablist\">\n      <button class=\"tab\" role=\"tab\" data-view=\"schicht\"><b>Schicht</b><span class=\"meta\" id=\"meta-shift\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"dienst\"><b>Dienstplan</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"zeiten\"><b>Zeiten</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"admin\"><b>Verwaltung</b></button>\n    </div>\n    <div class=\"datenav\">\n      <button class=\"iconbtn\" id=\"prev\" aria-label=\"Vorheriger Tag\">‹</button>\n      <label class=\"datebtn\"><span id=\"datelabel\">–</span><span class=\"src\" id=\"datesrc\"></span><input type=\"date\" id=\"datepick\" aria-label=\"Datum wählen\"></label>\n      <button class=\"iconbtn\" id=\"next\" aria-label=\"Nächster Tag\">›</button>\n      <button class=\"todaybtn\" id=\"today\">Heute</button>\n    </div>\n    <div class=\"status\" id=\"status\">Verbinde…</div>\n  </header>\n  <main id=\"main\"></main>\n</div>\n<div id=\"picker\" hidden></div><div id=\"remind\" hidden></div>";
 
 /* Rezeption Schichtcheck – App-Kern.
    Wird von tools/build.mjs in index.html (eigenständig) und in das SharePoint-Webpart (app.gen.ts) eingebaut.
@@ -1706,7 +1706,8 @@ export function mount(container, opts = {}) {
       <section class="card"><div class="chead"><h2>Aufgaben &amp; Zeiten</h2></div>
         <div class="cbody"><p>Abschnitte, Uhrzeiten, Reihenfolge und Daueraufgaben – für einen Tag, einen Wochentag oder als Standard.</p>
           <button class="btn primary" data-act2="open-plan">Aufgaben-Plan bearbeiten</button>
-          <button class="btn" data-act2="open-roster">Dienstplan bearbeiten</button></div></section>
+          <button class="btn" data-act2="open-roster">Dienstplan bearbeiten</button>
+          <button class="btn" data-act2="open-month">Monatsstatistik</button></div></section>
       ${state.mode === "local" ? `<section class="card"><div class="chead"><h2>Datensicherung</h2></div>
         <div class="cbody">${NATIVE ? `<p>Die Daten liegen in der App auf diesem Mac. Bei jedem Schichtbeginn und zum Tagesabschluss legt die App automatisch eine Sicherung ab – „rezeption-sicherung-aktuell.json“ und eine Datei pro Tag.</p>
           <p>Ordner: <b>${esc((nativeInfo && nativeInfo.backupDir) || "Dokumente/Rezeption Sicherungen")}</b></p>
@@ -2514,7 +2515,7 @@ export function mount(container, opts = {}) {
     const act = activeShift(plan, ctx);
     $("clock").innerHTML = `${fmtMin(nowMin())}${act ? `<small>${SHIFT_META[act].label} bis ${plan[act].end}</small>` : ""}`;
     { const k = state.shiftSel || focusShift(plan, ctx), pr = progress(plan, k, state.checks); $("meta-shift").textContent = `${SHIFT_META[k].short} ${pr.done}/${pr.total}`; }
-    const tabView = state.view === "plan" || state.view === "pin" ? "admin" : state.view;
+    const tabView = ["plan", "pin", "monat"].includes(state.view) ? "admin" : state.view;
     root.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", String(t.dataset.view === tabView)));
     const p = currentPerson(), wb = $("whoBtn");
     wb.classList.toggle("none", !p);
@@ -2531,7 +2532,7 @@ export function mount(container, opts = {}) {
     renderPending = false;
     renderHeader();
     const v = state.view, main = $("main");
-    if ((v === "plan" || v === "admin") && !isUnlocked()) { state.pinStage = { mode: state.cfg.adminPin ? "unlock" : "set", next: v }; state.view = "pin"; return render(); }
+    if ((v === "plan" || v === "admin" || v === "monat") && !isUnlocked()) { state.pinStage = { mode: state.cfg.adminPin ? "unlock" : "set", next: v }; state.view = "pin"; return render(); }
     main.className = ["plan", "monat", "dienst", "admin", "pin", "zeiten"].includes(v) ? "scroll" : "";
     main.innerHTML = v === "monat" ? renderMonth() : v === "plan" ? renderEditor()
       : v === "dienst" ? renderRoster() : v === "admin" ? renderAdmin() : v === "pin" ? renderPin() : v === "zeiten" ? renderTimes() : renderSchicht();
@@ -2577,7 +2578,7 @@ export function mount(container, opts = {}) {
   function setView(v) {
     if (state.view === "plan" && v !== "plan" && state.draftDirty && !confirmLeave()) return;
     if (v !== "plan") { state.draft = null; state.draftDirty = false; }
-    if (v === "admin" || v === "plan") { if (!requireAdmin(v)) return; }
+    if (v === "admin" || v === "plan" || v === "monat") { if (!requireAdmin(v)) return; }
     if (v === "schicht") state.shiftSel = null; // Tab „Schicht“ zeigt immer die laufende Schicht
     if (v !== "dienst") state.rosterEdit = false;
     if (v === "dienst") { state.rosterMonth = state.date.slice(0, 7); state.rosterDay = null; }
@@ -2627,6 +2628,7 @@ export function mount(container, opts = {}) {
       if (a === "t-pdf") { if (isUnlocked()) saveExport(buildPdf()); return; }
       if (a === "pin-cancel") { state.pinStage = null; state.view = "schicht"; render(); return; }
       if (a === "open-plan") return setView("plan");
+      if (a === "open-month") return setView("monat");
       if (a === "open-roster") { state.view = "dienst"; state.rosterMonth = state.date.slice(0, 7); state.rosterEdit = true; render(); return; }
       if (a === "export") return downloadBackup();
       if (a === "import-cancel") { state.importPreview = null; render(); return; }
