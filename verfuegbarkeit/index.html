@@ -23,7 +23,7 @@
 * { box-sizing: border-box }
 body { background: var(--bg); color: var(--fg); font: 15px/1.45 var(--font-body);
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-block: 16px 140px; }
+  padding-block: 16px calc(var(--bar-h, 180px) + 24px); }
 .wrap { max-width: 980px; margin: 0 auto; display: grid; gap: 14px }
 header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; justify-content: space-between }
 h1 { font: 700 1.5rem/1.1 var(--font-display); margin: 0; text-wrap: balance }
@@ -73,7 +73,7 @@ td.in:empty::after { content: "·"; color: var(--line) }
 .err { color: var(--danger) }
 .list { display: none }
 @media (max-width: 720px) {
-  body { padding-block: 12px 150px }
+  body { padding-block: 12px calc(var(--bar-h, 200px) + 24px) }
   .wrap { gap: 10px }
   h1 { font-size: 1.25rem }
   .tablebox { display: none }
@@ -657,7 +657,13 @@ document.addEventListener("drop", async (ev) => {
   if (f) await loadFile(f.name, await f.arrayBuffer());
 });
 
+// Platz unter der Liste = tatsächliche Höhe der Eingabeleiste (ändert sich mit Vorschlägen, Breite, Tastatur).
+const bar = document.querySelector(".bar");
+const fitBar = () => document.documentElement.style.setProperty("--bar-h", bar.offsetHeight + "px");
+if (typeof ResizeObserver === "function") new ResizeObserver(fitBar).observe(bar);
+window.addEventListener("resize", fitBar);
 renderRecent();
+fitBar();
 if (typeof DecompressionStream !== "function") showError("Dieser Browser ist zu alt. Bitte Safari 16.4+, Chrome oder Firefox nehmen.");
 else loadFile(SAMPLE.name, Uint8Array.from(atob(SAMPLE.b64), ch => ch.charCodeAt(0)).buffer, true);
 </script>
