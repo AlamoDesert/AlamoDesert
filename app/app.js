@@ -1237,12 +1237,14 @@ export function mount(container, opts = {}) {
     const c = state.checks[item.id];
     const cls = [item.important ? "important" : "", c ? (c.s === "na" ? "na" : "done") : "", opts.upcoming ? "upcoming" : ""].join(" ");
     const tag = opts.showPhase ? `<span class="tag">${esc(item.phase.title)} · bis ${item.phase.to}</span>` : "";
+    // „entfällt“ sperrt den Haken für diesen Tag; nur „rückgängig“ gibt ihn wieder frei.
+    const na = !!c && c.s === "na";
     return `<li class="${cls}">
-      <button class="check" data-id="${esc(item.id)}" aria-pressed="${!!c}">
-        <span class="box">${CHECK_SVG}</span>
+      <button class="check" data-id="${esc(item.id)}" aria-pressed="${c && c.s === "done" ? "true" : "false"}"${na ? ' disabled aria-disabled="true" title="Entfällt heute – zum Abhaken erst „rückgängig“ tippen"' : ""}>
+        <span class="box">${na ? "" : CHECK_SVG}</span>
         <span class="txt"><span class="label">${esc(item.t)}</span>${tag}${item.s ? `<span class="sub">${esc(item.s)}</span>` : ""}${c ? `<span class="who">${whoLine(c)}</span>` : ""}</span>
       </button>
-      ${item.optional ? `<button class="skip" data-skip="${esc(item.id)}" aria-pressed="${c && c.s === "na" ? "true" : "false"}">entfällt</button>` : ""}
+      ${item.optional ? `<button class="skip" data-skip="${esc(item.id)}" aria-pressed="${na}" ${na ? 'aria-label="Entfällt rückgängig machen"' : ""}>${na ? "rückgängig" : "entfällt"}</button>` : ""}
     </li>`;
   }
 
@@ -2828,7 +2830,7 @@ export function mount(container, opts = {}) {
     if (t.id === "mnext") return shiftMonths(1);
     if (t.dataset.date) { const sh = t.dataset.shift; goDate(t.dataset.date); state.view = "schicht"; state.shiftSel = sh; render(); return; }
     const stamp = (s) => ({ s, by: actorId(), at: new Date().toISOString() });
-    if (t.dataset.id) { const c = state.checks[t.dataset.id]; setCheck(t.dataset.id, c && c.s === "done" ? null : stamp("done")); }
+    if (t.dataset.id) { const c = state.checks[t.dataset.id]; if (c && c.s === "na") return; setCheck(t.dataset.id, c && c.s === "done" ? null : stamp("done")); }
     else if (t.dataset.skip) { const c = state.checks[t.dataset.skip]; setCheck(t.dataset.skip, c && c.s === "na" ? null : stamp("na")); }
   });
   main.addEventListener("pointerdown", (e) => { const sp = e.target.closest && e.target.closest("[data-split]"); if (sp && e.button === 0) startDrag(e, sp); });

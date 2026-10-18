@@ -82,8 +82,13 @@ li.important .label { color: var(--warn) }
 li.done .box { background: var(--done); border-color: var(--done) }
 li.done .box svg { opacity: 1 }
 li.done .label { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line) }
-li.na .box { border-style: dashed; border-color: var(--na) }
-li.na .label, li.na .who { color: var(--na) }
+li.na .box { border-style: dashed; border-color: var(--na); position: relative }
+li.na .box::after { content: ""; position: absolute; left: 3px; right: 3px; top: 50%; height: 2px; margin-top: -1px; background: var(--na); border-radius: 1px }
+li.na .label { color: var(--na); text-decoration: line-through; text-decoration-color: var(--na) }
+li.na .sub, li.na .tag { color: var(--na); text-decoration: line-through }
+li.na .who { color: var(--na) }
+li.na .check { cursor: not-allowed }
+li.na .check:disabled { opacity: 1; color: inherit }
 li.upcoming .label { color: var(--muted) }
 .skip { flex: none; border: 0; border-left: 1px solid var(--line); background: none; color: var(--muted); font-size: 12px; font-weight: 600; padding: 0 10px }
 li.na .skip { color: var(--ink); background: var(--surface-2) }
