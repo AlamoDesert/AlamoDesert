@@ -204,6 +204,8 @@ export function mount(container, opts = {}) {
   const root = opts.root || document;
   const host = root.host || container;
   const timers = [], cleanups = [];
+  // Brücke der Mac-App (mac/preload.js); im Browser und in SharePoint nicht vorhanden.
+  const NATIVE = opts.native || (typeof window !== "undefined" && window.rezeptionNative) || null;
   let disposed = false;
   container.innerHTML = MARKUP;
   // Farbschema: in SharePoint immer hell, sonst wie die einbettende Seite (claude.ai setzt data-theme).
@@ -1347,7 +1349,7 @@ export function mount(container, opts = {}) {
   // Pro Tag stehen die Namen in „Vormittags“ bzw. „Nachmittags/Abends“. Anmerkungen werden nur angezeigt.
   // Zuordnung über die Spaltenposition der Kopfzeile (PDF: x-Koordinate, Excel: Spaltenbuchstabe).
   const MONTH_NAMES = ["jan", "feb", "mär|mar|maer", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "dez"];
-  const PDFJS = opts.pdfjsUrl || "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.mjs";
+  const PDFJS = opts.pdfjsUrl || (NATIVE && NATIVE.pdfjsUrl) || "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.mjs";
   const TIME_RANGE = /(\d{1,2})[:.](\d{2})\s*[-–]\s*(\d{1,2})[:.](\d{2})/;
   async function unzipEntries(buf) {
     const dv = new DataView(buf), u8 = new Uint8Array(buf);
@@ -1633,7 +1635,7 @@ export function mount(container, opts = {}) {
     if (state.mode !== "local") return "";
     const last = LS.get("rz2meta", {}).lastBackup;
     const days = last ? Math.floor((Date.now() - new Date(last)) / 86400000) : null;
-    if (FS_OK && !backupDir) return "Sicherungsordner fehlt (Verwaltung)";
+    if (FS_OK && !backupDir && !NATIVE) return "Sicherungsordner fehlt (Verwaltung)";
     if (days === null) return "Noch keine Sicherung (Verwaltung)";
     return days >= 7 ? `Sicherung ${days} Tage alt (Verwaltung)` : "";
   }
@@ -1655,7 +1657,11 @@ export function mount(container, opts = {}) {
           <button class="btn primary" data-act2="open-plan">Aufgaben-Plan bearbeiten</button>
           <button class="btn" data-act2="open-roster">Dienstplan bearbeiten</button></div></section>
       ${state.mode === "local" ? `<section class="card"><div class="chead"><h2>Datensicherung</h2></div>
-        <div class="cbody"><p>Alles liegt im Browser dieses Macs. Wird der Browserverlauf mit „Website-Daten“ gelöscht, ist es weg. Sichere deshalb regelmäßig.</p>
+        <div class="cbody">${NATIVE ? `<p>Die Daten liegen in der App auf diesem Mac. Bei jedem Schichtbeginn und zum Tagesabschluss legt die App automatisch eine Sicherung ab – „rezeption-sicherung-aktuell.json“ und eine Datei pro Tag.</p>
+          <p>Ordner: <b>${esc((nativeInfo && nativeInfo.backupDir) || "Dokumente/Rezeption Sicherungen")}</b></p>
+          <button class="btn primary" data-act2="backup-now">Jetzt sichern</button>
+          <button class="btn" data-act2="backup-open">Ordner im Finder zeigen</button>
+          <label class="check-inline"><input type="checkbox" id="autostart" ${nativeInfo && nativeInfo.autoStart ? "checked" : ""}> Beim Anmelden am Mac automatisch starten</label>` : `<p>Alles liegt im Browser dieses Macs. Wird der Browserverlauf mit „Website-Daten“ gelöscht, ist es weg. Sichere deshalb regelmäßig.</p>
           ${FS_OK ? (backupDir
             ? `<p>Sicherungsordner: <b>${esc(backupDir.name)}</b>. Gesichert wird bei jedem Schichtbeginn und wenn der letzte Punkt der Spätschicht abgehakt ist – als „rezeption-sicherung-aktuell.json“ und eine Datei pro Tag.</p>
                <button class="btn primary" data-act2="backup-now">Jetzt sichern</button>
@@ -1665,7 +1671,7 @@ export function mount(container, opts = {}) {
                <button class="btn primary" data-act2="backup-dir">Sicherungsordner wählen</button>
                <button class="btn" data-act2="export">Einmalig herunterladen</button>`)
           : `<p>Dieser Browser kann nicht direkt in einen Ordner schreiben. Bitte Google Chrome verwenden.</p>
-             <button class="btn" data-act2="export">Einmalig herunterladen</button>`}
+             <button class="btn" data-act2="export">Einmalig herunterladen</button>`}`}
           <p>Letzte Sicherung: <b>${last ? new Date(last).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) : "noch nie"}</b></p>
           <label class="btn" style="text-align:center;cursor:pointer">Sicherung einspielen<input type="file" id="importfile" accept="application/json,.json" hidden></label>
           <p id="import-msg"></p></div></section>` : opts.mode === "sharepoint" ? `<section class="card"><div class="chead"><h2>Datenspeicher</h2></div>
@@ -1708,6 +1714,7 @@ export function mount(container, opts = {}) {
   // ---------- Sicherung in einen gewählten Ordner (Chrome: File System Access API) ----------
   // Der Ordner-Zugriff wird in IndexedDB gemerkt. Chrome fragt ggf. nach – dafür muss die Sicherung aus einem Klick starten.
   const FS_OK = typeof window.showDirectoryPicker === "function";
+  let nativeInfo = null; // Mac-App: { backupDir, autoStart }
   let backupDir = null;
   const idb = {
     open() {
@@ -1757,9 +1764,22 @@ export function mount(container, opts = {}) {
   // Schreibt „…-aktuell.json“ (immer neuester Stand) und „…-JJJJ-MM-TT.json“ (eine Datei pro Tag, wird überschrieben).
   // reason: "manual" | "shift" (Schichtbeginn) | "day" (Tagesabschluss)
   async function writeBackup(reason) {
-    if (state.mode !== "local" || !backupDir) return false;
+    if (state.mode !== "local" || (!backupDir && !NATIVE)) return false;
     let text;
     try { text = backupPayload(); } catch { setStatus("Browser-Speicher blockiert", true); return false; }
+    if (NATIVE) {
+      // Mac-App: schreibt ohne Rückfrage nach ~/Dokumente/Rezeption Sicherungen.
+      const now = new Date();
+      try {
+        const r = await NATIVE.saveBackup(text, isoDate(now));
+        if (!r || !r.ok) throw new Error((r && r.error) || "Fehler");
+        if (r.dir) nativeInfo = { ...(nativeInfo || {}), backupDir: r.dir };
+        LS.set("rz2meta", { ...LS.get("rz2meta", {}), lastBackup: now.toISOString(), ...(reason === "day" ? { lastDayBackup: isoDate(now) } : {}) });
+        setStatus(`Gesichert ${fmtMin(now.getHours() * 60 + now.getMinutes())}${reason === "day" ? " (Tagesabschluss)" : ""}`);
+        if (state.view === "admin") render();
+        return true;
+      } catch (e) { setStatus("Sicherung fehlgeschlagen: " + ((e && e.message) || "Fehler"), true); return false; }
+    }
     try {
       let perm = backupDir.queryPermission ? await backupDir.queryPermission({ mode: "readwrite" }) : "granted";
       if (perm !== "granted" && backupDir.requestPermission) perm = await backupDir.requestPermission({ mode: "readwrite" });
@@ -1792,7 +1812,7 @@ export function mount(container, opts = {}) {
   }
   // Automatisch nur mit eingerichtetem Ordner: bei jedem Schichtbeginn und einmal zum Tagesabschluss.
   function autoBackup(reason) {
-    if (state.mode !== "local" || !backupDir) return;
+    if (state.mode !== "local" || (!backupDir && !NATIVE)) return;
     if (reason === "day" && LS.get("rz2meta", {}).lastDayBackup === isoDate(new Date())) return;
     writeBackup(reason);
   }
@@ -2183,6 +2203,7 @@ export function mount(container, opts = {}) {
       if (a === "import-apply") { if (isUnlocked()) applyImport(); return; }
       if (a === "backup-dir") return chooseBackupDir();
       if (a === "backup-now") return writeBackup("manual");
+      if (a === "backup-open") { if (NATIVE) NATIVE.openBackupDir(); return; }
       if (a === "backup-forget") return forgetBackupDir();
       if (a === "person-del") return deletePerson(t.dataset.pid);
       if (a === "pin-change") { state.pinStage = { mode: "set", next: "admin" }; state.view = "pin"; render(); setTimeout(() => { const el = $("pin-in"); if (el) el.focus(); }, 0); return; }
@@ -2251,6 +2272,10 @@ export function mount(container, opts = {}) {
     if (el.dataset.person) return renamePerson(el.dataset.person, el.value);
     if (el.id === "importfile" && el.files && el.files[0]) return importBackup(el.files[0]);
     if (el.id === "planfile" && el.files && el.files[0]) return onPlanFile(el.files[0]);
+    if (el.id === "autostart" && NATIVE) {
+      NATIVE.setAutoStart(el.checked).then((on) => { nativeInfo = { ...(nativeInfo || {}), autoStart: !!on }; setStatus(on ? "Startet künftig beim Anmelden" : "Autostart aus"); }).catch(() => setStatus("Autostart konnte nicht geändert werden", true));
+      return;
+    }
     if (state.importPreview && !state.importPreview.error) {
       const ip = state.importPreview;
       if (el.id === "imp-month") { ip.month = Number(el.value); render(); return; }
@@ -2284,7 +2309,8 @@ export function mount(container, opts = {}) {
       try { if ((await user.can("data.write")) === false) state.readOnly = true; } catch { /* unbekannt */ }
     }
     loadWho();
-    if (state.mode === "local") await loadBackupDir();
+    if (state.mode === "local" && NATIVE) { try { nativeInfo = await NATIVE.info(); } catch { nativeInfo = null; } }
+    else if (state.mode === "local") await loadBackupDir();
     setStatus(statusLine(), state.readOnly || !!backupHint());
     if (disposed) return;
     subscribeCfg();

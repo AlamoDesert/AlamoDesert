@@ -1,0 +1,16 @@
+{
+  "name": "rezeption",
+  "productName": "Rezeption",
+  "version": "1.0.0",
+  "description": "Schicht-Checkliste der Rezeption",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "build": "node build-mac.mjs"
+  },
+  "devDependencies": {
+    "@electron/packager": "20.3.0",
+    "electron": "44.5.1",
+    "pdfjs-dist": "4.4.168"
+  }
+}

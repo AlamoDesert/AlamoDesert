@@ -288,6 +288,7 @@ button.chip.off { background: var(--surface); color: var(--muted); border-color:
 .dialog p.pnote { color: var(--now) }
 
 /* Verwaltung */
+.check-inline { display: flex; gap: 8px; align-items: center; font-size: 14px }
 .admin { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-top: 12px; align-items: start }
 .admin .card .cbody { padding: 12px; display: grid; gap: 10px }
 .admin p { margin: 0; font-size: 13px; color: var(--muted) }
