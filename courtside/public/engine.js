@@ -74,8 +74,8 @@
     r15: { kind: 'points', target: 15, winBy: 2, name: 'Bis 15 Punkte', short: 'bis 15', min: 20, desc: 'Wer zuerst 15 Punkte hat und 2 vorn liegt, gewinnt. Längere Spiele.' },
     r21: { kind: 'points', target: 21, winBy: 2, name: 'Bis 21 (Rally Scoring)', short: 'bis 21', min: 20, desc: 'Jeder Ballwechsel zählt. Wer zuerst 21 Punkte hat und 2 vorn liegt, gewinnt.' },
     tb10: { kind: 'points', target: 10, winBy: 2, name: 'Match-Tiebreak bis 10', short: 'MTB 10', min: 8, desc: 'Ein einziger Tiebreak: Wer zuerst 10 Punkte hat und 2 vorn liegt, gewinnt. Sehr kurz.' },
-    g4: { kind: 'games', target: 4, name: 'Kurzsatz bis 4 (Fast4)', short: 'Satz bis 4', min: 20, desc: 'Ein Satz, wer zuerst 4 Spiele hat, gewinnt. Bei 3:3 entscheidet ein Tiebreak.' },
-    g6: { kind: 'games', target: 6, name: '1 Satz bis 6', short: '1 Satz', min: 35, desc: 'Ein normaler Satz bis 6 Spiele, bei 6:6 Tiebreak.' },
+    g4: { kind: 'games', target: 4, max: 4, name: 'Kurzsatz bis 4 (Fast4)', short: 'Satz bis 4', min: 20, desc: 'Ein Satz, wer zuerst 4 Spiele hat, gewinnt. Bei 3:3 entscheidet ein Tiebreak.' },
+    g6: { kind: 'games', target: 6, max: 7, name: '1 Satz bis 6', short: '1 Satz', min: 35, desc: 'Ein normaler Satz bis 6 Spiele, bei 6:6 Tiebreak.' },
     win: { kind: 'winner', name: 'Nur Sieger antippen', short: 'Sieg', min: 12, desc: 'Gespielt wird auf Zeit. Nach dem Abpfiff nur das Siegerteam antippen, kein Spielstand nötig.' }
   };
 
@@ -167,21 +167,34 @@
       return { w: s.w, pa: s.w === 'a' ? 1 : 0, pb: s.w === 'b' ? 1 : 0 };
     }
     const a = Number(s.a), b = Number(s.b);
-    if (!Number.isFinite(a) || !Number.isFinite(b) || a < 0 || b < 0) return null;
+    if (!Number.isInteger(a) || !Number.isInteger(b) || a < 0 || b < 0) return null;
     return { w: a > b ? 'a' : b > a ? 'b' : 'd', pa: a, pb: b };
   }
 
   // Prüft eine Eingabe. error blockiert das Speichern, warn ist nur ein Hinweis.
-  function checkScore(fmt, s, allowDraw) {
+  // capped: Die Runde hat ein Zeitlimit, Spiele auf eine Gesamtpunktzahl dürfen dann vorher enden.
+  function checkScore(fmt, s, allowDraw, capped = false) {
     const r = evalScore(fmt, s);
     if (!r) return { error: 'Bitte ein Ergebnis eingeben.' };
-    if (fmt.kind === 'points' && fmt.total && r.pa + r.pb !== fmt.total) return { error: `Zusammen müssen es ${fmt.total} Punkte sein.` };
-    if (r.w === 'd' && !allowDraw) return { error: 'Unentschieden geht hier nicht. Bitte den Sieger eintragen.' };
     let warn = null;
+    if (fmt.kind === 'points' && fmt.total) {
+      const sum = r.pa + r.pb;
+      if (sum > fmt.total) return { error: `Mehr als ${fmt.total} Punkte zusammen geht nicht.` };
+      if (sum < fmt.total) {
+        if (!capped) return { error: `Zusammen müssen es ${fmt.total} Punkte sein.` };
+        warn = `Zusammen ${sum} von ${fmt.total} Punkten. Passt, wenn die Zeit abgelaufen ist.`;
+      }
+    }
+    if (r.w === 'd' && !allowDraw) return { error: 'Unentschieden geht hier nicht. Bitte den Sieger eintragen.' };
     if (fmt.target && r.w !== 'd') {
       const hi = Math.max(r.pa, r.pb), lo = Math.min(r.pa, r.pb);
       if (hi < fmt.target) warn = `Ziel ${fmt.target} noch nicht erreicht. Bei Zeitablauf ist das in Ordnung.`;
-      else if (fmt.winBy && hi - lo < fmt.winBy) warn = `Üblich sind ${fmt.winBy} Punkte Vorsprung.`;
+      else if (fmt.kind === 'games') {
+        const max = fmt.max || fmt.target;
+        if (hi > max) warn = `Ein Satz bis ${fmt.target} endet spätestens ${max}:${max - 1}.`;
+        else if (max > fmt.target && hi === fmt.target && lo >= fmt.target - 1) warn = `Bei ${hi}:${lo} geht der Satz weiter.`;
+        else if (max > fmt.target && hi === max && lo < fmt.target - 1) warn = `${max} Spiele gibt es nur nach ${fmt.target}:${fmt.target - 1} oder ${fmt.target}:${fmt.target}.`;
+      } else if (fmt.winBy && hi - lo < fmt.winBy) warn = `Üblich sind ${fmt.winBy} Punkte Vorsprung.`;
       else if (fmt.winBy && hi > fmt.target && hi - lo > fmt.winBy) warn = 'Über dem Ziel endet ein Spiel normalerweise mit genau 2 Punkten Vorsprung.';
     }
     return { error: null, warn };
@@ -258,10 +271,8 @@
   }
 
   const fmtOf = (t) => FORMATS[t.format] || FORMATS.win;
-  function roundTimed(t) {
-    if (MODES[t.mode].engine === 'ladder') return Number(t.options.roundMinutes) > 0;
-    return !!fmtOf(t).timed || Number(t.options.roundMinutes) > 0;
-  }
+  // King of the Court und Zeit-Formate brauchen immer einen Timer, alle anderen nur mit Zeitlimit.
+  const roundTimed = (t) => MODES[t.mode].engine === 'ladder' || !!fmtOf(t).timed || Number(t.options.roundMinutes) > 0;
   const allowDraw = (t) => MODES[t.mode].engine !== 'ladder';
   const hasStrength = (t) => t.entrants.some((e) => strengthOf(e) != null);
 
@@ -278,7 +289,7 @@
    * ================================================================ */
 
   function historyStats(t, rounds) {
-    const P = new Map(), O = new Map(), byes = new Map(), lastBye = new Map();
+    const P = new Map(), O = new Map(), byes = new Map(), lastBye = new Map(), played = new Map();
     const inc = (map, k) => map.set(k, (map.get(k) || 0) + 1);
     rounds.forEach((r, ri) => {
       r.byes.forEach((id) => { inc(byes, id); lastBye.set(id, ri); });
@@ -286,6 +297,7 @@
         if (m.a.length === 2) inc(P, pk(m.a[0], m.a[1]));
         if (m.b.length === 2) inc(P, pk(m.b[0], m.b[1]));
         m.a.forEach((x) => m.b.forEach((y) => inc(O, pk(x, y))));
+        m.a.concat(m.b).forEach((x) => inc(played, x));
       });
     });
     let S = null;
@@ -293,13 +305,15 @@
       S = new Map();
       t.entrants.forEach((e) => { const s = strengthOf(e); S.set(e.id, s == null ? LEVELS.intermediate.value : s); });
     }
-    return { P, O, byes, lastBye, S, roundCount: rounds.length };
+    return { P, O, byes, lastBye, played, S, roundCount: rounds.length };
   }
 
-  // Wer setzt aus? Wer bisher am seltensten pausiert hat, am längsten nicht.
+  // Wer setzt aus? Wer bisher am meisten gespielt hat, dann wer am längsten nicht pausiert hat.
+  // So spielen Nachzügler und Rückkehrer sofort mit, statt zuerst auszusetzen.
   function chooseByes(ids, count, st) {
     if (count <= 0) return [];
     const order = shuffle(ids).sort((x, y) =>
+      (st.played.get(y) || 0) - (st.played.get(x) || 0) ||
       (st.byes.get(x) || 0) - (st.byes.get(y) || 0) ||
       (st.lastBye.has(x) ? st.lastBye.get(x) : -1) - (st.lastBye.has(y) ? st.lastBye.get(y) : -1));
     return order.slice(0, count);
@@ -352,9 +366,10 @@
     round.matches.forEach((m) => {
       inc(st.P, pk(m.a[0], m.a[1])); inc(st.P, pk(m.b[0], m.b[1]));
       m.a.forEach((x) => m.b.forEach((y) => inc(st.O, pk(x, y))));
+      m.a.concat(m.b).forEach((x) => inc(st.played, x));
     });
   }
-  const cloneStats = (st) => ({ P: new Map(st.P), O: new Map(st.O), byes: new Map(st.byes), lastBye: new Map(st.lastBye), S: st.S, roundCount: st.roundCount });
+  const cloneStats = (st) => ({ P: new Map(st.P), O: new Map(st.O), byes: new Map(st.byes), lastBye: new Map(st.lastBye), played: new Map(st.played), S: st.S, roundCount: st.roundCount });
 
   // Erzeugt count Americano-Runden im Anschluss an history. Mehrere Durchläufe, der günstigste gewinnt.
   function genAmericanoRounds(t, history, count, budgetMs = 300) {
@@ -476,18 +491,35 @@
     return rounds;
   }
 
+  // cfg.courts ist in der Konfiguration eine Zahl, im Turnier eine Liste von Namen.
+  const courtCount = (cfg) => (Array.isArray(cfg.courts) ? cfg.courts.length : Math.max(1, Number(cfg.courts) || 1));
+
+  // Americano: Runden, bis jede Person einmal mit jeder anderen gespielt hat (n·(n−1) Einsätze, 4 je Platz und Runde).
+  // idle = wer je Runde aussetzt; exact = Partner und Pausen gehen ohne Rest auf (nur, solange nie ein ganzer Platz pausiert).
+  function fullRotation(n, courts) {
+    const c = Math.min(courts, Math.floor(n / 4));
+    if (c < 1) return null;
+    const idle = n - 4 * c;
+    const r = (n * (n - 1)) / (4 * c);
+    return { rounds: Math.ceil(r), idle, exact: Number.isInteger(r) && idle < 4 && (r * idle) % n === 0 };
+  }
+
   function defaultRounds(cfg) {
     const m = MODES[cfg.mode];
     if (!m) return null;
     const n = validEntrants(cfg.entrants).length;
     const fmt = FORMATS[cfg.format] || FORMATS.win;
     const minutes = Number(cfg.options && cfg.options.roundMinutes) || 0;
-    const per = (fmt.timed || m.engine === 'ladder' ? minutes || 12 : fmt.min) + 2;
+    const per = (fmt.timed || m.engine === 'ladder' ? minutes || 12 : minutes ? Math.min(minutes, fmt.min) : fmt.min) + 2;
     if (m.engine === 'ladder') return clamp(Math.floor(90 / per), 3, 20);
     if (m.pairing === 'circle') return null;
     const fit = Math.max(3, Math.floor(120 / per));
-    if (m.pairing === 'fixed') return clamp(Math.min(Math.max(n - 1, 3), fit), 3, 30);
-    return clamp(Math.min(fit, 8), 3, 30);
+    if (m.pairing !== 'fixed') return clamp(Math.min(fit, 8), 3, 30);
+    const full = fullRotation(n, courtCount(cfg));
+    let rounds = clamp(Math.min(full ? full.rounds : 3, fit), 3, 30);
+    // Setzen Leute aus, lieber bis zu zwei Runden weniger, wenn dann alle gleich oft pausieren.
+    if (full && full.idle) for (let k = rounds; k >= Math.max(3, rounds - 2); k--) if ((k * full.idle) % n === 0) { rounds = k; break; }
+    return rounds;
   }
 
   const rankOrder = (t) => standings(t).rows.map((r) => r.id);
@@ -502,13 +534,14 @@
       }
       t.cur = 0;
     },
-    planned(t) { return MODES[t.mode].pairing === 'circle' ? t.rounds.length : t.options.rounds; },
+    planned(t) { return Math.max(Number(t.options.rounds) || 0, t.rounds.length); },
+    // Americano setzt die Rotation fort; Mexicano und Zusatzrunden im Team-Turnier paaren nach der Tabelle.
     nextRound(t) {
       return MODES[t.mode].pairing === 'fixed' ? genAmericanoRounds(t, t.rounds, 1, 150)[0] : genMexicanoRound(t);
     },
+    // Die Zusatzrunde entsteht erst, wenn sie dran ist – dann mit dem aktuellen Stand. Americano plant sie sofort ein.
     addRound(t) {
-      if (MODES[t.mode].pairing === 'circle') { t.rounds.push(genMexicanoRound(t)); t.options.rounds = t.rounds.length; return; }
-      t.options.rounds = Math.max(t.options.rounds, t.rounds.length) + 1;
+      t.options.rounds = this.planned(t) + 1;
       if (MODES[t.mode].pairing === 'fixed') t.rounds.push(this.nextRound(t));
     },
     // Nach Änderungen an der Teilnehmerliste: alle noch nicht begonnenen Runden neu auslosen.
@@ -595,7 +628,7 @@
     if (!ce.ok) return { ok: false, error: ce.reason };
     const f = findMatch(t, matchId);
     const fmt = fmtOf(t);
-    const chk = checkScore(fmt, score, allowDraw(t));
+    const chk = checkScore(fmt, score, allowDraw(t), roundTimed(t));
     if (chk.error) return { ok: false, error: chk.error };
     f.m.score = score;
     f.m.w = evalScore(fmt, score).w;
@@ -664,7 +697,12 @@
     touch(t);
   }
 
+  // Vorzeitig beenden: Ungespielte Runden fallen weg, eine noch leere aktuelle Runde ebenso.
   function finish(t) {
+    const r = t.rounds[t.cur];
+    if (t.cur > 0 && r && !r.matches.some((m) => m.w)) t.cur--;
+    t.rounds = t.rounds.slice(0, t.cur + 1);
+    t.options.rounds = t.rounds.length;
     t.status = 'finished';
     t.finishedAt = new Date().toISOString();
     t.timer.endsAt = null;
@@ -738,12 +776,14 @@
 
   function rotationStandings(t) {
     const get = tally(t);
-    const counted = t.rounds.slice(0, t.status === 'finished' ? t.rounds.length : t.cur + (roundDone(t.rounds[t.cur]) ? 1 : 0));
+    const counted = t.rounds.slice(0, t.cur + (t.status === 'finished' || roundDone(t.rounds[t.cur]) ? 1 : 0));
+    // Im Team-Turnier spielen am Ende alle gleich oft: Pausen brauchen keinen Ausgleich.
+    const compensate = t.options.byePoints !== 'none' && MODES[t.mode].pairing !== 'circle';
     const rows = t.entrants.filter((e) => e.active !== false || get(e.id).played > 0).map((e) => {
       const x = get(e.id);
       x.name = e.name; x.active = e.active !== false;
       x.byes = counted.filter((r) => r.byes.includes(e.id)).length;
-      x.bonus = t.options.byePoints !== 'none' && x.byes && x.played ? Math.round((x.pf / x.played) * x.byes) : 0;
+      x.bonus = compensate && x.byes && x.played ? Math.round((x.pf / x.played) * x.byes) : 0;
       x.total = x.pf + x.bonus;
       x.diff = x.pf - x.pa;
       return x;
@@ -758,7 +798,7 @@
   }
 
   function ladderStandings(t) {
-    const C = t.courts.length;
+    const C = t.rounds[0] ? t.rounds[0].matches.length : t.courts.length; // genutzte Plätze
     const get = tally(t);
     const done = t.rounds.filter((r) => r.matches.length && roundDone(r));
     const last = done[done.length - 1];
@@ -789,9 +829,12 @@
     };
   }
 
+  const plannedRounds = (t) => ENGINES[MODES[t.mode].engine].planned(t);
   const standings = (t) => (MODES[t.mode].engine === 'ladder' ? ladderStandings(t) : rotationStandings(t));
 
+  const hasResults = (t) => t.rounds.some((r) => r.matches.some((m) => m.w));
   function podium(t) {
+    if (!hasResults(t)) return [];
     const rows = standings(t).rows;
     return [1, 2, 3].map((rank) => rows.filter((r) => r.rank === rank).map((r) => r.name)).filter((x) => x.length);
   }
@@ -822,7 +865,7 @@
     const m = MODES[t.mode];
     return {
       state: 'between', title: `Runde ${no} komplett`,
-      text: m.engine === 'ladder' ? 'Sieger steigen auf, Verlierer steigen ab.' : m.pairing === 'dynamic' ? 'Die nächste Runde wird nach der Tabelle gepaart.' : 'Weiter mit der nächsten Runde.',
+      text: m.engine === 'ladder' ? 'Sieger steigen auf, Verlierer steigen ab.' : m.pairing === 'dynamic' || no >= t.rounds.length ? 'Die nächste Runde wird nach der Tabelle gepaart.' : 'Weiter mit der nächsten Runde.',
       action: { id: 'advance', label: `Runde ${no + 1} einteilen` }
     };
   }
@@ -873,14 +916,14 @@
 
   return {
     SPORTS, RULES, FORMATS, MODES, LEVELS,
-    formatsFor, defaultFormat, modeAvailable, defaultRounds, estimate, serveHint,
+    formatsFor, defaultFormat, modeAvailable, defaultRounds, fullRotation, estimate, serveHint,
     parseRating, strengthOf, levelLabel, levelFromRating, buildTeams,
     evalScore, checkScore, scoreText,
     validateConfig, unitNoun, create,
     fmtOf, roundTimed, allowDraw, hasStrength,
     nameOf, sideName, ent,
     findMatch, canEdit, setResult, clearResult,
-    advance, addRound, setPlannedRounds, startRound, finish, currentRound, roundDone,
+    advance, addRound, setPlannedRounds, plannedRounds, startRound, finish, currentRound, roundDone, hasResults,
     rename, rosterEditable, addEntrant, setActive,
     standings, podium, next, shareText,
     _internal: { circlePairs, genAmericanoRounds }
