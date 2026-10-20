@@ -1862,8 +1862,8 @@ export function mount(container, opts = {}) {
              <button class="btn" data-act2="export">Einmalig herunterladen</button>`}`}
           <p>Letzte Sicherung: <b>${last ? new Date(last).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) : "noch nie"}</b></p>
           <label class="btn" style="text-align:center;cursor:pointer">Sicherung einspielen<input type="file" id="importfile" accept="application/json,.json" hidden></label>
-          <p id="import-msg"></p></div></section>` : opts.mode === "sharepoint" ? `<section class="card"><div class="chead"><h2>Datenspeicher</h2></div>
-        <div class="cbody"><p>Alle Daten liegen in der SharePoint-Bibliothek <b>${esc(opts.library || "RezeptionDaten")}</b> dieser Website. SharePoint speichert jede Änderung im Versionsverlauf – ein früherer Stand lässt sich dort wiederherstellen.</p>
+          <p id="import-msg"></p></div></section>` : state.mode === "shared" ? `<section class="card"><div class="chead"><h2>Datenspeicher</h2></div>
+        <div class="cbody">${opts.mode === "sharepoint" ? `<p>Alle Daten liegen in der SharePoint-Bibliothek <b>${esc(opts.library || "RezeptionDaten")}</b> dieser Website. SharePoint speichert jede Änderung im Versionsverlauf – ein früherer Stand lässt sich dort wiederherstellen.</p>` : `<p>Die Webversion speichert online und ist für alle mit dem Link gleich. Die Mac-App hat ihre eigenen Daten – beide gleichen sich nicht ab.</p>`}
           <p>Daten aus der bisherigen Mac-Version übernehmen: dort unter Verwaltung › Datensicherung eine Sicherung herunterladen und hier einspielen.</p>
           <label class="btn" style="text-align:center;cursor:pointer">Sicherung übernehmen<input type="file" id="importfile" accept="application/json,.json" hidden></label>
           <p id="import-msg"></p></div></section>` : ""}
@@ -1985,15 +1985,12 @@ export function mount(container, opts = {}) {
     }
   }
   // Manuell ohne Ordner: einmaliger Download in den normalen Download-Ordner.
-  function downloadBackup() {
+  async function downloadBackup() {
     let text;
     try { text = backupPayload(); } catch { setStatus("Browser-Speicher blockiert", true); return; }
     const now = new Date();
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([text], { type: "application/json" }));
-    a.download = `rezeption-sicherung-${isoDate(now)}.json`;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    try { if (!(await offerFile(`rezeption-sicherung-${isoDate(now)}.json`, text, "application/json"))) return; }
+    catch (e) { setStatus("Sicherung fehlgeschlagen: " + ((e && e.message) || "Fehler"), true); return; }
     LS.set("rz2meta", { ...LS.get("rz2meta", {}), lastBackup: now.toISOString() });
     setStatus("Sicherung heruntergeladen");
     render();
@@ -2501,13 +2498,27 @@ export function mount(container, opts = {}) {
         if (r && r.ok) setStatus("Gespeichert: " + r.path); else if (r && r.canceled) setStatus(statusLine()); else setStatus("Export fehlgeschlagen" + (r && r.error ? ": " + r.error : ""), true);
         return;
       }
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(new Blob([file.bytes], { type: file.type }));
-      a.download = file.name;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-      setStatus("Export erstellt: " + file.name);
+      if (await offerFile(file.name, file.bytes, file.type)) setStatus("Export erstellt: " + file.name);
     } catch (e) { setStatus("Export fehlgeschlagen: " + ((e && e.message) || "Fehler"), true); }
+  }
+  // Datei anbieten: in claude.ai über die downloads-Fähigkeit (Rückfrage beim Nutzer), sonst als normaler Download.
+  // Liefert false, wenn der Nutzer ablehnt.
+  async function offerFile(name, data, type) {
+    const dl = window.claude && typeof window.claude.use === "function" ? await window.claude.use("downloads").catch(() => null) : null;
+    if (dl) {
+      try { await dl.save({ filename: name, data: new Blob([data], { type }) }); return true; }
+      catch (e) {
+        if (e && e.code === "declined") { setStatus(statusLine()); return false; }
+        if (e && e.code === "rate_limited") { setStatus("Bitte kurz warten und erneut versuchen", true); return false; }
+        throw new Error((e && e.message) || "Download nicht möglich");
+      }
+    }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([data], { type }));
+    a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    return true;
   }
 
   // ---------- Plan-Editor ----------
