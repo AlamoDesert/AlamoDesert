@@ -21,6 +21,10 @@ mkdirSync(join(stage, "app/pdfjs"), { recursive: true });
 cpSync(join(here, "main.js"), join(stage, "main.js"));
 cpSync(join(here, "preload.js"), join(stage, "preload.js"));
 cpSync(join(repo, "index.html"), join(stage, "app/index.html"));
+// Check-in-Erstattung (Reiter „Erstattung“) mit SheetJS lokal, damit Excel auch ohne Internet geht.
+cpSync(join(repo, "checkin.html"), join(stage, "app/checkin.html"));
+mkdirSync(join(stage, "app/vendor"), { recursive: true });
+cpSync(join(here, "node_modules/xlsx/dist/xlsx.full.min.js"), join(stage, "app/vendor/xlsx.full.min.js"));
 for (const f of ["pdf.min.mjs", "pdf.worker.min.mjs"]) cpSync(join(here, "node_modules/pdfjs-dist/build", f), join(stage, "app/pdfjs", f));
 writeFileSync(join(stage, "package.json"), JSON.stringify({ name: pkg.name, productName: pkg.productName, version: pkg.version, description: pkg.description, main: "main.js" }, null, 2));
 

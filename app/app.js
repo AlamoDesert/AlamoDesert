@@ -1,4 +1,4 @@
-const MARKUP = "<div class=\"wrap\">\n  <header class=\"top\">\n    <h1 class=\"brand\">Rezeption<small id=\"weekday\">–</small></h1>\n    <div class=\"clock\" id=\"clock\">--:--</div>\n    <button class=\"whobtn none\" id=\"whoBtn\" aria-label=\"Person wechseln\"><span class=\"av\" id=\"whoAv\">?</span><span id=\"whoName\">Name wählen</span></button>\n    <button class=\"btn outbtn\" id=\"outBtn\" hidden>Auschecken</button>\n    <div class=\"tabs\" role=\"tablist\">\n      <button class=\"tab\" role=\"tab\" data-view=\"schicht\"><b>Schicht</b><span class=\"meta\" id=\"meta-shift\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"dienst\"><b>Dienstplan</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"zeiten\"><b>Zeiten</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"admin\"><b>Verwaltung</b></button>\n    </div>\n    <div class=\"datenav\">\n      <button class=\"iconbtn\" id=\"prev\" aria-label=\"Vorheriger Tag\">‹</button>\n      <label class=\"datebtn\"><span id=\"datelabel\">–</span><span class=\"src\" id=\"datesrc\"></span><input type=\"date\" id=\"datepick\" aria-label=\"Datum wählen\"></label>\n      <button class=\"iconbtn\" id=\"next\" aria-label=\"Nächster Tag\">›</button>\n      <button class=\"todaybtn\" id=\"today\">Heute</button>\n    </div>\n    <div class=\"status\" id=\"status\">Verbinde…</div>\n  </header>\n  <main id=\"main\"></main>\n</div>\n<div id=\"picker\" hidden></div><div id=\"remind\" hidden></div>";
+const MARKUP = "<div class=\"wrap\">\n  <header class=\"top\">\n    <h1 class=\"brand\">Rezeption<small id=\"weekday\">–</small></h1>\n    <div class=\"clock\" id=\"clock\">--:--</div>\n    <button class=\"whobtn none\" id=\"whoBtn\" aria-label=\"Person wechseln\"><span class=\"av\" id=\"whoAv\">?</span><span id=\"whoName\">Name wählen</span></button>\n    <button class=\"btn outbtn\" id=\"outBtn\" hidden>Auschecken</button>\n    <div class=\"tabs\" role=\"tablist\">\n      <button class=\"tab\" role=\"tab\" data-view=\"schicht\"><b>Schicht</b><span class=\"meta\" id=\"meta-shift\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"dienst\"><b>Dienstplan</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"zeiten\"><b>Zeiten</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"erstattung\" hidden><b>Erstattung</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"admin\"><b>Verwaltung</b></button>\n    </div>\n    <div class=\"datenav\">\n      <button class=\"iconbtn\" id=\"prev\" aria-label=\"Vorheriger Tag\">‹</button>\n      <label class=\"datebtn\"><span id=\"datelabel\">–</span><span class=\"src\" id=\"datesrc\"></span><input type=\"date\" id=\"datepick\" aria-label=\"Datum wählen\"></label>\n      <button class=\"iconbtn\" id=\"next\" aria-label=\"Nächster Tag\">›</button>\n      <button class=\"todaybtn\" id=\"today\">Heute</button>\n    </div>\n    <div class=\"status\" id=\"status\">Verbinde…</div>\n  </header>\n  <main id=\"main\"></main>\n  <div id=\"ciwrap\" class=\"ciwrap\" hidden></div>\n</div>\n<div id=\"picker\" hidden></div><div id=\"remind\" hidden></div>";
 
 /* Rezeption Schichtcheck – App-Kern.
    Wird von tools/build.mjs in index.html (eigenständig) und in das SharePoint-Webpart (app.gen.ts) eingebaut.
@@ -208,6 +208,8 @@ export function mount(container, opts = {}) {
   const NATIVE = opts.native || (typeof window !== "undefined" && window.rezeptionNative) || null;
   let disposed = false;
   container.innerHTML = MARKUP;
+  // Reiter „Erstattung“ (Check-in-Erstattung, eigene Seite im iframe) nur, wenn die Seite mitgeliefert wird (Mac-App, Webversion).
+  if (opts.checkinUrl) container.querySelector('[data-view="erstattung"]').hidden = false;
   // Farbschema: in SharePoint immer hell, sonst wie die einbettende Seite (claude.ai setzt data-theme).
   if (opts.mode === "sharepoint") host.setAttribute("data-theme", "light");
   else if (root.host) {
@@ -1940,7 +1942,7 @@ export function mount(container, opts = {}) {
   }
   function backupPayload() {
     const data = {};
-    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith("rz2") && k !== "rz2who" && k !== "rz2noask") data[k] = localStorage.getItem(k); }
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && ((k.startsWith("rz2") && k !== "rz2who" && k !== "rz2noask") || k.startsWith("cir."))) data[k] = localStorage.getItem(k); }
     return JSON.stringify({ app: "rezeption-schichtcheck", version: 1, exportedAt: new Date().toISOString(), data }, null, 1);
   }
   async function writeFile(dir, name, text) {
@@ -2033,7 +2035,8 @@ export function mount(container, opts = {}) {
       try {
         const obj = JSON.parse(String(reader.result));
         if (!obj || obj.app !== "rezeption-schichtcheck" || !obj.data || typeof obj.data !== "object") throw new Error("format");
-        const entries = Object.entries(obj.data).filter(([k, v]) => k.startsWith("rz2") && typeof v === "string");
+        // cir.* = Daten der Erstattung (Regeln, Hansefit-Liste, Buchungsfortschritt) – nur lokal, nicht im geteilten Speicher.
+        const entries = Object.entries(obj.data).filter(([k, v]) => (k.startsWith("rz2") || (k.startsWith("cir.") && state.mode !== "shared")) && typeof v === "string");
         if (!entries.length) throw new Error("leer");
         if (state.mode === "shared") { migrateToShared(entries, msg); return; }
         for (const [k, v] of entries) localStorage.setItem(k, v);
@@ -2756,6 +2759,8 @@ export function mount(container, opts = {}) {
     renderPending = false;
     renderHeader();
     const v = state.view, main = $("main");
+    main.hidden = v === "erstattung"; $("ciwrap").hidden = v !== "erstattung";
+    if (v === "erstattung") return showCheckinTool();
     if ((v === "plan" || v === "admin" || v === "monat") && !isUnlocked()) { state.pinStage = { mode: state.cfg.adminPin ? "unlock" : "set", next: v }; state.view = "pin"; return render(); }
     main.className = ["plan", "monat", "dienst", "admin", "pin", "zeiten"].includes(v) ? "scroll" : "";
     main.innerHTML = v === "monat" ? renderMonth() : v === "plan" ? renderEditor()
@@ -2765,6 +2770,34 @@ export function mount(container, opts = {}) {
     if (v === "schicht") scrollToNow();
     if (v === "dienst") applyRosterHi();
   }
+  // ---------- Erstattung (Check-in-Erstattung) ----------
+  // Eigene Seite im iframe, einmal geladen und danach nur ein-/ausgeblendet: Prüfergebnisse liegen nur im Speicher der Seite.
+  let ciFrame = null;
+  function showCheckinTool() {
+    if (!ciFrame) {
+      ciFrame = document.createElement("iframe");
+      ciFrame.src = opts.checkinUrl;
+      ciFrame.title = "Check-in Erstattung";
+      ciFrame.setAttribute("allow", "clipboard-write");
+      ciFrame.addEventListener("load", postCheckinUser);
+      $("ciwrap").appendChild(ciFrame);
+    } else postCheckinUser();
+  }
+  // Eingecheckte Person als „Bearbeitet von“ an die Seite melden.
+  function postCheckinUser() {
+    const p = currentPerson();
+    if (p && ciFrame && ciFrame.contentWindow) ciFrame.contentWindow.postMessage({ type: "rz-user", name: p.name }, "*");
+  }
+  const onCheckinMessage = async (ev) => {
+    if (!ciFrame || ev.source !== ciFrame.contentWindow || !ev.data || ev.data.type !== "rz-download") return;
+    const { name, data, mime } = ev.data;
+    if (typeof name !== "string" || !/^[\w.\-ÄÖÜäöüß ]{1,120}\.(xlsx|csv|json)$/.test(name) || data == null) return;
+    try { if (await offerFile(name, data, typeof mime === "string" ? mime : "application/octet-stream")) setStatus("Gespeichert: " + name); }
+    catch (e) { setStatus("Download fehlgeschlagen: " + ((e && e.message) || "Fehler"), true); }
+  };
+  window.addEventListener("message", onCheckinMessage);
+  cleanups.push(() => window.removeEventListener("message", onCheckinMessage));
+
   // Querformat: aktuelle Spalte ins Bild holen.
   function scrollToNow() {
     // Erster offener Abschnitt (überfällig oder aktuell) in Zeitreihenfolge.

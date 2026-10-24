@@ -1,7 +1,7 @@
 {
   "name": "rezeption",
   "productName": "Rezeption",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "description": "Schicht-Checkliste der Rezeption",
   "private": true,
   "main": "main.js",
@@ -11,6 +11,7 @@
   "devDependencies": {
     "@electron/packager": "20.3.0",
     "electron": "44.5.1",
-    "pdfjs-dist": "4.4.168"
+    "pdfjs-dist": "4.4.168",
+    "xlsx": "0.18.5"
   }
 }

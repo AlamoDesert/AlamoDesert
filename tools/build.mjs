@@ -2,7 +2,7 @@
 //   index.html                                   – eigenständige Seite (Mac lokal, claude.ai-Artifact)
 //   sharepoint/src/webparts/rezeption/app.gen.ts – Modul für das SharePoint-Webpart (falls das Projekt existiert)
 // Aufruf: node tools/build.mjs
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, copyFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -46,12 +46,15 @@ root.appendChild(style);
 const container = document.createElement("div");
 container.className = "rz-root";
 root.appendChild(container);
-mount(container, { root, mode: "auto", fitViewport: true, standalone: true });
+mount(container, { root, mode: "auto", fitViewport: true, standalone: true, checkinUrl: "checkin.html" });
 })();
 </script>
 `;
 writeFileSync(join(repo, "index.html"), html);
 console.log("index.html geschrieben (" + html.length + " Zeichen)");
+// Check-in-Erstattung: eigene Seite neben index.html (Reiter „Erstattung“ lädt sie im iframe).
+copyFileSync(join(repo, "app/checkin.html"), join(repo, "checkin.html"));
+console.log("checkin.html kopiert");
 
 const spDir = join(repo, "sharepoint/src/webparts/rezeption");
 if (existsSync(spDir)) {

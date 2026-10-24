@@ -436,6 +436,10 @@ ul.hints .sub { font-size: 12px; color: var(--muted) }
   .board { min-height: 0; overflow-y: auto }
   .board-in { display: block; columns: 2 320px; column-gap: 12px }
 }
+/* Erstattung (eingebettete Seite) */
+.ciwrap { margin-top: 12px; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; background: var(--surface); height: calc(100dvh - 150px); min-height: 560px }
+.ciwrap iframe { display: block; width: 100%; height: 100%; border: 0 }
+@media (orientation: landscape) and (min-width: 900px) { .ciwrap { flex: 1; height: auto; min-height: 0 } }
 @media (orientation: portrait), (max-width: 899px) {
   .dash { grid-template-columns: minmax(0, 1fr) }
   .shiftview, .schicht { grid-template-columns: minmax(0, 1fr); gap: 12px }

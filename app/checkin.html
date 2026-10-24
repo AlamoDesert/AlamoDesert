@@ -1,0 +1,1539 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Check-in Erstattung</title>
+<!-- Eingebunden in die Rezeption-App (Reiter „Erstattung“). Mac-App: SheetJS lokal aus vendor/, sonst von cdnjs. -->
+<script src="vendor/xlsx.full.min.js" onerror="this.remove();document.write('<script src=&quot;https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js&quot;><\/script>')"></script>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --text: #1b1f24; --muted: #5f6b7a; --border: #dde2e8;
+  --accent: #1f6feb; --accent-text: #ffffff;
+  --ok: #1a7f37; --ok-bg: #e6f4ea; --warn: #9a6700; --warn-bg: #fff4d6; --bad: #b42318; --bad-bg: #fde8e7;
+  --done-bg: #eef1f4;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111418; --panel: #1a1f25; --text: #e6e9ed; --muted: #9aa5b1; --border: #2c333b;
+    --accent: #4c8dff; --accent-text: #0b0d10;
+    --ok: #4ac26b; --ok-bg: #12301c; --warn: #e3b341; --warn-bg: #3a2e0c; --bad: #ff7b72; --bad-bg: #3d1614;
+    --done-bg: #222830;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header { background: var(--panel); border-bottom: 1px solid var(--border); padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+header h1 { font-size: 17px; margin: 0 16px 0 0; }
+nav { display: flex; gap: 4px; flex-wrap: wrap; }
+nav button { background: none; border: 1px solid transparent; color: var(--muted); padding: 6px 12px; border-radius: 6px; cursor: pointer; font: inherit; }
+nav button.active { color: var(--text); border-color: var(--border); background: var(--bg); font-weight: 600; }
+.user { margin-left: auto; display: flex; gap: 6px; align-items: center; color: var(--muted); }
+main { max-width: 1400px; margin: 0 auto; padding: 16px; }
+section.tab { display: none; }
+section.tab.active { display: block; }
+.panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+.panel h2 { font-size: 15px; margin: 0 0 12px; }
+.panel h3 { font-size: 14px; margin: 16px 0 8px; }
+.grid4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+textarea { width: 100%; min-height: 140px; font: 12px/1.4 ui-monospace, Consolas, monospace; border: 1px solid var(--border); border-radius: 6px; padding: 8px; background: var(--bg); color: var(--text); resize: vertical; }
+input, select { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 5px; padding: 4px 6px; }
+input[type=number] { width: 80px; }
+input.time { width: 70px; }
+button.btn { font: inherit; border: 1px solid var(--border); background: var(--panel); color: var(--text); padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+button.btn:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+button.small { padding: 2px 8px; font-size: 12px; }
+button:disabled { opacity: .5; cursor: default; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.muted { color: var(--muted); }
+.hint { color: var(--muted); font-size: 12px; margin: 4px 0 0; }
+.msg { padding: 8px 12px; border-radius: 6px; margin: 8px 0; }
+.msg.warn { background: var(--warn-bg); color: var(--warn); }
+.msg.bad { background: var(--bad-bg); color: var(--bad); }
+.msg.ok { background: var(--ok-bg); color: var(--ok); }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { font-size: 12px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+td.num, th.num { text-align: right; white-space: nowrap; }
+tr.booked td { background: var(--done-bg); color: var(--muted); }
+.chip { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.chip.ok { background: var(--ok-bg); color: var(--ok); }
+.chip.review { background: var(--warn-bg); color: var(--warn); }
+.chip.reject { background: var(--bad-bg); color: var(--bad); }
+.chip.done { background: var(--done-bg); color: var(--muted); }
+.stats { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.stat { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; min-width: 120px; }
+.stat b { display: block; font-size: 18px; }
+.filters button.active { border-color: var(--accent); color: var(--accent); }
+.matrix th:first-child { min-width: 170px; }
+.matrix td { min-width: 150px; }
+.matrix td select { width: 100%; }
+.matrix .amt { display: flex; align-items: center; gap: 4px; margin-top: 4px; }
+.matrix .amt input { width: 90px; }
+.matrix .cell-hint { color: var(--muted); font-size: 11px; margin-top: 3px; }
+.matrix td.m-none { background: var(--bad-bg); }
+.matrix td.m-manual { background: var(--warn-bg); }
+.legend { padding-left: 18px; margin-top: 10px; }
+.reasons { margin: 0; padding-left: 16px; }
+.reasons li { margin: 0; }
+.card { max-width: 640px; margin: 0 auto 16px; background: var(--panel); border: 2px solid var(--accent); border-radius: 10px; padding: 20px; }
+.card .name { font-size: 22px; font-weight: 700; }
+.card .field { display: flex; align-items: center; gap: 8px; margin: 10px 0; font-size: 16px; }
+.card .field .label { width: 120px; flex-shrink: 0; color: var(--muted); font-size: 13px; }
+.card .amount { font-size: 28px; font-weight: 700; }
+.card .meta { color: var(--muted); font-size: 13px; margin-top: 8px; }
+.card .actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+.card .actions .primary { font-size: 16px; padding: 10px 20px; }
+.progress { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin: 8px 0 16px; }
+.progress div { height: 100%; background: var(--ok); }
+.kbd { font: 11px ui-monospace, monospace; border: 1px solid var(--border); border-radius: 3px; padding: 0 4px; }
+tr.current td { outline: 2px solid var(--accent); outline-offset: -2px; }
+@media (max-width: 640px) { main { padding: 12px 16px; } .card { padding: 14px; } }
+/* In der Rezeption-App: Titel steht schon im Reiter, Kopfzeile kompakter, Seite ohne eigenen Rand */
+.askwrap { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: grid; place-items: center; z-index: 50; padding: 16px; }
+.askbox { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; width: min(420px, 100%); display: grid; gap: 10px; }
+.askbox p { margin: 0; }
+.askbox .row { justify-content: flex-end; }
+html.embedded header h1 { display: none; }
+html.embedded header { padding: 8px 12px; }
+html.embedded main { max-width: none; padding: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Check-in Erstattung</h1>
+  <nav id="nav">
+    <button data-tab="pruefung" class="active">1 · Tagesprüfung</button>
+    <button data-tab="buchen">2 · Wallet buchen</button>
+    <button data-tab="regeln">Regeln &amp; Preise</button>
+    <button data-tab="hansefit">Hansefit-Liste</button>
+  </nav>
+  <div class="user">Bearbeitet von <input id="userInitials" size="6" placeholder="Kürzel"></div>
+</header>
+
+<main>
+<!-- ============ TAB 1: PRÜFUNG ============ -->
+<section class="tab active" id="tab-pruefung">
+  <div class="panel">
+    <h2>Playtomic-Export (Buchungen des Prüftags)</h2>
+    <div class="row">
+      <input type="file" id="bookingFile" accept=".csv,.xlsx,.xls">
+      <span id="bookingInfo" class="muted">Noch keine Datei geladen.</span>
+    </div>
+    <p class="hint">Datei direkt aus Playtomic verwenden, nicht vorher in Excel öffnen und speichern.</p>
+    <div id="bookingMsg"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Check-ins einfügen (Copy-Paste aus den Portalen)</h2>
+    <div class="grid4">
+      <div><b>Urban Sports Club</b> <span class="muted" id="cnt-USC"></span><textarea id="paste-USC" placeholder="Beide Tabellen (Padel/Squash und Tennis) untereinander einfügen"></textarea></div>
+      <div><b>Wellpass</b> <span class="muted" id="cnt-Wellpass"></span><textarea id="paste-Wellpass"></textarea></div>
+      <div><b>Wellhub</b> <span class="muted" id="cnt-Wellhub"></span><textarea id="paste-Wellhub"></textarea></div>
+      <div><b>Hansefit</b> <span class="muted" id="cnt-Hansefit"></span><textarea id="paste-Hansefit"></textarea></div>
+    </div>
+    <p class="hint">Überschriften dürfen mit eingefügt werden. Zeilen ohne Datum und Uhrzeit ignoriert das Tool.</p>
+    <div class="row" style="margin-top:12px">
+      <button class="btn primary" id="runBtn">Prüfen</button>
+      <button class="btn" id="exportBtn" disabled>Dokumentation exportieren (Excel)</button>
+      <span id="runInfo" class="muted"></span>
+    </div>
+  </div>
+
+  <div class="panel" id="resultPanel" hidden>
+    <h2>Ergebnis <span id="resultDate" class="muted"></span></h2>
+    <div class="stats" id="stats"></div>
+    <div class="row filters" id="filters">
+      <button class="btn small active" data-f="all">Alle</button>
+      <button class="btn small" data-f="ok">✅ Erstatten</button>
+      <button class="btn small" data-f="review">⚠️ Prüfen</button>
+      <button class="btn small" data-f="reject">❌ Keine Erstattung</button>
+      <button class="btn small" data-f="open">Offen zu buchen</button>
+    </div>
+    <p class="hint">⚠️-Zeilen kommen erst nach „Freigeben“ in die Buchungsliste. Beträge freigegebener Zeilen kannst du anpassen.</p>
+    <div class="table-wrap"><table id="resultTable">
+      <thead><tr><th>Status</th><th>Check-in</th><th>Name (Check-in)</th><th>Playtomic-Kunde</th><th>Buchung</th><th class="num">Betrag</th><th>Begründung</th><th>Entscheidung</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </div>
+</section>
+
+<!-- ============ TAB 2: BUCHEN ============ -->
+<section class="tab" id="tab-buchen">
+  <div id="queueEmpty" class="panel muted">Noch nichts zu buchen. Führe zuerst die Tagesprüfung durch.</div>
+  <div id="queueArea" hidden>
+    <div class="row"><b id="queueProgressText"></b><span class="muted" id="queueSum"></span></div>
+    <div class="progress"><div id="queueBar" style="width:0"></div></div>
+    <div class="card" id="queueCard"></div>
+    <p class="hint" style="text-align:center"><span class="kbd">C</span> Suchbegriff kopieren · <span class="kbd">Enter</span> gebucht · <span class="kbd">→</span> überspringen · <span class="kbd">←</span> zurück</p>
+    <div class="panel">
+      <h2>Buchungsliste</h2>
+      <div class="table-wrap"><table id="queueTable">
+        <thead><tr><th>#</th><th>Status</th><th>Name (Check-in)</th><th>Name (Playtomic)</th><th>E-Mail</th><th class="num">Betrag</th><th>Anbieter</th><th>Leistung</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TAB 3: REGELN ============ -->
+<section class="tab" id="tab-regeln">
+  <div class="panel">
+    <h2>Erstattungsregeln</h2>
+    <div class="row ruleset-bar">
+      <label>Regelstand <select id="ruleSetSelect"></select></label>
+      <label>gültig ab <input type="date" id="ruleSetDate"></label>
+      <button class="btn small" id="ruleSetNew">+ Neuer Regelstand</button>
+      <button class="btn small" id="ruleSetDel">Regelstand löschen</button>
+    </div>
+    <p class="hint">Jeder Prüftag wird mit dem Regelstand gerechnet, der an diesem Tag galt. Ändern sich Preise oder Bedingungen, lege einen <b>neuen Regelstand</b> an. Er übernimmt alle Werte des gewählten Stands, du änderst nur, was neu ist.</p>
+    <div class="table-wrap"><table id="rulesMatrix" class="matrix">
+      <thead><tr><th>Leistung</th><th>USC</th><th>Wellpass</th><th>Wellhub</th><th>Hansefit</th><th>Faktor</th><th>Immer prüfen</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <ul class="hint legend">
+      <li><b>Festbetrag:</b> fester Euro-Betrag pro Check-in.</li>
+      <li><b>Platzanteil 1 h:</b> Stundenpreis des Platzes (Peak/Off-Peak) ÷ Spieler pro Platz, siehe „Plätze und Preise“.</li>
+      <li><b>Faktor:</b> vervielfacht den Betrag, z. B. ×2 bei Squash, weil der Bucher für beide zahlt.</li>
+      <li><b>Immer prüfen:</b> Treffer landen als ⚠️ in der Liste und brauchen eine Freigabe.</li>
+      <li>Jede Gutschrift ist automatisch auf den selbst bezahlten Anteil begrenzt.</li>
+    </ul>
+  </div>
+
+  <div class="panel">
+    <h2>Plätze und Preise</h2>
+    <p class="hint">Das Tool ordnet jede Buchung über den Text im Platznamen zu, in der Reihenfolge der Tabelle. Der erste Treffer zählt. Daher steht „pickleball“ vor „indoor“ und „single“ vor „indoor“.</p>
+    <div class="table-wrap"><table id="courtsTable">
+      <thead><tr><th>Text im Platznamen</th><th>Bezeichnung</th><th>Off-Peak €/h</th><th>Peak €/h</th><th>Spieler pro Platz</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <button class="btn small" id="addCourt" style="margin-top:8px">+ Platzart</button>
+
+    <h3>Peak-Zeiten</h3>
+    <p class="hint">Leer lassen = an diesem Tag kein Peak. Ende 00:00 = bis Mitternacht. Nur der Freitag ist aus den Daten belegt (16:00–23:00), die anderen Tage bitte prüfen.</p>
+    <div class="table-wrap"><table id="peakTable"><thead><tr><th>Tag</th><th>Peak von</th><th>Peak bis</th></tr></thead><tbody></tbody></table></div>
+  </div>
+
+  <div class="panel">
+    <h2>Eventpreise pro Person</h2>
+    <p class="hint">Name wie in Playtomic (Spalte <code>activity_name</code>). Ohne Eintrag schätzt das Tool den Preis als Platzpreis ÷ Teilnehmer und vermerkt das.</p>
+    <div class="table-wrap"><table id="eventsTable"><thead><tr><th>Event-Name</th><th>Preis p. P. €</th><th></th></tr></thead><tbody></tbody></table></div>
+    <button class="btn small" id="addEvent" style="margin-top:8px">+ Event</button>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <button class="btn primary" id="saveCfg">Speichern</button>
+      <button class="btn" id="exportCfg">Konfiguration exportieren</button>
+      <label class="btn">Konfiguration importieren <input type="file" id="importCfg" accept=".json" hidden></label>
+      <button class="btn" id="resetCfg">Auf Standard zurücksetzen</button>
+      <span id="cfgMsg" class="muted"></span>
+    </div>
+    <p class="hint">Exportiere die Konfiguration nach jeder Änderung in den Club-Ordner. Andere Rechner an der Rezeption importieren sie von dort.</p>
+  </div>
+</section>
+
+<!-- ============ TAB 4: HANSEFIT ============ -->
+<section class="tab" id="tab-hansefit">
+  <div class="panel">
+    <h2>Zuordnung Hansefit-ID → Name</h2>
+    <div class="row">
+      <input type="file" id="hfFile" accept=".csv,.xlsx,.xls">
+      <label><input type="checkbox" id="hfReplace"> bestehende Liste ersetzen (sonst ergänzen)</label>
+    </div>
+    <p class="hint">Excel oder CSV. Das Tool erkennt die ID-Spalte an den Werten (z. B. 26DZT9EB) und die Namensspalte an der Überschrift („Name“ oder „Vorname“ + „Nachname“).</p>
+    <h3>Oder per Copy-Paste</h3>
+    <textarea id="hfPaste" placeholder="Pro Zeile: ID und Name, z. B.&#10;24DUQ9RD&#9;Max Mustermann"></textarea>
+    <div class="row" style="margin-top:8px"><button class="btn primary" id="hfPasteBtn">Übernehmen</button></div>
+    <p class="hint">Reihenfolge egal (ID vorne oder hinten). Trennung per Tab, Semikolon, Komma oder Leerzeichen.</p>
+    <div id="hfMsg"></div>
+    <h3>Eintrag hinzufügen</h3>
+    <div class="row"><input id="hfNewId" placeholder="Hansefit-ID"> <input id="hfNewName" placeholder="Vor- und Nachname" size="30"> <button class="btn small" id="hfAdd">Hinzufügen</button></div>
+    <h3>Liste <span class="muted" id="hfCount"></span></h3>
+    <div class="row"><input id="hfSearch" placeholder="Suchen …" size="30"> <button class="btn small" id="hfExport">Als CSV exportieren</button></div>
+    <div class="table-wrap" style="max-height:420px;overflow:auto;margin-top:8px"><table id="hfTable"><thead><tr><th>ID</th><th>Name</th><th></th></tr></thead><tbody></tbody></table></div>
+  </div>
+  <div class="panel">
+    <h2>Lokale Daten</h2>
+    <p class="hint">Hansefit-Liste, Konfiguration und Buchungsfortschritt liegen nur im Browser dieses Rechners. Buchungsexport und Check-ins speichert das Tool nicht.</p>
+    <button class="btn" id="clearLocal">Alle lokalen Daten löschen</button>
+  </div>
+</section>
+</main>
+
+<script>
+'use strict';
+
+/* ================= Konstanten & Standardkonfiguration ================= */
+const PROVIDERS = ['USC', 'Wellpass', 'Wellhub', 'Hansefit'];
+const KINDS = { PADEL: 'Padel', SQUASH: 'Squash', EVENT: 'Event', PRIVATE: 'Privatunterricht' };
+const WEEKDAYS = [['Montag', 1], ['Dienstag', 2], ['Mittwoch', 3], ['Donnerstag', 4], ['Freitag', 5], ['Samstag', 6], ['Sonntag', 0]];
+const LS = { cfg: 'cir.config.v1', hf: 'cir.hansefit.v1', progress: 'cir.progress.v1', user: 'cir.user.v1' };
+const REQUIRED_COLS = ['booking_id', 'resource_name', 'sport_id', 'booking_start_date', 'booking_end_date', 'price', 'booking_type', 'payment_status', 'status', 'participant_name_1'];
+
+const RULE_KINDS = ['PADEL', 'SQUASH', 'EVENT', 'PRIVATE'];
+const KIND_HINT = {
+  PADEL: 'Normale Buchung mit Splitpayment oder Open Match',
+  SQUASH: 'Bucher zahlt den ganzen Platz',
+  EVENT: 'Afterwork, Turniere u. Ä.',
+  PRIVATE: 'Einzel-/Privatunterricht (in Playtomic blau)',
+};
+const MODES = [['fixed', 'Festbetrag'], ['court1h', 'Platzanteil 1 h'], ['none', 'Keine Erstattung'], ['manual', 'Manuell entscheiden']];
+
+function blankRuleSet(validFrom) {
+  const kinds = {};
+  for (const k of RULE_KINDS) {
+    kinds[k] = { factor: 1, review: false, providers: {} };
+    for (const p of PROVIDERS) kinds[k].providers[p] = { mode: 'manual', amount: 0 };
+  }
+  return { validFrom, kinds };
+}
+function defaultRuleSet(validFrom) {
+  const set = blankRuleSet(validFrom);
+  const fill = (k, usc, hf, share) => {
+    set.kinds[k].providers.USC = { mode: 'fixed', amount: usc };
+    set.kinds[k].providers.Hansefit = { mode: 'fixed', amount: hf };
+    for (const p of ['Wellpass', 'Wellhub']) set.kinds[k].providers[p] = share ? { mode: 'court1h', amount: 0 } : { mode: 'fixed', amount: usc };
+  };
+  fill('PADEL', 9, 9.5, true);
+  fill('SQUASH', 9, 9.5, true);
+  fill('EVENT', 9, 9.5, true);
+  fill('PRIVATE', 5, 5, false);
+  set.kinds.SQUASH.factor = 2;
+  set.kinds.SQUASH.review = true;
+  return set;
+}
+/** Übernimmt Konfigurationen im alten Listenformat (eine Zeile pro Anbieter/Leistung). */
+function rulesToSets(rules) {
+  const by = {};
+  for (const r of rules) {
+    const k = /^\d{4}-\d{2}-\d{2}$/.test(r.validFrom || '') ? r.validFrom : '2026-01-01';
+    by[k] = by[k] || blankRuleSet(k);
+    const row = by[k].kinds[r.kind];
+    if (!row || !PROVIDERS.includes(r.provider)) continue;
+    row.providers[r.provider] = { mode: r.mode || 'fixed', amount: +r.amount || 0 };
+    row.factor = +r.factor || 1;
+    row.review = !!r.review;
+  }
+  return Object.values(by);
+}
+function sanitizeRuleSets(sets) {
+  return sets.filter(s => s && /^\d{4}-\d{2}-\d{2}$/.test(s.validFrom || '')).map(s => {
+    const out = blankRuleSet(s.validFrom);
+    for (const k of RULE_KINDS) {
+      const row = s.kinds && s.kinds[k];
+      if (!row) continue;
+      out.kinds[k].factor = +row.factor || 1;
+      out.kinds[k].review = !!row.review;
+      for (const p of PROVIDERS) {
+        const c = row.providers && row.providers[p];
+        if (c && MODES.some(([m]) => m === c.mode)) out.kinds[k].providers[p] = { mode: c.mode, amount: +c.amount || 0 };
+      }
+    }
+    return out;
+  });
+}
+
+function defaultConfig() {
+  const peak = {};
+  for (let d = 0; d < 7; d++) peak[d] = { from: '16:00', to: '23:00' };
+  return {
+    version: 2,
+    ruleSets: [defaultRuleSet('2026-01-01')],
+    courts: [
+      { match: 'pickleball', label: 'Pickleball', offpeak: 16, peak: 16, players: 4 },
+      { match: 'tennis', label: 'Tennis', offpeak: 20, peak: 20, players: 2 },
+      { match: 'squash', label: 'Squash', offpeak: 18, peak: 18, players: 2 },
+      { match: 'single', label: 'Padel Single', offpeak: 22, peak: 30, players: 2 },
+      { match: 'indoor', label: 'Padel Indoor', offpeak: 30, peak: 42, players: 4 },
+      { match: 'outdoor', label: 'Padel Outdoor', offpeak: 24, peak: 36, players: 4 },
+    ],
+    peak,
+    eventPrices: [],
+  };
+}
+
+/* ================= Speicher ================= */
+function lsGet(key, fallback) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch { return fallback; }
+}
+function lsSet(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { return false; }
+}
+
+const state = {
+  cfg: normalizeConfig(lsGet(LS.cfg, null)),
+  hf: lsGet(LS.hf, {}),
+  progress: lsGet(LS.progress, {}),
+  bookings: null,       // { refDate, list, warnings }
+  results: [],
+  filter: 'all',
+  queueIndex: 0,
+};
+
+function normalizeConfig(c) {
+  const d = defaultConfig();
+  if (!c || typeof c !== 'object') return d;
+  return {
+    version: 2,
+    ruleSets: (() => {
+      const sets = Array.isArray(c.ruleSets) ? sanitizeRuleSets(c.ruleSets) : Array.isArray(c.rules) ? rulesToSets(c.rules) : [];
+      return sets.length ? sets : d.ruleSets;
+    })(),
+    courts: Array.isArray(c.courts) ? c.courts : d.courts,
+    peak: c.peak && typeof c.peak === 'object' ? c.peak : d.peak,
+    eventPrices: Array.isArray(c.eventPrices) ? c.eventPrices : d.eventPrices,
+  };
+}
+
+/* ================= Hilfsfunktionen ================= */
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const round2 = x => Math.round(x * 100) / 100;
+const eur = x => Number.isFinite(x) ? x.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €' : '–';
+const eurPlain = x => x.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const pad = n => String(n).padStart(2, '0');
+const hhmm = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const dateKey = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const dateDe = d => d.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
+const toMin = s => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(s || '').trim()); return m ? +m[1] * 60 + +m[2] : null; };
+
+function parseNumber(s) {
+  if (s == null) return NaN;
+  let t = String(s).replace(/[^\d,.\-eE+]/g, '');
+  if (t.includes(',') && !t.includes('.')) t = t.replace(',', '.');
+  else t = t.replace(/,/g, '');
+  return parseFloat(t);
+}
+
+function parseDateTime(s) {
+  const t = String(s || '').trim();
+  let m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{1,2}):(\d{2})/.exec(t);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+  m = /^(\d{1,2})\.(\d{1,2})\.(\d{2,4})[ ,]+(\d{1,2}):(\d{2})/.exec(t);
+  if (m) return new Date(m[3].length === 2 ? 2000 + +m[3] : +m[3], +m[2] - 1, +m[1], +m[4], +m[5]);
+  return null;
+}
+
+function normName(s) {
+  return String(s || '').toLowerCase()
+    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+/** Variante ohne Umlaut-Umschreibung (ö → o), passend zu E-Mail-Adressen wie bjorn@… */
+function normSimple(s) {
+  return String(s || '').toLowerCase().replace(/ß/g, 'ss')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function emailTokens(email) {
+  const local = String(email || '').toLowerCase().split('@')[0];
+  return local.replace(/ß/g, 'ss').normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z]+/).filter(Boolean);
+}
+
+function permutations(arr) {
+  if (arr.length <= 1) return [arr];
+  const out = [];
+  arr.forEach((x, i) => { for (const rest of permutations([...arr.slice(0, i), ...arr.slice(i + 1)])) out.push([x, ...rest]); });
+  return out;
+}
+
+/** Sucht Vor- und Nachname des Check-ins im lokalen Teil der E-Mail. 0.95 = sicher, 0.9 = nur Initiale + Nachname. */
+function emailScore(variants, email) {
+  const lt = emailTokens(email);
+  if (!lt.length) return 0;
+  const joined = lt.join('');
+  let best = 0;
+  for (const v of variants) {
+    const ct = v.split(' ').filter(t => t && !/^\d+$/.test(t));
+    if (ct.length < 2) continue;
+    const first = ct[0], last = ct[ct.length - 1];
+    if (ct.every(t => lt.includes(t))) return 0.95;
+    if (lt.includes(first) && lt.includes(last)) return 0.95;
+    if (joined === first + last || joined === last + first) return 0.95;
+    if (ct.length <= 4 && permutations(ct).some(x => x.join('') === joined)) return 0.95;
+    const fi = first[0];
+    if (joined === fi + last || joined === last + fi) best = Math.max(best, 0.9);
+  }
+  return best;
+}
+
+function levenshtein(a, b) {
+  if (a === b) return 0;
+  const m = a.length, n = b.length;
+  if (!m) return n; if (!n) return m;
+  let prev = Array.from({ length: n + 1 }, (_, i) => i);
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[n];
+}
+
+/** 1 = sicher gleich, ≥0.95 = sicher (Zweitname/Reihenfolge), 0.85–0.95 = ähnlich, 0 = kein Treffer */
+function nameScore(a, b) {
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  const ta = a.split(' '), tb = b.split(' ');
+  const sa = [...ta].sort().join(' '), sb = [...tb].sort().join(' ');
+  if (sa === sb) return 1;
+  const setB = new Set(tb), setA = new Set(ta);
+  const common = ta.filter(t => setB.has(t)).length;
+  if (common >= 2 && (common === ta.length || common === tb.length)) return 0.95;
+  if (ta.length >= 2 && tb.length >= 2 && ta[0] === tb[0] && ta[ta.length - 1] === tb[tb.length - 1]) return 0.95;
+  const ratio = 1 - levenshtein(sa, sb) / Math.max(sa.length, sb.length);
+  return ratio >= 0.85 ? Math.min(ratio, 0.94) : 0;
+}
+
+/* Eigene Dialoge statt prompt()/confirm(): die Mac-App (Electron) kennt kein prompt(), eingebettete Seiten dürfen oft keine Dialoge öffnen. */
+function ask(message, { input = false, value = '', ok = 'OK' } = {}) {
+  return new Promise(resolve => {
+    const wrap = document.createElement('div');
+    wrap.className = 'askwrap';
+    wrap.innerHTML = `<form class="askbox"><p></p>${input ? '<input class="askin" size="30">' : ''}<div class="row"><button type="button" class="btn" data-a="no">Abbrechen</button><button class="btn primary" type="submit"></button></div></form>`;
+    wrap.querySelector('p').textContent = message;
+    wrap.querySelector('[type=submit]').textContent = ok;
+    const inp = wrap.querySelector('.askin');
+    if (inp) inp.value = value;
+    const close = v => { wrap.remove(); document.removeEventListener('keydown', onKey, true); resolve(v); };
+    const onKey = e => { if (e.key === 'Escape') { e.preventDefault(); close(null); } else e.stopPropagation(); };
+    wrap.querySelector('form').addEventListener('submit', e => { e.preventDefault(); close(inp ? inp.value : true); });
+    wrap.querySelector('[data-a=no]').addEventListener('click', () => close(null));
+    document.addEventListener('keydown', onKey, true);
+    document.body.appendChild(wrap);
+    (inp || wrap.querySelector('[type=submit]')).focus();
+  });
+}
+const askConfirm = (msg, ok = 'Löschen') => ask(msg, { ok }).then(v => v === true);
+const askText = (msg, value = '') => ask(msg, { input: true, value, ok: 'Übernehmen' });
+
+function copyText(text, btn) {
+  const done = () => { if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => { btn.textContent = o; }, 900); } };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, done));
+  } else fallbackCopy(text, done);
+}
+function fallbackCopy(text, done) {
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); done(); } catch { ask('Kopieren nicht möglich, bitte von Hand kopieren:', { input: true, value: text, ok: 'Schließen' }); }
+  ta.remove();
+}
+
+// In der Rezeption-App übernimmt die App das Speichern (claude.ai erlaubt Downloads nur über die Hauptseite).
+const EMBEDDED = window.parent !== window;
+if (EMBEDDED) document.documentElement.classList.add('embedded');
+function download(filename, content, mime) {
+  if (EMBEDDED) { window.parent.postMessage({ type: 'rz-download', name: filename, data: content, mime }, '*'); return; }
+  const blob = content instanceof Blob ? content : new Blob([content], { type: mime });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/* ================= Datei lesen (CSV / Excel) ================= */
+function parseCSV(text) {
+  text = text.replace(/^﻿/, '');
+  const nl = text.indexOf('\n');
+  const first = nl >= 0 ? text.slice(0, nl) : text;
+  const delim = (first.match(/;/g) || []).length > (first.match(/,/g) || []).length ? ';'
+    : (first.match(/\t/g) || []).length > (first.match(/,/g) || []).length ? '\t' : ',';
+  const rows = []; let row = [], field = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else q = false; }
+      else field += c;
+    } else if (c === '"') q = true;
+    else if (c === delim) { row.push(field); field = ''; }
+    else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+    else if (c !== '\r') field += c;
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(v => String(v).trim() !== ''));
+}
+
+async function readTableFile(file) {
+  const name = file.name.toLowerCase();
+  if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+    if (typeof XLSX === 'undefined') throw new Error('Excel-Unterstützung nicht geladen (keine Internetverbindung?). Bitte als CSV speichern.');
+    const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    return XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' }).filter(r => r.some(v => String(v).trim() !== ''));
+  }
+  const buf = await file.arrayBuffer();
+  let text = new TextDecoder('utf-8').decode(buf);
+  if (text.includes('�')) text = new TextDecoder('windows-1252').decode(buf);
+  return parseCSV(text);
+}
+
+/* ================= Playtomic-Export ================= */
+function parseBookings(rows) {
+  if (!rows.length) throw new Error('Die Datei ist leer.');
+  const header = rows[0].map(h => String(h).trim());
+  const idx = Object.fromEntries(header.map((h, i) => [h, i]));
+  const missing = REQUIRED_COLS.filter(c => !(c in idx));
+  if (missing.length) throw new Error('Spalten fehlen: ' + missing.join(', ') + '. Ist das der Buchungsexport aus Playtomic?');
+  const warnings = [];
+  const shifted = rows.slice(1).filter(r => r.length !== header.length).length;
+  if (shifted) warnings.push(`${shifted} Zeilen haben eine abweichende Spaltenzahl. Wurde die Datei in Excel geöffnet und gespeichert? Bitte die Originaldatei aus Playtomic verwenden.`);
+  const pCount = header.filter(h => /^participant_name_\d+$/.test(h)).length;
+  const get = (r, c) => (c in idx ? String(r[idx[c]] ?? '').trim() : '');
+
+  const list = [];
+  for (const r of rows.slice(1)) {
+    const start = parseDateTime(get(r, 'booking_start_date'));
+    const end = parseDateTime(get(r, 'booking_end_date'));
+    if (!start || !end) continue;
+    const participants = [];
+    for (let i = 1; i <= pCount; i++) {
+      const name = get(r, `participant_name_${i}`);
+      const email = get(r, `participant_email_${i}`);
+      if (name || email) participants.push({ name, email, norm: normName(name), pos: i });
+    }
+    list.push({
+      id: get(r, 'booking_id'),
+      tournamentId: get(r, 'tournament_id'),
+      resource: get(r, 'resource_name'),
+      sport: get(r, 'sport_id').toUpperCase(),
+      start, end,
+      price: parseNumber(get(r, 'price')),
+      type: get(r, 'booking_type').toUpperCase(),
+      payStatus: get(r, 'payment_status').toUpperCase(),
+      status: get(r, 'status').toUpperCase(),
+      canceled: get(r, 'is_canceled').toLowerCase() === 'true',
+      activityName: get(r, 'activity_name'),
+      participants,
+    });
+  }
+  if (!list.length) throw new Error('Keine Buchungen mit gültigem Datum gefunden.');
+
+  const dayCount = {};
+  for (const b of list) { const k = dateKey(b.start); dayCount[k] = (dayCount[k] || 0) + 1; }
+  const refKey = Object.entries(dayCount).sort((a, b) => b[1] - a[1])[0][0];
+  if (Object.keys(dayCount).length > 1) warnings.push('Der Export enthält mehrere Tage. Geprüft wird der ' + refKey.split('-').reverse().join('.') + '.');
+  const [y, mo, d] = refKey.split('-').map(Number);
+  return { refDate: new Date(y, mo - 1, d), refKey, list, warnings };
+}
+
+function bookingKind(b) {
+  if (b.type === 'PRIVATE_CLASS') return 'PRIVATE';
+  if (['TOURNAMENT', 'CLASS', 'COURSE', 'ACADEMY', 'LEAGUE', 'EVENT'].includes(b.type)) return 'EVENT';
+  if (b.sport === 'PADEL') return 'PADEL';
+  if (b.sport === 'SQUASH') return 'SQUASH';
+  return null;
+}
+
+/** Nur durchgeführte, nicht stornierte Buchungen; Events über mehrere Plätze zu einer Einheit zusammengefasst. */
+function usableBookings(list, refKey) {
+  const out = [];
+  const events = new Map();
+  for (const b of list) {
+    if (dateKey(b.start) !== refKey) continue;
+    if (b.canceled || b.status === 'CANCELED') continue;
+    if (['REFUNDED', 'VOID'].includes(b.payStatus)) continue;
+    const kind = bookingKind(b);
+    if (kind === 'EVENT' && b.tournamentId) {
+      const ev = events.get(b.tournamentId);
+      if (!ev) {
+        const copy = { ...b, kind, courts: [b.resource], rowPrices: [b.price], rowCounts: [b.participants.length], participants: [] };
+        events.set(b.tournamentId, copy); out.push(copy);
+      } else {
+        ev.courts.push(b.resource); ev.rowPrices.push(b.price); ev.rowCounts.push(b.participants.length);
+      }
+      const ev2 = events.get(b.tournamentId);
+      for (const p of b.participants) {
+        const dup = ev2.participants.some(x => (p.email && x.email.toLowerCase() === p.email.toLowerCase()) || (!p.email && x.norm === p.norm));
+        if (!dup) ev2.participants.push(p);
+      }
+    } else {
+      out.push({ ...b, kind, courts: [b.resource] });
+    }
+  }
+  return out;
+}
+
+/* ================= Check-ins ================= */
+const MONTHS = { jan: 1, feb: 2, 'mär': 3, mae: 3, mar: 3, mrz: 3, apr: 4, mai: 5, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, okt: 10, oct: 10, nov: 11, dez: 12, dec: 12 };
+const RE_TIME = /(?<!\d)([01]?\d|2[0-3]):([0-5]\d)(?!\d)/g;
+const RE_DATE_ISO = /(?<!\d)(\d{4})-(\d{1,2})-(\d{1,2})(?!\d)/;
+const RE_DATE_NUM = /(?<!\d)(\d{1,2})\.(\d{1,2})\.(\d{4}|\d{2})(?![\d:])/;
+const RE_DATE_TXT = /(?<!\d)(\d{1,2})\.?\s*(jan|feb|mär|mae|mar|mrz|apr|mai|may|jun|jul|aug|sep|okt|oct|nov|dez|dec)[a-zä]*\.?(?:\s+(\d{4}|\d{2})(?![\d:]))?/i;
+const isHfId = s => /^[A-Z0-9]{6,12}$/i.test(s) && /\d/.test(s) && /[A-Z]/i.test(s);
+
+function findDateTime(line, refDate) {
+  const times = [...line.matchAll(RE_TIME)];
+  if (!times.length) return null;
+  let day, month, year;
+  let m = RE_DATE_ISO.exec(line);
+  if (m) { year = +m[1]; month = +m[2]; day = +m[3]; }
+  else if ((m = RE_DATE_NUM.exec(line))) { day = +m[1]; month = +m[2]; year = m[3].length === 2 ? 2000 + +m[3] : +m[3]; }
+  else {
+    m = RE_DATE_TXT.exec(line);
+    if (!m) return null;
+    day = +m[1]; month = MONTHS[m[2].toLowerCase()];
+    if (m[3]) year = m[3].length === 2 ? 2000 + +m[3] : +m[3];
+    else {
+      year = refDate.getFullYear();
+      const diff = month - (refDate.getMonth() + 1);
+      if (diff > 6) year--; else if (diff < -6) year++;
+    }
+  }
+  const t = times[times.length - 1];
+  const d = new Date(year, month - 1, day, +t[1], +t[2]);
+  return d.getMonth() === month - 1 ? d : null;
+}
+
+function looksLikeName(s) {
+  return !!s && /[a-zäöüß]/i.test(s) && !isHfId(s) && !RE_DATE_ISO.test(s) && !RE_DATE_NUM.test(s) && !RE_DATE_TXT.test(s) && !/\d{1,2}:\d{2}/.test(s);
+}
+
+/** Fügt Datensätze zusammen, die das Portal über mehrere Zeilen verteilt (z. B. USC: Datum, dann Uhrzeit in eigener Zeile). */
+function logicalLines(text) {
+  const lines = String(text || '').split(/\r?\n/).map(l => l.replace(/\s+$/, '')).filter(l => l.trim());
+  const hasTime = l => new RegExp(RE_TIME.source).test(l);
+  const hasDate = l => RE_DATE_ISO.test(l) || RE_DATE_NUM.test(l) || RE_DATE_TXT.test(l);
+  const isNoise = l => /nachname|datum|zeit \(|eingecheckt|checked-in|wellhub id|hansefit id/i.test(l);
+  const out = [];
+  let pending = []; // Zeilen ohne Datum/Uhrzeit seit dem letzten Datensatz (z. B. Wellhub: Name, Sportart)
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i];
+    if (!hasDate(line) && !hasTime(line)) {
+      if (!isNoise(line)) pending.push(line.trim());
+      continue;
+    }
+    if (hasDate(line) && !hasTime(line)) {
+      for (let k = 1; k <= 2 && i + k < lines.length; k++) {
+        const next = lines[i + k];
+        if (hasDate(next)) break;
+        if (hasTime(next)) { line = line.replace(/\t$/, '') + '\t' + next.trim(); i += k; break; }
+      }
+    }
+    const sep = line.includes('\t') ? '\t' : line.includes(';') ? ';' : ',';
+    const first = line.split(sep)[0].trim();
+    const hasId = line.split(/[\t;,]/).some(f => isHfId(f.trim()));
+    if (!looksLikeName(first) && !hasId && pending.length && looksLikeName(pending[0])) line = pending[0] + '\t' + line.trim();
+    pending = [];
+    out.push(line);
+  }
+  return out;
+}
+
+/**
+ * Hansefit-Portal: jede Zelle auf eigener Zeile, Datensatz beginnt mit der ID.
+ * Reihenfolge: ID, Nummer, „Check-In via APP“, „Vor Ort“, Datum, Check-in-Zeit, Datum, Check-out-Zeit, Anzahl.
+ */
+function parseHansefitBlocks(text, refDate) {
+  const lines = String(text || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const blocks = [];
+  for (const l of lines) {
+    if (isHfId(l)) blocks.push({ id: l.toUpperCase(), lines: [] });
+    else if (blocks.length) blocks[blocks.length - 1].lines.push(l);
+  }
+  const hasTime = l => new RegExp(RE_TIME.source).test(l);
+  const hasDate = l => RE_DATE_ISO.test(l) || RE_DATE_NUM.test(l) || RE_DATE_TXT.test(l);
+  const items = [];
+  let skipped = 0;
+  for (const b of blocks) {
+    let when = null;
+    for (let i = 0; i < b.lines.length && !when; i++) {
+      const l = b.lines[i];
+      if (!hasDate(l)) continue;
+      const combined = hasTime(l) ? l : (b.lines[i + 1] && hasTime(b.lines[i + 1]) ? l + ' ' + b.lines[i + 1] : null);
+      if (combined) when = findDateTime(combined, refDate);
+    }
+    if (!when) { skipped++; continue; }
+    let name = b.lines.find(l => looksLikeName(l) && !/check-?in|vor ort|\bapp\b|online/i.test(l)) || '';
+    if (!name && state.hf[b.id]) name = state.hf[b.id];
+    items.push({ provider: 'Hansefit', when, name, norm: normName(name), norm2: normSimple(name), hfId: b.id, line: [b.id, ...b.lines].join(' | ') });
+  }
+  return { items, skipped };
+}
+
+function parseCheckins(text, provider, refDate) {
+  if (provider === 'Hansefit' && String(text || '').split(/\r?\n/).some(l => isHfId(l.trim()))) return parseHansefitBlocks(text, refDate);
+  const items = [];
+  let skipped = 0;
+  for (const raw of logicalLines(text)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const when = findDateTime(line, refDate);
+    if (!when) { skipped++; continue; }
+    const sep = line.includes('\t') ? '\t' : line.includes(';') ? ';' : ',';
+    const fields = line.split(sep).map(f => f.trim());
+    const first = sep === '\t' ? fields[0].split(/[,;]/)[0].trim() : fields[0];
+    let name = looksLikeName(first) ? first : '';
+    let hfId = '';
+    if (provider === 'Hansefit') {
+      hfId = (fields.find(isHfId) || '').toUpperCase();
+      if (!name && hfId && state.hf[hfId]) name = state.hf[hfId];
+    }
+    items.push({ provider, when, name, norm: normName(name), norm2: normSimple(name), hfId, line });
+  }
+  return { items, skipped };
+}
+
+/* ================= Regeln & Preise ================= */
+function courtFor(resource) {
+  const n = resource.toLowerCase();
+  return state.cfg.courts.find(c => c.match && n.includes(String(c.match).toLowerCase())) || null;
+}
+function isPeak(d) {
+  const p = state.cfg.peak[d.getDay()];
+  const f = toMin(p && p.from), t0 = toMin(p && p.to);
+  if (f == null || t0 == null) return false;
+  const t = t0 === 0 ? 1440 : t0;
+  const m = d.getHours() * 60 + d.getMinutes();
+  return m >= f && m < t;
+}
+/** Zeitgewichteter Listenpreis der ersten 60 Minuten ab Buchungsbeginn. */
+function firstHourPrice(b, court) {
+  let sum = 0;
+  for (let i = 0; i < 60; i++) sum += isPeak(new Date(b.start.getTime() + i * 60000)) ? +court.peak : +court.offpeak;
+  return sum / 60;
+}
+function activeRuleSet(refKey) {
+  return state.cfg.ruleSets.filter(s => s.validFrom <= refKey).sort((a, b) => b.validFrom.localeCompare(a.validFrom))[0] || null;
+}
+function findRule(provider, kind, refKey) {
+  const set = activeRuleSet(refKey);
+  const row = set && set.kinds[kind];
+  const cell = row && row.providers[provider];
+  return cell ? { ...cell, factor: row.factor, review: row.review, validFrom: set.validFrom } : null;
+}
+function eventPrice(name) {
+  const n = normName(name);
+  const e = state.cfg.eventPrices.find(x => normName(x.name) === n && Number.isFinite(+x.price) && String(x.price) !== '');
+  return e ? +e.price : null;
+}
+
+/* ================= Prüfung ================= */
+function evaluate(ci, bookings, refKey, credited) {
+  const res = { key: `${ci.provider}|${ci.norm || 'hf:' + ci.hfId}|${hhmm(ci.when)}`, ci, booking: null, participant: null, kind: null, amount: null, status: 'reject', reasons: [], notes: [] };
+  if (!ci.norm) {
+    res.status = 'review';
+    res.reasons.push(!ci.hfId ? 'Kein Name im Check-in erkennbar'
+      : Object.prototype.hasOwnProperty.call(state.hf, ci.hfId) ? `Hansefit-ID ${ci.hfId} ist in der Liste, aber der Name fehlt` : `Hansefit-ID ${ci.hfId} fehlt in der Hansefit-Liste`);
+    return res;
+  }
+
+  const cands = [];
+  for (const b of bookings) {
+    for (const p of b.participants) {
+      const ns = nameScore(ci.norm, p.norm);
+      const es = p.email ? emailScore([ci.norm, ci.norm2 || ci.norm], p.email) : 0;
+      const score = Math.max(ns, es);
+      if (!score) continue;
+      const via = ns >= es ? 'name' : 'email';
+      cands.push({ b, p, score, via });
+    }
+  }
+  if (!cands.length) { res.reasons.push('Keine Buchung mit diesem Namen am Prüftag'); return res; }
+  // Der Check-in gilt für den ganzen Tag, und zwar für die erste Buchung der Person (unabhängig von der Check-in-Uhrzeit).
+  cands.sort((x, y) => (y.score >= 0.95) - (x.score >= 0.95) || x.b.start - y.b.start || y.score - x.score);
+  // Erste erstattungsfähige Buchung des Tages; sind alle abzulehnen, zählt die Begründung der ersten Buchung.
+  const assessed = [];
+  const seen = new Set();
+  for (const c of cands) {
+    if (seen.has(c.b.id)) continue;
+    seen.add(c.b.id);
+    assessed.push(assessBooking(ci, c, refKey, credited));
+  }
+  const pick = assessed.find(a => a.status !== 'reject') || assessed[0];
+  const skipped = assessed.slice(0, assessed.indexOf(pick));
+  Object.assign(res, pick);
+  if (pick.status !== 'reject') {
+    for (const a of skipped) res.notes.push(`Buchung ${hhmm(a.booking.start)} übersprungen: ${a.reasons.join('; ')}`);
+    if (Number.isFinite(pick.amount)) credited.add(pick.creditKey);
+  } else if (assessed.length > 1) {
+    res.notes.push(`Keine der ${assessed.length} Buchungen der Person an diesem Tag ist erstattungsfähig`);
+  }
+  return res;
+}
+
+/** Prüft einen Check-in gegen eine konkrete Buchung. Ändert keinen Zustand. */
+function assessBooking(ci, { b, p, score, via }, refKey, credited) {
+  const res = { booking: b, participant: p, kind: b.kind, matchVia: via, amount: null, status: 'reject', reasons: [], notes: [] };
+  const review = [];
+  if (score < 0.95) review.push(via === 'email' ? `E-Mail passt nur teilweise zum Namen: „${p.email}“` : `Name nur ähnlich: „${p.name}“`);
+  if (via === 'email') res.notes.push('Treffer über die E-Mail-Adresse, Name in Playtomic weicht ab');
+
+  res.creditKey = b.id + '|' + (p.email.toLowerCase() || p.norm);
+  if (credited.has(res.creditKey)) { res.reasons.push('Dieser Playtomic-Teilnehmer erhält bereits über einen anderen Check-in eine Gutschrift'); return res; }
+
+  if (!b.kind) { res.status = 'review'; res.reasons.push(`Keine Regel für Sportart ${b.sport || '?'} (${b.resource})`); return res; }
+
+  // Selbst bezahlter Anteil
+  const n = b.participants.length;
+  let paid;
+  if (b.kind === 'PADEL') {
+    if (b.type === 'REGULAR_BOOKING' && n < 2) { res.reasons.push('Kein Splitpayment: Bucher ist allein eingetragen und hat komplett bezahlt'); return res; }
+    if (b.type === 'RECURRING_BOOKING') review.push('Dauerbuchung aus dem Manager: Zahlung manuell prüfen');
+    paid = b.price / Math.max(n, 1);
+  } else if (b.kind === 'SQUASH') {
+    if (p.pos !== 1) { res.reasons.push('Squash: Nur der Bucher erhält die Gutschrift'); return res; }
+    paid = b.price;
+  } else if (b.kind === 'EVENT') {
+    const ep = eventPrice(b.activityName);
+    if (ep != null) paid = ep;
+    else {
+      const counts = b.rowCounts || [n];
+      paid = b.rowPrices ? b.rowPrices[0] / Math.max(counts[0], 1) : b.price / Math.max(n, 1);
+      res.notes.push(`Eventpreis geschätzt (${eur(round2(paid))} p. P.), unter „Regeln & Preise“ hinterlegen`);
+    }
+  } else {
+    paid = b.price / Math.max(n, 1);
+  }
+  if (!Number.isFinite(paid) || paid <= 0) { res.reasons.push('Person hat selbst nichts bezahlt'); return res; }
+  if (b.payStatus === 'PENDING') review.push('Zahlung in Playtomic noch offen (PENDING)');
+
+  const rule = findRule(ci.provider, b.kind, refKey);
+  if (!rule) { res.status = 'review'; res.reasons.push('Kein Regelstand für den Prüftag hinterlegt'); return res; }
+  if (rule.mode === 'none') { res.reasons.push(`Laut Regel keine Erstattung für ${ci.provider} / ${KINDS[b.kind]}`); return res; }
+  if (rule.mode === 'manual') { res.status = 'review'; res.reasons.push(`Regel ${ci.provider} / ${KINDS[b.kind]}: manuell entscheiden`); return res; }
+
+  let amount;
+  if (rule.mode === 'court1h') {
+    const court = courtFor(b.resource);
+    if (!court) { res.status = 'review'; res.reasons.push(`Platz „${b.resource}“ ist in der Preistabelle nicht zugeordnet`); return res; }
+    const hour = firstHourPrice(b, court);
+    amount = hour / Math.max(+court.players || 1, 1);
+    res.notes.push(`${court.label}: ${eur(round2(hour))}/h ÷ ${court.players}`);
+  } else {
+    amount = +rule.amount;
+  }
+  amount *= +rule.factor || 1;
+  if (amount > paid + 0.004) { res.notes.push(`begrenzt auf bezahlten Anteil ${eur(round2(paid))}`); amount = paid; }
+  res.amount = round2(amount);
+  if (rule.review) review.push(`Regel ${ci.provider} / ${KINDS[b.kind]} verlangt manuelle Prüfung`);
+
+  res.status = review.length ? 'review' : 'ok';
+  res.reasons.push(...review);
+  return res;
+}
+
+function runCheck() {
+  const info = $('#runInfo');
+  if (!state.bookings) { info.textContent = 'Bitte zuerst den Playtomic-Export laden.'; return; }
+  const { refDate, refKey, list } = state.bookings;
+  const bookings = usableBookings(list, refKey);
+
+  let all = [], ignoredDate = 0;
+  for (const p of PROVIDERS) {
+    const { items } = parseCheckins($('#paste-' + p).value, p, refDate);
+    for (const it of items) { if (dateKey(it.when) === refKey) all.push(it); else ignoredDate++; }
+  }
+  all.sort((a, b) => a.when - b.when);
+
+  const firstByPerson = new Map();
+  const credited = new Set();
+  const results = [];
+  for (const ci of all) {
+    const ident = ci.norm || 'hf:' + ci.hfId;
+    if (ident && firstByPerson.has(ident)) {
+      const first = firstByPerson.get(ident);
+      results.push({ key: `${ci.provider}|${ident}|${hhmm(ci.when)}|dup`, ci, booking: null, participant: null, kind: null, amount: null, status: 'reject',
+        reasons: [`Weiterer Check-in am selben Tag, es zählt der erste (${first.provider} ${hhmm(first.when)})`], notes: [] });
+      continue;
+    }
+    if (ident) firstByPerson.set(ident, ci);
+    results.push(evaluate(ci, bookings, refKey, credited));
+  }
+  state.results = results;
+  state.queueIndex = 0;
+  const set = activeRuleSet(refKey);
+  info.textContent = `${all.length} Check-ins geprüft` + (ignoredDate ? `, ${ignoredDate} von anderen Tagen ignoriert` : '')
+    + (set ? ` · Regelstand ab ${set.validFrom.split('-').reverse().join('.')}` : ' · kein Regelstand gültig') + '.';
+  $('#exportBtn').disabled = !results.length;
+  renderResults(); renderQueue();
+}
+
+/* ================= Fortschritt (Freigabe / gebucht) ================= */
+function prog() {
+  const k = state.bookings ? state.bookings.refKey : '_';
+  if (!state.progress[k]) state.progress[k] = {};
+  return state.progress[k];
+}
+function getP(r) { return prog()[r.key] || {}; }
+function setP(r, patch) {
+  const p = prog();
+  p[r.key] = { ...(p[r.key] || {}), ...patch };
+  lsSet(LS.progress, state.progress);
+}
+function effective(r) {
+  const p = getP(r);
+  const decision = p.decision || 'auto';
+  const amount = Number.isFinite(p.amount) ? p.amount : r.amount;
+  const inQueue = decision === 'approve' ? Number.isFinite(amount) && amount > 0 : decision === 'auto' && r.status === 'ok';
+  return { decision, amount, inQueue, booked: !!p.bookedAt, bookedAt: p.bookedAt, bookedBy: p.bookedBy };
+}
+
+/* ================= Darstellung Ergebnis ================= */
+const STATUS_LABEL = { ok: '✅ Erstatten', review: '⚠️ Prüfen', reject: '❌ Keine' };
+
+/** Name im Check-in und Name in Playtomic stimmen nicht (sicher) überein. */
+function nameDiffers(r) {
+  const p = r.participant;
+  if (!p || !r.ci.name) return false;
+  return nameScore(r.ci.norm, p.norm) < 0.95;
+}
+
+function renderResults() {
+  const panel = $('#resultPanel');
+  panel.hidden = !state.bookings;
+  if (!state.bookings) return;
+  $('#resultDate').textContent = '· ' + dateDe(state.bookings.refDate);
+
+  const counts = { ok: 0, review: 0, reject: 0 };
+  let sumQueue = 0, open = 0;
+  for (const r of state.results) {
+    counts[r.status]++;
+    const e = effective(r);
+    if (e.inQueue) { sumQueue += e.amount; if (!e.booked) open++; }
+  }
+  $('#stats').innerHTML = `
+    <div class="stat"><span class="muted">Check-ins</span><b>${state.results.length}</b></div>
+    <div class="stat"><span class="muted">✅ Erstatten</span><b>${counts.ok}</b></div>
+    <div class="stat"><span class="muted">⚠️ Prüfen</span><b>${counts.review}</b></div>
+    <div class="stat"><span class="muted">❌ Keine</span><b>${counts.reject}</b></div>
+    <div class="stat"><span class="muted">Summe Buchungsliste</span><b>${eur(round2(sumQueue))}</b></div>
+    <div class="stat"><span class="muted">Offen zu buchen</span><b>${open}</b></div>`;
+
+  const f = state.filter;
+  const rows = state.results.map((r, i) => ({ r, i, e: effective(r) })).filter(({ r, e }) =>
+    f === 'all' || (f === 'open' ? e.inQueue && !e.booked : r.status === f));
+  const tb = $('#resultTable tbody');
+  tb.innerHTML = rows.map(({ r, i, e }) => {
+    const b = r.booking, p = r.participant;
+    const chip = e.booked ? `<span class="chip done">gebucht ${esc(e.bookedAt.slice(11, 16))}</span>` : `<span class="chip ${r.status}">${STATUS_LABEL[r.status]}</span>`;
+    const ciName = r.ci.name || (r.ci.hfId ? `ID ${r.ci.hfId}` : '–');
+    const pt = p ? `${esc(p.name || '–')}${nameDiffers(r) ? ' <span class="chip review">abweichend</span>' : ''}<br><span class="muted">${esc(p.email || 'keine E-Mail')}</span>${r.matchVia === 'email' ? '<br><span class="chip review">über E-Mail</span>' : ''}` : '<span class="muted">–</span>';
+    const bk = b ? `${esc(KINDS[b.kind] || b.sport)}${b.activityName ? ' · ' + esc(b.activityName) : ''}<br><span class="muted">${esc(b.courts.join(', '))} · ${hhmm(b.start)}–${hhmm(b.end)} · ${esc(b.type)} · ${b.participants.length} Teiln.</span>` : '<span class="muted">–</span>';
+    const reasons = [...r.reasons, ...r.notes.map(n => 'ℹ️ ' + n)];
+    const hfBtn = !r.ci.norm && r.ci.hfId ? `<button class="btn small" data-act="hfmap" data-i="${i}">Name zuordnen</button>` : '';
+    const dec = e.booked ? '' : `
+      <select data-act="decision" data-i="${i}">
+        <option value="auto"${e.decision === 'auto' ? ' selected' : ''}>Automatisch</option>
+        <option value="approve"${e.decision === 'approve' ? ' selected' : ''}>Freigeben</option>
+        <option value="reject"${e.decision === 'reject' ? ' selected' : ''}>Ablehnen</option>
+      </select>
+      ${e.decision === 'approve' ? `<input type="number" step="0.01" min="0" data-act="amount" data-i="${i}" value="${Number.isFinite(e.amount) ? e.amount : ''}" placeholder="€">` : ''}`;
+    return `<tr class="${e.booked ? 'booked' : ''}">
+      <td>${chip}</td>
+      <td>${esc(r.ci.provider)}<br><span class="muted">${hhmm(r.ci.when)}</span></td>
+      <td>${esc(ciName)} ${hfBtn}</td>
+      <td>${pt}</td>
+      <td>${bk}</td>
+      <td class="num">${eur(e.decision === 'approve' ? e.amount : r.amount)}</td>
+      <td>${reasons.length ? `<ul class="reasons">${reasons.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}</td>
+      <td>${dec}</td></tr>`;
+  }).join('') || '<tr><td colspan="8" class="muted">Keine Einträge.</td></tr>';
+}
+
+$('#resultTable').addEventListener('change', ev => {
+  const el = ev.target, r = state.results[+el.dataset.i];
+  if (!r) return;
+  if (el.dataset.act === 'decision') setP(r, { decision: el.value });
+  if (el.dataset.act === 'amount') { const v = parseNumber(el.value); setP(r, { amount: Number.isFinite(v) ? round2(v) : undefined }); }
+  renderResults(); renderQueue();
+});
+$('#resultTable').addEventListener('click', async ev => {
+  const el = ev.target;
+  if (el.dataset.act !== 'hfmap') return;
+  const r = state.results[+el.dataset.i];
+  const name = await askText(`Name für Hansefit-ID ${r.ci.hfId}:`);
+  if (!name || !name.trim()) return;
+  state.hf[r.ci.hfId] = name.trim();
+  lsSet(LS.hf, state.hf); renderHf(); runCheck();
+});
+$('#filters').addEventListener('click', ev => {
+  const f = ev.target.dataset.f; if (!f) return;
+  state.filter = f;
+  for (const b of $('#filters').querySelectorAll('button')) b.classList.toggle('active', b.dataset.f === f);
+  renderResults();
+});
+
+/* ================= Buchungsliste ================= */
+function queueItems() { return state.results.filter(r => effective(r).inQueue); }
+
+function renderQueue() {
+  const items = queueItems();
+  $('#queueEmpty').hidden = items.length > 0;
+  $('#queueArea').hidden = items.length === 0;
+  if (!items.length) return;
+  if (state.queueIndex >= items.length) state.queueIndex = items.length - 1;
+  if (state.queueIndex < 0) state.queueIndex = 0;
+
+  const done = items.filter(r => effective(r).booked).length;
+  const sum = items.reduce((s, r) => s + effective(r).amount, 0);
+  const sumOpen = items.filter(r => !effective(r).booked).reduce((s, r) => s + effective(r).amount, 0);
+  $('#queueProgressText').textContent = `${done} von ${items.length} gebucht`;
+  $('#queueSum').textContent = ` · gesamt ${eur(round2(sum))} · offen ${eur(round2(sumOpen))}`;
+  $('#queueBar').style.width = (done / items.length * 100) + '%';
+
+  const r = items[state.queueIndex], e = effective(r), p = r.participant, b = r.booking;
+  const name = (p && p.name) || r.ci.name || '–';
+  const email = (p && p.email) || '';
+  const viaEmail = (r.matchVia === 'email' || !(p && p.name)) && !!email;
+  const search = viaEmail ? email : ((p && p.name) || email || r.ci.name || '');
+  state.currentSearch = search;
+  $('#queueCard').innerHTML = `
+    <div class="muted">${state.queueIndex + 1} / ${items.length} ${e.booked ? `· <span class="chip done">gebucht ${esc(e.bookedAt.slice(11, 16))}${e.bookedBy ? ' von ' + esc(e.bookedBy) : ''}</span>` : ''}</div>
+    <div class="name">${esc(name)}</div>
+    ${r.ci.name && normName(r.ci.name) !== normName(name) ? `<div class="muted">Name im Check-in: ${esc(r.ci.name)}</div>` : ''}
+    ${viaEmail ? '<div class="msg warn">Der Name in Playtomic passt nicht zum Check-in. Suche in Playtomic über die <b>E-Mail-Adresse</b>.</div>' : ''}
+    <div class="field"><span class="label">In Playtomic suchen</span><b>${esc(search)}</b>${search ? `<button class="btn small primary" data-copy="${esc(search)}">Kopieren (C)</button>` : ''}</div>
+    <div class="field"><span class="label">E-Mail</span><span>${esc(email || 'keine E-Mail in Playtomic')}</span>${email ? `<button class="btn small" data-copy="${esc(email)}">Kopieren</button>` : ''}</div>
+    <div class="field"><span class="label">Name</span><span>${esc(name)}</span><button class="btn small" data-copy="${esc(name)}">Kopieren</button></div>
+    <div class="field"><span class="label">Betrag</span><span class="amount">${eur(e.amount)}</span><button class="btn small" data-copy="${eurPlain(e.amount)}">Kopieren</button></div>
+    <div class="meta">${esc(r.ci.provider)} · Check-in ${hhmm(r.ci.when)} · ${esc(KINDS[r.kind] || '')}${b ? ` · ${esc(b.courts.join(', '))} ${hhmm(b.start)}–${hhmm(b.end)}` : ''}${b && b.activityName ? ' · ' + esc(b.activityName) : ''}</div>
+    ${r.reasons.length || r.notes.length ? `<div class="meta">${[...r.reasons, ...r.notes].map(esc).join(' · ')}</div>` : ''}
+    <div class="actions">
+      <button class="btn" data-q="prev">← Zurück</button>
+      ${e.booked ? `<button class="btn" data-q="undo">Buchung zurücknehmen</button>` : `<button class="btn primary" data-q="book">Im Wallet gebucht ✓</button>`}
+      <button class="btn" data-q="next">Überspringen →</button>
+    </div>`;
+
+  $('#queueTable tbody').innerHTML = items.map((x, i) => {
+    const ex = effective(x), px = x.participant;
+    return `<tr class="${ex.booked ? 'booked' : ''} ${i === state.queueIndex ? 'current' : ''}" data-qi="${i}" style="cursor:pointer">
+      <td>${i + 1}</td><td>${ex.booked ? '<span class="chip done">gebucht</span>' : '<span class="chip review">offen</span>'}</td>
+      <td>${esc(x.ci.name || (x.ci.hfId ? 'ID ' + x.ci.hfId : '–'))}</td>
+      <td>${esc((px && px.name) || '–')}${nameDiffers(x) ? ' <span class="chip review">abweichend</span>' : ''}</td>
+      <td>${esc((px && px.email) || '–')}</td>
+      <td class="num">${eur(ex.amount)}</td><td>${esc(x.ci.provider)}</td><td>${esc(KINDS[x.kind] || '')}</td></tr>`;
+  }).join('');
+}
+
+function nextOpen(from) {
+  const items = queueItems();
+  for (let k = 1; k <= items.length; k++) {
+    const i = (from + k) % items.length;
+    if (!effective(items[i]).booked) return i;
+  }
+  return from;
+}
+function queueAction(act) {
+  const items = queueItems();
+  if (!items.length) return;
+  const r = items[state.queueIndex];
+  if (act === 'book') {
+    const now = new Date();
+    setP(r, { bookedAt: `${dateKey(now)} ${hhmm(now)}`, bookedBy: $('#userInitials').value.trim() });
+    state.queueIndex = nextOpen(state.queueIndex);
+  } else if (act === 'undo') setP(r, { bookedAt: undefined, bookedBy: undefined });
+  else if (act === 'next') state.queueIndex = (state.queueIndex + 1) % items.length;
+  else if (act === 'prev') state.queueIndex = (state.queueIndex - 1 + items.length) % items.length;
+  renderQueue(); renderResults();
+}
+$('#queueCard').addEventListener('click', ev => {
+  const t = ev.target;
+  if (t.dataset.copy != null) copyText(t.dataset.copy, t);
+  if (t.dataset.q) queueAction(t.dataset.q);
+});
+$('#queueTable').addEventListener('click', ev => {
+  const tr = ev.target.closest('tr[data-qi]');
+  if (tr) { state.queueIndex = +tr.dataset.qi; renderQueue(); }
+});
+document.addEventListener('keydown', ev => {
+  if (!$('#tab-buchen').classList.contains('active')) return;
+  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+  if ((ev.key === 'c' || ev.key === 'C') && !ev.ctrlKey && !ev.metaKey && state.currentSearch) {
+    ev.preventDefault();
+    copyText(state.currentSearch, $('#queueCard .btn.primary[data-copy]'));
+    return;
+  }
+  const map = { Enter: 'book', ArrowRight: 'next', ArrowLeft: 'prev' };
+  if (!map[ev.key]) return;
+  ev.preventDefault();
+  const items = queueItems();
+  if (ev.key === 'Enter' && items.length && effective(items[state.queueIndex]).booked) { queueAction('next'); return; }
+  queueAction(map[ev.key]);
+});
+
+/* ================= Export Dokumentation ================= */
+function exportDoc() {
+  const head = ['Prüftag', 'Anbieter', 'Check-in', 'Name (Check-in)', 'Hansefit-ID', 'Name (Playtomic)', 'E-Mail', 'Treffer über', 'Leistung', 'Event', 'Platz', 'Buchungszeit', 'Buchungstyp', 'Booking-ID', 'Status', 'Entscheidung', 'Betrag €', 'Begründung', 'Gebucht am', 'Gebucht von'];
+  const ref = state.bookings.refKey.split('-').reverse().join('.');
+  const data = state.results.map(r => {
+    const e = effective(r), b = r.booking, p = r.participant;
+    return [ref, r.ci.provider, hhmm(r.ci.when), r.ci.name, r.ci.hfId, p ? p.name : '', p ? p.email : '', r.matchVia === 'email' ? 'E-Mail' : r.matchVia === 'name' ? 'Name' : '', KINDS[r.kind] || '', b ? b.activityName : '',
+      b ? b.courts.join(', ') : '', b ? `${hhmm(b.start)}–${hhmm(b.end)}` : '', b ? b.type : '', b ? b.id : '',
+      { ok: 'Erstatten', review: 'Prüfen', reject: 'Keine Erstattung' }[r.status], { auto: 'Automatisch', approve: 'Freigegeben', reject: 'Abgelehnt' }[e.decision],
+      e.inQueue ? e.amount : 0, [...r.reasons, ...r.notes].join(' | '), e.bookedAt || '', e.bookedBy || ''];
+  });
+  const fname = `Checkin-Erstattung_${state.bookings.refKey}`;
+  if (typeof XLSX !== 'undefined') {
+    const ws = XLSX.utils.aoa_to_sheet([head, ...data]);
+    ws['!cols'] = head.map(h => ({ wch: Math.max(10, h.length + 2) }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Erstattungen');
+    download(fname + '.xlsx', XLSX.write(wb, { bookType: 'xlsx', type: 'array' }), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  } else {
+    const cell = v => { const s = typeof v === 'number' ? eurPlain(v) : String(v ?? ''); return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+    download(fname + '.csv', '﻿' + [head, ...data].map(r => r.map(cell).join(';')).join('\r\n'), 'text/csv;charset=utf-8');
+  }
+}
+$('#exportBtn').addEventListener('click', exportDoc);
+
+/* ================= Import-Events ================= */
+$('#bookingFile').addEventListener('change', async ev => {
+  const file = ev.target.files[0]; if (!file) return;
+  const msg = $('#bookingMsg'); msg.innerHTML = '';
+  try {
+    state.bookings = parseBookings(await readTableFile(file));
+    const usable = usableBookings(state.bookings.list, state.bookings.refKey);
+    $('#bookingInfo').textContent = `${dateDe(state.bookings.refDate)} · ${state.bookings.list.length} Zeilen, ${usable.length} durchgeführte Buchungen/Events`;
+    msg.innerHTML = state.bookings.warnings.map(w => `<div class="msg warn">${esc(w)}</div>`).join('');
+    updateCounts();
+    state.results = []; renderResults(); renderQueue();
+  } catch (e) {
+    state.bookings = null;
+    $('#bookingInfo').textContent = 'Fehler beim Lesen.';
+    msg.innerHTML = `<div class="msg bad">${esc(e.message)}</div>`;
+  }
+});
+function updateCounts() {
+  const ref = state.bookings ? state.bookings.refDate : new Date();
+  for (const p of PROVIDERS) {
+    const { items } = parseCheckins($('#paste-' + p).value, p, ref);
+    $('#cnt-' + p).textContent = items.length ? `(${items.length} erkannt)` : '';
+  }
+}
+for (const p of PROVIDERS) $('#paste-' + p).addEventListener('input', updateCounts);
+$('#runBtn').addEventListener('click', runCheck);
+
+/* ================= Tabs ================= */
+$('#nav').addEventListener('click', ev => {
+  const t = ev.target.dataset.tab; if (!t) return;
+  for (const b of $('#nav').querySelectorAll('button')) b.classList.toggle('active', b.dataset.tab === t);
+  for (const s of document.querySelectorAll('section.tab')) s.classList.toggle('active', s.id === 'tab-' + t);
+  if (t === 'buchen') renderQueue();
+});
+$('#userInitials').value = lsGet(LS.user, '');
+// Die Rezeption-App meldet die eingecheckte Person; ihr Name gilt dann als „Bearbeitet von“.
+window.addEventListener('message', ev => {
+  if (ev.source !== window.parent || !ev.data || ev.data.type !== 'rz-user' || typeof ev.data.name !== 'string' || !ev.data.name) return;
+  $('#userInitials').value = ev.data.name.slice(0, 40);
+  lsSet(LS.user, $('#userInitials').value);
+});
+$('#userInitials').addEventListener('change', e => lsSet(LS.user, e.target.value.trim()));
+
+/* ================= Regeln-Editor ================= */
+const opt = (vals, cur) => vals.map(([v, l]) => `<option value="${esc(v)}"${String(v) === String(cur) ? ' selected' : ''}>${esc(l)}</option>`).join('');
+
+function renderCfg() {
+  const c = state.cfg;
+  renderRules();
+  $('#courtsTable tbody').innerHTML = c.courts.map((x, i) => `<tr data-i="${i}">
+    <td><input data-k="match" value="${esc(x.match)}" size="12"></td>
+    <td><input data-k="label" value="${esc(x.label)}" size="16"></td>
+    <td><input type="number" step="0.5" min="0" data-k="offpeak" value="${esc(x.offpeak)}"></td>
+    <td><input type="number" step="0.5" min="0" data-k="peak" value="${esc(x.peak)}"></td>
+    <td><input type="number" step="1" min="1" data-k="players" value="${esc(x.players)}"></td>
+    <td><button class="btn small" data-up>↑</button> <button class="btn small" data-del>✕</button></td></tr>`).join('');
+  $('#peakTable tbody').innerHTML = WEEKDAYS.map(([label, d]) => {
+    const p = c.peak[d] || { from: '', to: '' };
+    return `<tr data-d="${d}"><td>${label}</td><td><input class="time" data-k="from" value="${esc(p.from)}" placeholder="hh:mm"></td><td><input class="time" data-k="to" value="${esc(p.to)}" placeholder="hh:mm"></td></tr>`;
+  }).join('');
+  $('#eventsTable tbody').innerHTML = c.eventPrices.map((x, i) => `<tr data-i="${i}">
+    <td><input data-k="name" value="${esc(x.name)}" size="30"></td>
+    <td><input type="number" step="0.5" min="0" data-k="price" value="${esc(x.price)}"></td>
+    <td><button class="btn small" data-del>✕</button></td></tr>`).join('');
+}
+
+const fmtDate = k => k.split('-').reverse().join('.');
+function sortedSets() { return state.cfg.ruleSets.sort((a, b) => a.validFrom.localeCompare(b.validFrom)); }
+function shareHint(kind) {
+  const courts = state.cfg.courts;
+  const c = kind === 'SQUASH' ? courts.find(x => /squash/i.test(x.match)) : courts.find(x => /indoor/i.test(x.match)) || courts[0];
+  if (!c || !(+c.players > 0)) return 'Stundenpreis ÷ Spieler';
+  const lo = round2(+c.offpeak / +c.players), hi = round2(+c.peak / +c.players);
+  return `z. B. ${c.label}: ${lo === hi ? eur(lo) : eur(lo) + ' / ' + eur(hi) + ' (Off-Peak / Peak)'}`;
+}
+function renderRules() {
+  const sets = sortedSets();
+  const today = dateKey(new Date());
+  const current = activeRuleSet(today);
+  if (state.ruleSetIdx == null || state.ruleSetIdx >= sets.length) state.ruleSetIdx = Math.max(0, sets.indexOf(current));
+  const set = sets[state.ruleSetIdx];
+  $('#ruleSetSelect').innerHTML = sets.map((s, i) => `<option value="${i}"${i === state.ruleSetIdx ? ' selected' : ''}>ab ${fmtDate(s.validFrom)}${s === current ? ' (gilt heute)' : s.validFrom > today ? ' (zukünftig)' : ''}</option>`).join('');
+  $('#ruleSetDate').value = set.validFrom;
+  $('#ruleSetDel').disabled = sets.length < 2;
+  $('#rulesMatrix tbody').innerHTML = RULE_KINDS.map(k => {
+    const row = set.kinds[k];
+    const cells = PROVIDERS.map(p => {
+      const c = row.providers[p];
+      const hint = c.mode === 'court1h' ? shareHint(k) : c.mode === 'none' ? 'Check-in wird abgelehnt' : c.mode === 'manual' ? 'Check-in landet bei ⚠️' : '';
+      return `<td data-p="${p}" class="m-${c.mode}">
+        <select data-k="mode">${opt(MODES, c.mode)}</select>
+        ${c.mode === 'fixed' ? `<div class="amt"><input type="number" step="0.5" min="0" data-k="amount" value="${esc(c.amount)}"> €</div>` : ''}
+        ${hint ? `<div class="cell-hint">${esc(hint)}</div>` : ''}</td>`;
+    }).join('');
+    return `<tr data-kind="${k}"><th>${esc(KINDS[k])}<div class="cell-hint">${esc(KIND_HINT[k])}</div></th>${cells}
+      <td><select data-k="factor">${opt([[1, '×1'], [2, '×2'], [3, '×3'], [4, '×4']], row.factor)}</select></td>
+      <td><input type="checkbox" data-k="review" ${row.review ? 'checked' : ''}></td></tr>`;
+  }).join('');
+}
+$('#rulesMatrix').addEventListener('change', ev => {
+  const el = ev.target, tr = el.closest('tr[data-kind]'); if (!tr) return;
+  const row = sortedSets()[state.ruleSetIdx].kinds[tr.dataset.kind];
+  const td = el.closest('td[data-p]');
+  if (el.dataset.k === 'factor') row.factor = +el.value;
+  else if (el.dataset.k === 'review') row.review = el.checked;
+  else if (td && el.dataset.k === 'mode') { row.providers[td.dataset.p].mode = el.value; renderRules(); }
+  else if (td && el.dataset.k === 'amount') row.providers[td.dataset.p].amount = parseNumber(el.value) || 0;
+  cfgDirty();
+});
+$('#ruleSetSelect').addEventListener('change', e => { state.ruleSetIdx = +e.target.value; renderRules(); });
+$('#ruleSetDate').addEventListener('change', e => {
+  const v = e.target.value, sets = sortedSets(), set = sets[state.ruleSetIdx];
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) { renderRules(); return; }
+  if (sets.some(s => s !== set && s.validFrom === v)) { $('#cfgMsg').textContent = `Es gibt schon einen Regelstand ab ${fmtDate(v)}.`; renderRules(); return; }
+  set.validFrom = v;
+  state.ruleSetIdx = sortedSets().indexOf(set);
+  cfgDirty(); renderRules();
+});
+$('#ruleSetNew').addEventListener('click', () => {
+  const sets = sortedSets();
+  const base = sets[state.ruleSetIdx];
+  let d = new Date(), k = dateKey(d);
+  while (sets.some(s => s.validFrom === k)) { d.setDate(d.getDate() + 1); k = dateKey(d); }
+  const copy = JSON.parse(JSON.stringify(base));
+  copy.validFrom = k;
+  state.cfg.ruleSets.push(copy);
+  state.ruleSetIdx = sortedSets().indexOf(copy);
+  cfgDirty(); renderRules();
+  $('#cfgMsg').textContent = `Neuer Regelstand ab ${fmtDate(k)} angelegt. Datum anpassen, Werte ändern, dann speichern.`;
+});
+$('#ruleSetDel').addEventListener('click', async () => {
+  const sets = sortedSets();
+  if (sets.length < 2) return;
+  const set = sets[state.ruleSetIdx];
+  if (!(await askConfirm(`Regelstand ab ${fmtDate(set.validFrom)} löschen?`))) return;
+  state.cfg.ruleSets.splice(state.cfg.ruleSets.indexOf(set), 1);
+  state.ruleSetIdx = null;
+  cfgDirty(); renderRules();
+});
+
+function bindTable(sel, arrName, numeric) {
+  const tb = $(sel + ' tbody');
+  tb.addEventListener('change', ev => {
+    const tr = ev.target.closest('tr'); const k = ev.target.dataset.k; if (!tr || !k) return;
+    const obj = state.cfg[arrName][+tr.dataset.i];
+    obj[k] = ev.target.type === 'checkbox' ? ev.target.checked : numeric.includes(k) ? (ev.target.value === '' ? '' : parseNumber(ev.target.value)) : ev.target.value;
+    cfgDirty();
+    if (k === 'mode') renderCfg();
+  });
+  tb.addEventListener('click', ev => {
+    const tr = ev.target.closest('tr'); if (!tr) return;
+    const i = +tr.dataset.i, arr = state.cfg[arrName];
+    if (ev.target.hasAttribute('data-del')) { arr.splice(i, 1); cfgDirty(); renderCfg(); }
+    if (ev.target.hasAttribute('data-up') && i > 0) { [arr[i - 1], arr[i]] = [arr[i], arr[i - 1]]; cfgDirty(); renderCfg(); }
+  });
+}
+bindTable('#courtsTable', 'courts', ['offpeak', 'peak', 'players']);
+$('#courtsTable').addEventListener('change', () => renderRules());
+bindTable('#eventsTable', 'eventPrices', ['price']);
+$('#peakTable tbody').addEventListener('change', ev => {
+  const tr = ev.target.closest('tr'); const k = ev.target.dataset.k;
+  const v = ev.target.value.trim();
+  if (v && toMin(v) == null) { ev.target.style.borderColor = 'var(--bad)'; return; }
+  ev.target.style.borderColor = '';
+  const d = tr.dataset.d;
+  state.cfg.peak[d] = { ...(state.cfg.peak[d] || {}), [k]: v };
+  cfgDirty();
+});
+$('#addCourt').addEventListener('click', () => { state.cfg.courts.push({ match: '', label: '', offpeak: 0, peak: 0, players: 4 }); cfgDirty(); renderCfg(); });
+$('#addEvent').addEventListener('click', () => { state.cfg.eventPrices.push({ name: '', price: '' }); cfgDirty(); renderCfg(); });
+
+function cfgDirty() { $('#cfgMsg').textContent = 'Ungespeicherte Änderungen'; }
+function validateCfg() {
+  const errs = [];
+  const seen = new Set();
+  for (const set of state.cfg.ruleSets) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(set.validFrom || '')) errs.push('Regelstand ohne gültiges Datum');
+    if (seen.has(set.validFrom)) errs.push(`Zwei Regelstände mit Datum ${set.validFrom}`);
+    seen.add(set.validFrom);
+    for (const k of RULE_KINDS) for (const p of PROVIDERS) {
+      const c = set.kinds[k].providers[p];
+      if (c.mode === 'fixed' && !(+c.amount > 0)) errs.push(`${KINDS[k]} / ${p} (ab ${set.validFrom}): Betrag fehlt`);
+    }
+  }
+  state.cfg.courts.forEach((c, i) => { if (!c.match) errs.push(`Platzart ${i + 1}: Text im Platznamen fehlt`); if (!(+c.players >= 1)) errs.push(`Platzart ${i + 1}: Spielerzahl ungültig`); });
+  return errs;
+}
+$('#saveCfg').addEventListener('click', () => {
+  const errs = validateCfg();
+  if (errs.length) { $('#cfgMsg').textContent = errs.join(' · '); return; }
+  $('#cfgMsg').textContent = lsSet(LS.cfg, state.cfg) ? 'Gespeichert.' : 'Speichern im Browser nicht möglich, bitte Konfiguration exportieren.';
+  if (state.bookings && state.results.length) runCheck();
+});
+$('#exportCfg').addEventListener('click', () => download(`checkin-erstattung-konfiguration_${dateKey(new Date())}.json`, JSON.stringify(state.cfg, null, 2), 'application/json'));
+$('#importCfg').addEventListener('change', async ev => {
+  const f = ev.target.files[0]; if (!f) return;
+  try {
+    const c = JSON.parse(await f.text());
+    if ((!Array.isArray(c.rules) && !Array.isArray(c.ruleSets)) || !Array.isArray(c.courts)) throw new Error('Keine gültige Konfigurationsdatei.');
+    state.cfg = normalizeConfig(c); lsSet(LS.cfg, state.cfg); renderCfg();
+    $('#cfgMsg').textContent = 'Konfiguration importiert und gespeichert.';
+  } catch (e) { $('#cfgMsg').textContent = 'Import fehlgeschlagen: ' + e.message; }
+  ev.target.value = '';
+});
+$('#resetCfg').addEventListener('click', async () => {
+  if (!(await askConfirm('Alle Regeln und Preise auf den Standard zurücksetzen?', 'Zurücksetzen'))) return;
+  state.cfg = defaultConfig(); lsSet(LS.cfg, state.cfg); renderCfg(); $('#cfgMsg').textContent = 'Zurückgesetzt.';
+});
+
+/* ================= Hansefit-Liste ================= */
+function parseHansefitRows(rows) {
+  if (!rows.length) throw new Error('Datei ist leer.');
+  const width = Math.max(...rows.map(r => r.length));
+  let idCol = -1, best = 0;
+  for (let c = 0; c < width; c++) {
+    const vals = rows.map(r => String(r[c] ?? '').trim()).filter(Boolean);
+    const frac = vals.length ? vals.filter(isHfId).length / vals.length : 0;
+    if (frac > best) { best = frac; idCol = c; }
+  }
+  if (idCol < 0 || best < 0.5) throw new Error('Keine Spalte mit Hansefit-IDs gefunden.');
+  const hasHeader = !isHfId(String(rows[0][idCol] ?? '').trim());
+  const header = hasHeader ? rows[0].map(h => normName(h)) : [];
+  const vn = header.findIndex(h => h.includes('vorname'));
+  const nn = header.findIndex(h => h.includes('nachname'));
+  let nameCols;
+  if (vn >= 0 && nn >= 0) nameCols = [vn, nn];
+  else {
+    const nc = header.findIndex((h, i) => i !== idCol && /\bname\b/.test(h));
+    if (nc >= 0) nameCols = [nc];
+    else {
+      const sample = rows.slice(hasHeader ? 1 : 0, 30);
+      const tc = [...Array(width).keys()].find(c => c !== idCol && sample.some(r => looksLikeName(String(r[c] ?? '').trim())));
+      if (tc == null) throw new Error('Keine Namensspalte gefunden.');
+      nameCols = [tc];
+    }
+  }
+  const map = {};
+  for (const r of rows.slice(hasHeader ? 1 : 0)) {
+    const id = String(r[idCol] ?? '').trim().toUpperCase();
+    const name = nameCols.map(c => String(r[c] ?? '').trim()).filter(Boolean).join(' ');
+    if (isHfId(id)) map[id] = name;
+  }
+  return map;
+}
+$('#hfFile').addEventListener('change', async ev => {
+  const f = ev.target.files[0]; if (!f) return;
+  const msg = $('#hfMsg');
+  try {
+    const map = parseHansefitRows(await readTableFile(f));
+    const n = Object.keys(map).length;
+    if (!n) throw new Error('Keine gültigen Einträge gefunden.');
+    mergeHf(map, $('#hfReplace').checked);
+    msg.innerHTML = hfImportMsg(map);
+    renderHf(); updateCounts();
+  } catch (e) { msg.innerHTML = `<div class="msg bad">${esc(e.message)}</div>`; }
+  ev.target.value = '';
+});
+/** Copy-Paste-Zeilen „ID<Tab>Name“ (auch Name zuerst oder nur mit Leerzeichen getrennt). */
+function parseHansefitPaste(text) {
+  const map = {};
+  let bad = 0;
+  for (const raw of String(text || '').split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    let parts = line.split(/\t|;/).map(x => x.trim()).filter(Boolean);
+    if (parts.length < 2) parts = line.split(/\s+/);
+    const idIdx = parts.findIndex(isHfId);
+    const name = parts.filter((_, i) => i !== idIdx).join(' ').replace(/^[,\s]+|[,\s]+$/g, '').trim();
+    if (idIdx < 0 || (name && !looksLikeName(name))) { bad++; continue; }
+    map[parts[idIdx].toUpperCase()] = name;
+  }
+  return { map, bad };
+}
+$('#hfPasteBtn').addEventListener('click', () => {
+  const { map, bad } = parseHansefitPaste($('#hfPaste').value);
+  const n = Object.keys(map).length;
+  const msg = $('#hfMsg');
+  if (!n) { msg.innerHTML = '<div class="msg bad">Keine Zeile mit ID und Name erkannt.</div>'; return; }
+  mergeHf(map, $('#hfReplace').checked);
+  $('#hfPaste').value = '';
+  msg.innerHTML = hfImportMsg(map)
+    + (bad ? `<div class="msg warn">${bad} Zeilen ohne gültige ID oder Namen übersprungen (z. B. Überschriften).</div>` : '');
+  renderHf(); updateCounts();
+  if (state.results.length) runCheck();
+});
+
+/** Übernimmt Einträge; ein leerer Name überschreibt nie einen vorhandenen. */
+function mergeHf(map, replace) {
+  const base = replace ? {} : { ...state.hf };
+  for (const [id, name] of Object.entries(map)) if (name || !base[id]) base[id] = name;
+  state.hf = base;
+  lsSet(LS.hf, state.hf);
+}
+function hfImportMsg(map) {
+  const n = Object.keys(map).length;
+  const noName = Object.values(map).filter(v => !v).length;
+  const total = Object.values(state.hf).filter(v => !v).length;
+  return `<div class="msg ok">${n} Einträge übernommen. Liste enthält jetzt ${Object.keys(state.hf).length} IDs.</div>`
+    + (noName ? `<div class="msg warn">${noName} IDs ohne Namen übernommen. Insgesamt fehlt bei ${total} IDs der Name. Diese Einträge stehen oben in der Liste.</div>` : '');
+}
+
+function renderHf() {
+  const q = normName($('#hfSearch').value);
+  const entries = Object.entries(state.hf).sort((a, b) => (!!a[1] - !!b[1]) || a[1].localeCompare(b[1], 'de'));
+  const missing = entries.filter(e => !e[1]).length;
+  $('#hfCount').textContent = `(${entries.length}${missing ? `, davon ${missing} ohne Namen` : ''})`;
+  const shown = entries.filter(([id, n]) => !q || normName(n).includes(q) || id.toLowerCase().includes(q)).slice(0, 500);
+  $('#hfTable tbody').innerHTML = shown.map(([id, n]) => `<tr><td>${esc(id)}</td><td>${n ? esc(n) : '<span class="chip review">Name fehlt</span>'}</td><td><button class="btn small" data-edit="${esc(id)}">${n ? 'Ändern' : 'Name eintragen'}</button> <button class="btn small" data-del="${esc(id)}">✕</button></td></tr>`).join('')
+    || '<tr><td colspan="3" class="muted">Keine Einträge.</td></tr>';
+}
+$('#hfSearch').addEventListener('input', renderHf);
+$('#hfTable').addEventListener('click', async ev => {
+  const eid = ev.target.dataset.edit;
+  if (eid) {
+    const name = await askText(`Name für Hansefit-ID ${eid}:`, state.hf[eid] || '');
+    if (name == null) return;
+    state.hf[eid] = name.trim(); lsSet(LS.hf, state.hf); renderHf(); updateCounts();
+    if (state.results.length) runCheck();
+    return;
+  }
+  const id = ev.target.dataset.del; if (!id) return;
+  if (!(await askConfirm(`ID ${id} löschen?`))) return;
+  delete state.hf[id]; lsSet(LS.hf, state.hf); renderHf();
+});
+$('#hfAdd').addEventListener('click', () => {
+  const id = $('#hfNewId').value.trim().toUpperCase(), name = $('#hfNewName').value.trim();
+  if (!isHfId(id)) { $('#hfMsg').innerHTML = '<div class="msg bad">Ungültige ID (6–12 Zeichen, Buchstaben und Ziffern).</div>'; return; }
+  if (name || !state.hf[id]) state.hf[id] = name;
+  lsSet(LS.hf, state.hf);
+  $('#hfNewId').value = ''; $('#hfNewName').value = ''; $('#hfMsg').innerHTML = '';
+  renderHf(); updateCounts();
+});
+$('#hfExport').addEventListener('click', () => {
+  const lines = ['ID;Name', ...Object.entries(state.hf).map(([id, n]) => `${id};${n.replace(/;/g, ',')}`)];
+  download(`hansefit-zuordnung_${dateKey(new Date())}.csv`, '﻿' + lines.join('\r\n'), 'text/csv;charset=utf-8');
+});
+// Zweimal tippen statt confirm(): eingebettete Seiten dürfen keine Dialoge öffnen.
+$('#clearLocal').addEventListener('click', ev => {
+  const b = ev.currentTarget;
+  if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'Wirklich alles löschen? Nochmal tippen'; setTimeout(() => { delete b.dataset.armed; b.textContent = 'Alle lokalen Daten löschen'; }, 4000); return; }
+  delete b.dataset.armed; b.textContent = 'Alle lokalen Daten löschen';
+  try { Object.values(LS).forEach(k => localStorage.removeItem(k)); } catch { /* Speicher nicht verfügbar */ }
+  state.cfg = defaultConfig(); state.hf = {}; state.progress = {};
+  renderCfg(); renderHf(); renderResults(); renderQueue();
+});
+
+renderCfg(); renderHf();
+if (typeof XLSX === 'undefined') {
+  $('#bookingMsg').innerHTML = '<div class="msg warn">Excel-Unterstützung konnte nicht geladen werden. CSV-Dateien funktionieren weiterhin, der Export erfolgt als CSV.</div>';
+}
+</script>
+</body>
+</html>
