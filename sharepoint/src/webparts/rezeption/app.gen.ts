@@ -1578,7 +1578,9 @@ export function mount(container, opts = {}) {
   // Pro Tag stehen die Namen in „Vormittags“ bzw. „Nachmittags/Abends“. Anmerkungen werden nur angezeigt.
   // Zuordnung über die Spaltenposition der Kopfzeile (PDF: x-Koordinate, Excel: Spaltenbuchstabe).
   const MONTH_NAMES = ["jan", "feb", "mär|mar|maer", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "dez"];
-  const PDFJS = opts.pdfjsUrl || (NATIVE && NATIVE.pdfjsUrl) || "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.mjs";
+  // pdf.js: Mac-App lokal, Webversion aus der mitveröffentlichten Kopie (pdfjs/ neben index.html), sonst jsDelivr.
+  const PDFJS_CDN = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.mjs";
+  const PDFJS_CANDIDATES = [opts.pdfjsUrl, NATIVE && NATIVE.pdfjsUrl, (() => { try { return new URL("pdfjs/pdf.min.mjs", document.baseURI).href; } catch { return null; } })(), PDFJS_CDN].filter(Boolean);
   const TIME_RANGE = /(\d{1,2})[:.](\d{2})\s*[-–]\s*(\d{1,2})[:.](\d{2})/;
   async function unzipEntries(buf) {
     const dv = new DataView(buf), u8 = new Uint8Array(buf);
@@ -1625,10 +1627,12 @@ export function mount(container, opts = {}) {
     return { rows, tolerance: 0 };
   }
   async function pdfRows(file) {
-    let lib;
-    try { lib = await import(/* webpackIgnore: true */ PDFJS); }
-    catch { throw new Error("PDF-Leser konnte nicht geladen werden (Internet bzw. in SharePoint die Freigabe für cdn.jsdelivr.net nötig). Excel-Datei funktioniert immer."); }
-    lib.GlobalWorkerOptions.workerSrc = PDFJS.replace(/pdf\.min\.mjs$/, "pdf.worker.min.mjs");
+    let lib, src, lastErr;
+    for (const url of PDFJS_CANDIDATES) {
+      try { lib = await import(/* webpackIgnore: true */ url); src = url; break; } catch (e) { lastErr = e; }
+    }
+    if (!lib) throw new Error("PDF-Leser konnte nicht geladen werden (" + ((lastErr && lastErr.message) || "unbekannt") + "). Die Excel-Datei des Plans funktioniert immer.");
+    lib.GlobalWorkerOptions.workerSrc = src.replace(/pdf\.min\.mjs$/, "pdf.worker.min.mjs");
     // Außerhalb der Mac-App (claude.ai, SharePoint) darf die Seite oft keinen Worker von fremder Adresse starten.
     // pdf.js nutzt dann den hier geladenen Worker-Code direkt in der Seite (für Monatspläne schnell genug).
     if (!NATIVE && !globalThis.pdfjsWorker) {

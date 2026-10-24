@@ -2,7 +2,7 @@
 //   index.html                                   – eigenständige Seite (Mac lokal, claude.ai-Artifact)
 //   sharepoint/src/webparts/rezeption/app.gen.ts – Modul für das SharePoint-Webpart (falls das Projekt existiert)
 // Aufruf: node tools/build.mjs
-import { readFileSync, writeFileSync, existsSync, copyFileSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, copyFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -55,6 +55,17 @@ console.log("index.html geschrieben (" + html.length + " Zeichen)");
 // Check-in-Erstattung: eigene Seite neben index.html (Reiter „Erstattung“ lädt sie im iframe).
 copyFileSync(join(repo, "app/checkin.html"), join(repo, "checkin.html"));
 console.log("checkin.html kopiert");
+// pdf.js für die Webversion (claude.ai lädt fremde Skripte nicht zuverlässig): Kopie in pdfjs/ neben index.html.
+// Rohe Steuerzeichen (nur in String-/Regex-Literalen) werden zu \uXXXX – gleiche Bedeutung, aber veröffentlichbar.
+const pdfSrc = join(repo, "mac/node_modules/pdfjs-dist/build");
+if (existsSync(pdfSrc)) {
+  mkdirSync(join(repo, "pdfjs"), { recursive: true });
+  for (const f of ["pdf.min.mjs", "pdf.worker.min.mjs"]) {
+    const txt = readFileSync(join(pdfSrc, f), "utf8").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\ufffd]/g, c => "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0"));
+    writeFileSync(join(repo, "pdfjs", f), txt);
+  }
+  console.log("pdfjs/ geschrieben");
+} else console.log("pdfjs-dist fehlt (cd mac && npm install) – pdfjs/ übersprungen");
 
 const spDir = join(repo, "sharepoint/src/webparts/rezeption");
 if (existsSync(spDir)) {
