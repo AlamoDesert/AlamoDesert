@@ -57,7 +57,8 @@ copyFileSync(join(repo, "app/checkin.html"), join(repo, "checkin.html"));
 console.log("checkin.html kopiert");
 // pdf.js für die Webversion (claude.ai lädt fremde Skripte nicht zuverlässig): Kopie in pdfjs/ neben index.html.
 // Rohe Steuerzeichen (nur in String-/Regex-Literalen) werden zu \uXXXX – gleiche Bedeutung, aber veröffentlichbar.
-const pdfSrc = join(repo, "mac/node_modules/pdfjs-dist/build");
+// Legacy-Fassung: läuft auch in älterem Safari (iPad < iPadOS 17.4 kennt z. B. Promise.withResolvers nicht).
+const pdfSrc = join(repo, "mac/node_modules/pdfjs-dist/legacy/build");
 if (existsSync(pdfSrc)) {
   mkdirSync(join(repo, "pdfjs"), { recursive: true });
   for (const f of ["pdf.min.mjs", "pdf.worker.min.mjs"]) {
