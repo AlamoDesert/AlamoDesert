@@ -1,7 +1,7 @@
 {
   "name": "rezeption",
   "productName": "Rezeption",
-  "version": "1.8.4",
+  "version": "1.8.5",
   "description": "Schicht-Checkliste der Rezeption",
   "private": true,
   "main": "main.js",

@@ -129,6 +129,35 @@ tr.current td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 .reasons li { margin: 0; }
 .reasons li.note { color: var(--muted); list-style: circle; }
 
+/* Tagesprüfung: Gruppen */
+.stat.attn { border-color: var(--now); background: var(--now-soft); }
+.rgroup { margin-top: 16px; }
+.rgroup h3 { display: flex; align-items: center; gap: 4px; margin: 0 0 6px; font-family: var(--f-display); font-size: 18px; letter-spacing: .03em; text-transform: uppercase; color: var(--ink); }
+.rgroup h3 .cnt { font-family: var(--f-body); font-size: 13px; font-weight: 700; color: var(--muted); background: var(--surface-2); border: 1px solid var(--line); border-radius: 99px; padding: 0 8px; margin-left: 4px; letter-spacing: 0; }
+.rgroup h3 .btn { margin-left: auto; text-transform: none; letter-spacing: 0; font-family: var(--f-body); }
+details.rgroup > summary { list-style: none; cursor: pointer; }
+details.rgroup > summary::-webkit-details-marker { display: none; }
+details.rgroup > summary h3::after { content: "▸"; margin-left: 6px; color: var(--muted); font-size: 14px; }
+details.rgroup[open] > summary h3::after { content: "▾"; }
+.rrow { display: grid; grid-template-columns: minmax(170px, 1fr) minmax(220px, 1.3fr) minmax(220px, 1.6fr) minmax(190px, auto); gap: 6px 16px; padding: 10px 12px; margin-top: 6px; border: 1px solid var(--line); border-left-width: 4px; border-radius: 8px; background: var(--surface); align-items: start; font-size: 14px; }
+.rgroup.decide .rrow { border-left-color: var(--now); background: color-mix(in srgb, var(--now-soft) 35%, var(--surface)); }
+.rgroup.refund .rrow { border-left-color: var(--done); }
+.rgroup.none .rrow { border-left-color: var(--warn); }
+.rrow.booked { opacity: .6; }
+.rrow .nm { font-weight: 700; font-size: 16px; }
+.rrow .sub { font-size: 12.5px; color: var(--muted); }
+.rrow .act { display: flex; gap: 6px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+.rrow .amt { font-family: var(--f-display); font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.rrow .reasons { font-size: 13px; }
+.amtin { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; }
+.amtin input { width: 90px; font-size: 15px; text-align: right; }
+input.bad { border-color: var(--warn); box-shadow: 0 0 0 2px var(--warn-soft); }
+.okline { margin: 4px 0 0; color: var(--done); font-weight: 600; }
+.linkbtn { border: 0; background: none; padding: 0; color: var(--accent); font-weight: 600; font-size: inherit; text-decoration: underline; cursor: pointer; }
+.btn.ghostbtn { border-color: transparent; background: none; color: var(--muted); }
+.btn.danger { color: var(--warn); }
+@media (max-width: 1100px) { .rrow { grid-template-columns: 1fr 1fr; } .rrow .act { justify-content: flex-start; } }
+
 /* Wallet buchen: eine Karte pro Person */
 .card { max-width: 680px; margin: 0 auto; width: 100%; background: var(--surface); border: 1px solid var(--accent); box-shadow: 0 0 0 1px var(--accent); border-radius: var(--r); padding: 16px 18px; }
 .card .name { font-family: var(--f-display); font-weight: 700; font-size: 28px; letter-spacing: .02em; line-height: 1.1; margin-top: 2px; }
@@ -139,7 +168,28 @@ tr.current td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 .card .amount { font-family: var(--f-display); font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .card .meta { color: var(--muted); font-size: 13px; margin-top: 8px; }
 .card .actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
-.card .actions .primary { font-size: 16px; padding: 10px 20px; flex: 1; }
+.card .actions .primary { font-size: 16px; padding: 10px 20px; }
+.card .actions.center { justify-content: center; }
+.qhead { display: flex; gap: 8px; align-items: center; }
+.steps { display: grid; gap: 0; margin-top: 12px; border-top: 1px solid var(--line); }
+.step { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.step .no { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-family: var(--f-display); font-weight: 700; font-size: 17px; background: var(--accent-soft); color: var(--accent); }
+.step .sv { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.step .sv b { font-size: 17px; overflow-wrap: anywhere; }
+.step .label { font-size: 11.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.step .alt { font-size: 12.5px; color: var(--muted); }
+.step.copied .no { background: var(--done); color: #fff; }
+.step.copied .no::after { content: "✓"; font-size: 14px; }
+.step.copied .no { font-size: 0; }
+.step.final { border-bottom: 0; }
+.step.final .btn.big { font-size: 16px; padding: 11px 22px; }
+.steps.isbooked .step:not(.final) { opacity: .5; }
+#queueArea.alldone .progress div { background: var(--done); }
+#queueArea.alldone > .row b { color: var(--done); }
+.donecard { text-align: center; display: grid; justify-items: center; gap: 6px; padding: 10px 0; }
+.donecard p { margin: 0; color: var(--muted); }
+.donemark { width: 64px; height: 64px; border-radius: 50%; background: var(--done); color: #fff; display: grid; place-items: center; font-size: 34px; font-weight: 700; }
+#queueArea.alldone .card { border-color: var(--done); box-shadow: 0 0 0 1px var(--done); }
 #queueArea { display: grid; gap: 12px; }
 #queueArea > .row b { font-family: var(--f-display); font-size: 18px; letter-spacing: .03em; text-transform: uppercase; }
 .progress { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
@@ -205,18 +255,7 @@ html.embedded body { background: transparent; }
   <div class="panel" id="resultPanel" hidden>
     <h2>Ergebnis <span id="resultDate" class="muted"></span></h2>
     <div class="stats" id="stats"></div>
-    <div class="row filters" id="filters">
-      <button class="btn small active" data-f="all">Alle</button>
-      <button class="btn small" data-f="ok"><i class="dot ok"></i>Erstatten</button>
-      <button class="btn small" data-f="review"><i class="dot review"></i>Prüfen</button>
-      <button class="btn small" data-f="reject"><i class="dot reject"></i>Keine Erstattung</button>
-      <button class="btn small" data-f="open">Offen zu buchen</button>
-    </div>
-    <p class="hint">„Prüfen“-Zeilen kommen erst nach „Freigeben“ in die Buchungsliste. Beträge freigegebener Zeilen kannst du anpassen.</p>
-    <div class="table-wrap"><table id="resultTable">
-      <thead><tr><th>Status</th><th>Check-in</th><th>Name (Check-in)</th><th>Playtomic-Kunde</th><th>Buchung</th><th class="num">Betrag</th><th>Begründung</th><th>Entscheidung</th></tr></thead>
-      <tbody></tbody>
-    </table></div>
+    <div id="resultGroups"></div>
   </div>
 </section>
 
@@ -227,7 +266,7 @@ html.embedded body { background: transparent; }
     <div class="row"><b id="queueProgressText"></b><span class="muted" id="queueSum"></span></div>
     <div class="progress"><div id="queueBar" style="width:0"></div></div>
     <div class="card" id="queueCard"></div>
-    <p class="hint" style="text-align:center"><span class="kbd">C</span> Suchbegriff kopieren · <span class="kbd">Enter</span> gebucht · <span class="kbd">→</span> überspringen · <span class="kbd">←</span> zurück</p>
+    <p class="hint" id="queueKeys" style="text-align:center"><span class="kbd">1</span> <span class="kbd">2</span> <span class="kbd">3</span> Schritt kopieren · <span class="kbd">Enter</span> gebucht · <span class="kbd">→</span> überspringen · <span class="kbd">←</span> zurück</p>
     <div class="panel">
       <h2>Buchungsliste</h2>
       <div class="table-wrap"><table id="queueTable">
@@ -1046,82 +1085,106 @@ function nameDiffers(r) {
   return nameScore(r.ci.norm, p.norm) < 0.95;
 }
 
+// Drei Gruppen statt einer langen Tabelle: zu entscheiden (oben), wird erstattet, keine Erstattung.
+function groupOf(r, e) {
+  if (e.inQueue) return 'refund';
+  if (e.decision === 'reject') return 'none';
+  if (e.decision === 'approve' || (e.decision === 'auto' && r.status === 'review')) return 'decide';
+  return 'none';
+}
+const dateNum = d => `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
+const byLine = p => p.decidedBy ? ` von ${esc(p.decidedBy)}` : '';
+function resultRow(r, i, e, g) {
+  const b = r.booking, p = r.participant, pr = getP(r);
+  const ciName = r.ci.name || (r.ci.hfId ? `Hansefit-ID ${r.ci.hfId}` : 'Ohne Namen');
+  const hfBtn = !r.ci.norm && r.ci.hfId ? ` <button class="btn small" data-act="hfmap" data-i="${i}">Name zuordnen</button>` : '';
+  const match = p
+    ? `<div>${esc(p.name || '–')}${nameDiffers(r) ? ' <span class="chip review">abweichend</span>' : ''}${r.matchVia === 'email' ? ' <span class="chip review">über E-Mail</span>' : ''}</div><div class="sub">${esc(p.email || 'keine E-Mail')}</div>`
+    : '<div class="sub">keine passende Buchung</div>';
+  const bk = b ? `<div>${esc(KINDS[b.kind] || b.sport)}${b.activityName ? ' · ' + esc(b.activityName) : ''}</div><div class="sub">${esc(b.courts.join(', '))} · ${hhmm(b.start)}–${hhmm(b.end)} · ${b.participants.length} Teiln.</div>` : '';
+  const why = [...r.reasons.map(t => ({ t, note: false })), ...r.notes.map(t => ({ t, note: true }))];
+  if (pr.rejectReason) why.unshift({ t: 'Abgelehnt: ' + pr.rejectReason, note: false });
+  const whyHtml = why.length ? `<ul class="reasons">${why.map(x => `<li${x.note ? ' class="note"' : ''}>${esc(x.t)}</li>`).join('')}</ul>` : '';
+  let act = '';
+  if (g === 'decide') {
+    const v = Number.isFinite(e.amount) ? e.amount : '';
+    act = `<label class="amtin"><input type="number" step="0.01" min="0" data-act="amount" data-i="${i}" value="${v}" placeholder="0,00"> €</label>
+      <button class="btn primary small" data-act="approve" data-i="${i}">Freigeben</button>
+      <button class="btn small" data-act="reject" data-i="${i}">Ablehnen</button>`;
+  } else if (g === 'refund') {
+    act = `<span class="amt">${eur(e.amount)}</span>${e.booked ? `<span class="chip done">gebucht ${esc(e.bookedAt.slice(11, 16))}</span>` : `<span class="chip ok">offen</span>
+      <button class="btn small ghostbtn" data-act="reject" data-i="${i}">Ablehnen</button>`}`;
+  } else {
+    act = e.booked ? '' : `<button class="btn small" data-act="reopen" data-i="${i}">Doch freigeben</button>`;
+  }
+  const decided = e.decision !== 'auto' && !e.booked
+    ? `<div class="sub">${e.decision === 'approve' ? 'Freigegeben' : 'Abgelehnt'}${byLine(pr)} · <button class="linkbtn" data-act="auto" data-i="${i}">zurücknehmen</button></div>` : '';
+  return `<div class="rrow${e.booked ? ' booked' : ''}">
+    <div><div class="nm">${esc(ciName)}${hfBtn}</div><div class="sub">${esc(r.ci.provider)} · Check-in ${hhmm(r.ci.when)}</div>${decided}</div>
+    <div>${match}${bk}</div>
+    <div>${whyHtml}</div>
+    <div class="act">${act}</div>
+  </div>`;
+}
 function renderResults() {
   reportStatus();
   const panel = $('#resultPanel');
   panel.hidden = !state.bookings;
   if (!state.bookings) return;
   $('#resultDate').textContent = '· ' + dateDe(state.bookings.refDate);
-
-  const counts = { ok: 0, review: 0, reject: 0 };
+  const groups = { decide: [], refund: [], none: [] };
   let sumQueue = 0, open = 0;
-  for (const r of state.results) {
-    counts[r.status]++;
-    const e = effective(r);
+  state.results.forEach((r, i) => {
+    const e = effective(r), g = groupOf(r, e);
+    groups[g].push(resultRow(r, i, e, g));
     if (e.inQueue) { sumQueue += e.amount; if (!e.booked) open++; }
-  }
+  });
   $('#stats').innerHTML = `
     <div class="stat"><span class="muted">Check-ins</span><b>${state.results.length}</b></div>
-    <div class="stat"><span class="muted"><i class="dot ok"></i>Erstatten</span><b>${counts.ok}</b></div>
-    <div class="stat"><span class="muted"><i class="dot review"></i>Prüfen</span><b>${counts.review}</b></div>
-    <div class="stat"><span class="muted"><i class="dot reject"></i>Keine</span><b>${counts.reject}</b></div>
-    <div class="stat"><span class="muted">Summe Buchungsliste</span><b>${eur(round2(sumQueue))}</b></div>
-    <div class="stat"><span class="muted">Offen zu buchen</span><b>${open}</b></div>`;
-
-  const f = state.filter;
-  const rows = state.results.map((r, i) => ({ r, i, e: effective(r) })).filter(({ r, e }) =>
-    f === 'all' || (f === 'open' ? e.inQueue && !e.booked : r.status === f));
-  const tb = $('#resultTable tbody');
-  tb.innerHTML = rows.map(({ r, i, e }) => {
-    const b = r.booking, p = r.participant;
-    const chip = e.booked ? `<span class="chip done">gebucht ${esc(e.bookedAt.slice(11, 16))}</span>` : `<span class="chip ${r.status}">${STATUS_LABEL[r.status]}</span>`;
-    const ciName = r.ci.name || (r.ci.hfId ? `ID ${r.ci.hfId}` : '–');
-    const pt = p ? `${esc(p.name || '–')}${nameDiffers(r) ? ' <span class="chip review">abweichend</span>' : ''}<br><span class="muted">${esc(p.email || 'keine E-Mail')}</span>${r.matchVia === 'email' ? '<br><span class="chip review">über E-Mail</span>' : ''}` : '<span class="muted">–</span>';
-    const bk = b ? `${esc(KINDS[b.kind] || b.sport)}${b.activityName ? ' · ' + esc(b.activityName) : ''}<br><span class="muted">${esc(b.courts.join(', '))} · ${hhmm(b.start)}–${hhmm(b.end)} · ${esc(b.type)} · ${b.participants.length} Teiln.</span>` : '<span class="muted">–</span>';
-    // Gründe (wichtig) und Hinweise (nur zur Info, grau) getrennt darstellen.
-    const reasons = [...r.reasons.map(t => ({ t, note: false })), ...r.notes.map(t => ({ t, note: true }))];
-    const hfBtn = !r.ci.norm && r.ci.hfId ? `<button class="btn small" data-act="hfmap" data-i="${i}">Name zuordnen</button>` : '';
-    const dec = e.booked ? '' : `
-      <select data-act="decision" data-i="${i}">
-        <option value="auto"${e.decision === 'auto' ? ' selected' : ''}>Automatisch</option>
-        <option value="approve"${e.decision === 'approve' ? ' selected' : ''}>Freigeben</option>
-        <option value="reject"${e.decision === 'reject' ? ' selected' : ''}>Ablehnen</option>
-      </select>
-      ${e.decision === 'approve' ? `<input type="number" step="0.01" min="0" data-act="amount" data-i="${i}" value="${Number.isFinite(e.amount) ? e.amount : ''}" placeholder="€">` : ''}`;
-    return `<tr class="${e.booked ? 'booked' : ''}">
-      <td>${chip}</td>
-      <td>${esc(r.ci.provider)}<br><span class="muted">${hhmm(r.ci.when)}</span></td>
-      <td>${esc(ciName)} ${hfBtn}</td>
-      <td>${pt}</td>
-      <td>${bk}</td>
-      <td class="num">${eur(e.decision === 'approve' ? e.amount : r.amount)}</td>
-      <td>${reasons.length ? `<ul class="reasons">${reasons.map(x => `<li${x.note ? ' class="note"' : ''}>${esc(x.t)}</li>`).join('')}</ul>` : ''}</td>
-      <td>${dec}</td></tr>`;
-  }).join('') || '<tr><td colspan="8" class="muted">Keine Einträge.</td></tr>';
+    <div class="stat${groups.decide.length ? ' attn' : ''}"><span class="muted"><i class="dot review"></i>Zu entscheiden</span><b>${groups.decide.length}</b></div>
+    <div class="stat"><span class="muted"><i class="dot ok"></i>Wird erstattet</span><b>${groups.refund.length}</b></div>
+    <div class="stat"><span class="muted"><i class="dot reject"></i>Keine Erstattung</span><b>${groups.none.length}</b></div>
+    <div class="stat"><span class="muted">Summe</span><b>${eur(round2(sumQueue))}</b></div>
+    <div class="stat"><span class="muted">Offen im Wallet</span><b>${open}</b></div>`;
+  $('#resultGroups').innerHTML = `
+    <section class="rgroup decide"><h3><i class="dot review"></i>Zu entscheiden <span class="cnt">${groups.decide.length}</span></h3>
+      ${groups.decide.length ? `<p class="hint">Betrag prüfen, dann freigeben oder ablehnen. Freigegebene landen in „Wallet buchen“.</p>${groups.decide.join('')}` : '<p class="okline">Nichts mehr zu entscheiden.</p>'}</section>
+    <section class="rgroup refund"><h3><i class="dot ok"></i>Wird erstattet <span class="cnt">${groups.refund.length}</span>${groups.refund.length ? `<button class="btn small primary" data-act="gowallet">Zu „Wallet buchen“ ›</button>` : ''}</h3>
+      ${groups.refund.join('') || '<p class="hint">Noch keine Erstattungen.</p>'}</section>
+    <details class="rgroup none"${groups.decide.length ? '' : ' open'}><summary><h3><i class="dot reject"></i>Keine Erstattung <span class="cnt">${groups.none.length}</span></h3></summary>
+      ${groups.none.join('') || '<p class="hint">Keine.</p>'}</details>`;
 }
 
-$('#resultTable').addEventListener('change', ev => {
-  const el = ev.target, r = state.results[+el.dataset.i];
+$('#resultGroups').addEventListener('click', async ev => {
+  const el = ev.target.closest('[data-act]');
+  if (!el) return;
+  if (el.dataset.act === 'gowallet') { $('#nav [data-tab="buchen"]').click(); return; }
+  const r = state.results[+el.dataset.i];
   if (!r) return;
-  if (el.dataset.act === 'decision') setP(r, { decision: el.value });
-  if (el.dataset.act === 'amount') { const v = parseNumber(el.value); setP(r, { amount: Number.isFinite(v) ? round2(v) : undefined }); }
+  const by = $('#userInitials').value.trim();
+  const act = el.dataset.act;
+  if (act === 'hfmap') {
+    const name = await askText(`Name für Hansefit-ID ${r.ci.hfId}:`);
+    if (!name || !name.trim()) return;
+    state.hf[r.ci.hfId] = name.trim();
+    lsSet(LS.hf, state.hf); renderHf(); runCheck();
+    return;
+  }
+  if (act === 'approve') {
+    const inp = el.closest('.rrow').querySelector('[data-act="amount"]');
+    const v = parseNumber(inp && inp.value);
+    if (!Number.isFinite(v) || v <= 0) { if (inp) { inp.classList.add('bad'); inp.focus(); } return; }
+    setP(r, { decision: 'approve', amount: round2(v), decidedBy: by, rejectReason: undefined });
+  } else if (act === 'reject') setP(r, { decision: 'reject', decidedBy: by });
+  else if (act === 'reopen') setP(r, { decision: 'approve', amount: Number.isFinite(r.amount) ? r.amount : undefined, decidedBy: by, rejectReason: undefined });
+  else if (act === 'auto') setP(r, { decision: 'auto', amount: undefined, decidedBy: undefined, rejectReason: undefined });
+  else return;
   renderResults(); renderQueue();
 });
-$('#resultTable').addEventListener('click', async ev => {
-  const el = ev.target;
-  if (el.dataset.act !== 'hfmap') return;
-  const r = state.results[+el.dataset.i];
-  const name = await askText(`Name für Hansefit-ID ${r.ci.hfId}:`);
-  if (!name || !name.trim()) return;
-  state.hf[r.ci.hfId] = name.trim();
-  lsSet(LS.hf, state.hf); renderHf(); runCheck();
+$('#resultGroups').addEventListener('keydown', ev => {
+  if (ev.key === 'Enter' && ev.target.dataset.act === 'amount') { ev.preventDefault(); const b = ev.target.closest('.rrow').querySelector('[data-act="approve"]'); if (b) b.click(); }
 });
-$('#filters').addEventListener('click', ev => {
-  const f = ev.target.dataset.f; if (!f) return;
-  state.filter = f;
-  for (const b of $('#filters').querySelectorAll('button')) b.classList.toggle('active', b.dataset.f === f);
-  renderResults();
-});
+$('#resultGroups').addEventListener('input', ev => { if (ev.target.dataset.act === 'amount') ev.target.classList.remove('bad'); });
 
 /* ================= Buchungsliste ================= */
 function queueItems() { return state.results.filter(r => effective(r).inQueue); }
@@ -1135,39 +1198,61 @@ function renderQueue() {
   if (state.queueIndex >= items.length) state.queueIndex = items.length - 1;
   if (state.queueIndex < 0) state.queueIndex = 0;
 
-  const done = items.filter(r => effective(r).booked).length;
+  const done = items.filter(r => effective(r).booked).length, all = done === items.length;
   const sum = items.reduce((s, r) => s + effective(r).amount, 0);
   const sumOpen = items.filter(r => !effective(r).booked).reduce((s, r) => s + effective(r).amount, 0);
-  $('#queueProgressText').textContent = `${done} von ${items.length} gebucht`;
-  $('#queueSum').textContent = ` · gesamt ${eur(round2(sum))} · offen ${eur(round2(sumOpen))}`;
+  $('#queueProgressText').textContent = all ? 'Fertig – alles gebucht' : `${done} von ${items.length} gebucht`;
+  $('#queueSum').textContent = all ? ` · ${eur(round2(sum))}` : ` · gesamt ${eur(round2(sum))} · offen ${eur(round2(sumOpen))}`;
   $('#queueBar').style.width = (done / items.length * 100) + '%';
+  $('#queueArea').classList.toggle('alldone', all);
+  $('#queueKeys').hidden = all && !state.reviewDone;
+
+  // Alles gebucht: Abschluss statt der letzten Karte (über die Liste kann man trotzdem jede Zeile öffnen).
+  if (all && !state.reviewDone) {
+    state.currentSteps = null;
+    $('#queueCard').innerHTML = `<div class="donecard">
+      <div class="donemark" aria-hidden="true">✓</div>
+      <div class="name">Alles gebucht!</div>
+      <p>${items.length} Gutschrift${items.length === 1 ? '' : 'en'} · ${eur(round2(sum))} · Prüftag ${dateNum(state.bookings.refDate)}</p>
+      <div class="actions center"><button class="btn primary" data-q="export">Dokumentation exportieren (Excel)</button><button class="btn" data-q="review">Einträge nochmal ansehen</button></div>
+    </div>`;
+    renderQueueTable(items);
+    return;
+  }
 
   const r = items[state.queueIndex], e = effective(r), p = r.participant, b = r.booking;
   const name = (p && p.name) || r.ci.name || '–';
   const email = (p && p.email) || '';
   const viaEmail = (r.matchVia === 'email' || !(p && p.name)) && !!email;
   const search = viaEmail ? email : ((p && p.name) || email || r.ci.name || '');
-  state.currentSearch = search;
+  const note = `Match ${dateNum(b ? b.start : state.bookings.refDate)}`;
+  state.currentSteps = [search, eurPlain(e.amount), note];
+  if (!state.copied || state.copied.key !== r.key) state.copied = { key: r.key, steps: new Set() };
+  const cp = n => state.copied.steps.has(n) ? ' copied' : '';
+  const step = (n, label, value, extra = '') => `<div class="step${cp(n)}"><span class="no">${n}</span><div class="sv"><span class="label">${label}</span><b>${value}</b>${extra}</div><button class="btn small${n === 1 ? ' primary' : ''}" data-copy-step="${n}">Kopieren</button></div>`;
   $('#queueCard').innerHTML = `
-    <div class="muted">${state.queueIndex + 1} / ${items.length} ${e.booked ? `· <span class="chip done">gebucht ${esc(e.bookedAt.slice(11, 16))}${e.bookedBy ? ' von ' + esc(e.bookedBy) : ''}</span>` : ''}</div>
+    <div class="qhead"><span class="muted">${state.queueIndex + 1} / ${items.length}</span>${e.booked ? `<span class="chip done">gebucht ${esc(e.bookedAt.slice(11, 16))}${e.bookedBy ? ' von ' + esc(e.bookedBy) : ''}</span>` : ''}</div>
     <div class="name">${esc(name)}</div>
-    ${r.ci.name && normName(r.ci.name) !== normName(name) ? `<div class="muted">Name im Check-in: ${esc(r.ci.name)}</div>` : ''}
-    ${viaEmail ? '<div class="msg warn">Der Name in Playtomic passt nicht zum Check-in. Suche in Playtomic über die <b>E-Mail-Adresse</b>.</div>' : ''}
-    <div class="field"><span class="label">In Playtomic suchen</span><b>${esc(search)}</b>${search ? `<button class="btn small primary" data-copy="${esc(search)}">Kopieren (C)</button>` : ''}</div>
-    <div class="field"><span class="label">E-Mail</span><span>${esc(email || 'keine E-Mail in Playtomic')}</span>${email ? `<button class="btn small" data-copy="${esc(email)}">Kopieren</button>` : ''}</div>
-    <div class="field"><span class="label">Name</span><span>${esc(name)}</span><button class="btn small" data-copy="${esc(name)}">Kopieren</button></div>
-    <div class="field"><span class="label">Betrag</span><span class="amount">${eur(e.amount)}</span><button class="btn small" data-copy="${eurPlain(e.amount)}">Kopieren</button></div>
-    <div class="meta">${esc(r.ci.provider)} · Check-in ${hhmm(r.ci.when)} · ${esc(KINDS[r.kind] || '')}${b ? ` · ${esc(b.courts.join(', '))} ${hhmm(b.start)}–${hhmm(b.end)}` : ''}${b && b.activityName ? ' · ' + esc(b.activityName) : ''}</div>
-    ${r.reasons.length || r.notes.length ? `<div class="meta">${[...r.reasons, ...r.notes].map(esc).join(' · ')}</div>` : ''}
+    <div class="meta">${esc(r.ci.provider)} · Check-in ${hhmm(r.ci.when)} · ${esc(KINDS[r.kind] || '')}${b ? ` · ${esc(b.courts.join(', '))} ${hhmm(b.start)}–${hhmm(b.end)}` : ''}${b && b.activityName ? ' · ' + esc(b.activityName) : ''}${r.ci.name && normName(r.ci.name) !== normName(name) ? ` · im Check-in: ${esc(r.ci.name)}` : ''}</div>
+    ${viaEmail ? '<div class="msg warn">Der Name in Playtomic passt nicht zum Check-in. Suche über die <b>E-Mail-Adresse</b>.</div>' : ''}
+    <div class="steps${e.booked ? ' isbooked' : ''}">
+      ${step(1, 'Nutzer suchen', esc(search), !viaEmail && email ? `<span class="alt">E-Mail: ${esc(email)} <button class="linkbtn" data-copy="${esc(email)}">kopieren</button></span>` : '')}
+      ${step(2, 'Betrag', `<span class="amount">${eur(e.amount)}</span>`)}
+      ${step(3, 'Notiz', esc(note))}
+      <div class="step final"><span class="no">4</span><div class="sv"><span class="label">Fertig</span></div>
+        ${e.booked ? `<button class="btn" data-q="undo">Buchung zurücknehmen</button>` : `<button class="btn primary big" data-q="book">Im Wallet gebucht ✓</button>`}</div>
+    </div>
     <div class="actions">
       <button class="btn" data-q="prev">← Zurück</button>
-      ${e.booked ? `<button class="btn" data-q="undo">Buchung zurücknehmen</button>` : `<button class="btn primary" data-q="book">Im Wallet gebucht ✓</button>`}
       <button class="btn" data-q="next">Überspringen →</button>
+      ${e.booked ? '' : `<button class="btn danger" data-q="reject">Ablehnen …</button>`}
     </div>`;
-
+  renderQueueTable(items);
+}
+function renderQueueTable(items) {
   $('#queueTable tbody').innerHTML = items.map((x, i) => {
     const ex = effective(x), px = x.participant;
-    return `<tr class="${ex.booked ? 'booked' : ''} ${i === state.queueIndex ? 'current' : ''}" data-qi="${i}" style="cursor:pointer">
+    return `<tr class="${ex.booked ? 'booked' : ''} ${i === state.queueIndex && !$('#queueArea').classList.contains('alldone') ? 'current' : ''}" data-qi="${i}" style="cursor:pointer">
       <td>${i + 1}</td><td>${ex.booked ? '<span class="chip done">gebucht</span>' : '<span class="chip review">offen</span>'}</td>
       <td>${esc(x.ci.name || (x.ci.hfId ? 'ID ' + x.ci.hfId : '–'))}</td>
       <td>${esc((px && px.name) || '–')}${nameDiffers(x) ? ' <span class="chip review">abweichend</span>' : ''}</td>
@@ -1184,40 +1269,57 @@ function nextOpen(from) {
   }
   return from;
 }
-function queueAction(act) {
+async function queueAction(act) {
   const items = queueItems();
   if (!items.length) return;
+  if (act === 'export') { exportDoc(); return; }
+  if (act === 'review') { state.reviewDone = true; state.queueIndex = 0; renderQueue(); return; }
   const r = items[state.queueIndex];
+  if (act === 'reject') {
+    const reason = await askText(`${(r.participant && r.participant.name) || r.ci.name || 'Eintrag'} ablehnen – Grund (optional):`);
+    if (reason === null) return;
+    setP(r, { decision: 'reject', rejectReason: reason.trim() || undefined, decidedBy: $('#userInitials').value.trim() });
+    renderQueue(); renderResults();
+    return;
+  }
   if (act === 'book') {
     const now = new Date();
     setP(r, { bookedAt: `${dateKey(now)} ${hhmm(now)}`, bookedBy: $('#userInitials').value.trim() });
     state.queueIndex = nextOpen(state.queueIndex);
+    if (items.every(x => effective(x).booked)) state.reviewDone = false;
   } else if (act === 'undo') setP(r, { bookedAt: undefined, bookedBy: undefined });
   else if (act === 'next') state.queueIndex = (state.queueIndex + 1) % items.length;
   else if (act === 'prev') state.queueIndex = (state.queueIndex - 1 + items.length) % items.length;
   renderQueue(); renderResults();
 }
+function copyStep(n) {
+  if (!state.currentSteps || !state.currentSteps[n - 1]) return;
+  const btn = $(`#queueCard [data-copy-step="${n}"]`);
+  copyText(state.currentSteps[n - 1], btn);
+  if (state.copied) state.copied.steps.add(n);
+  if (btn) btn.closest('.step').classList.add('copied');
+}
 $('#queueCard').addEventListener('click', ev => {
-  const t = ev.target;
+  const t = ev.target.closest('button'); if (!t) return;
+  if (t.dataset.copyStep) return copyStep(+t.dataset.copyStep);
   if (t.dataset.copy != null) copyText(t.dataset.copy, t);
   if (t.dataset.q) queueAction(t.dataset.q);
 });
 $('#queueTable').addEventListener('click', ev => {
   const tr = ev.target.closest('tr[data-qi]');
-  if (tr) { state.queueIndex = +tr.dataset.qi; renderQueue(); }
+  if (tr) { state.queueIndex = +tr.dataset.qi; state.reviewDone = true; renderQueue(); }
 });
 document.addEventListener('keydown', ev => {
   if (!$('#tab-buchen').classList.contains('active')) return;
   if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
-  if ((ev.key === 'c' || ev.key === 'C') && !ev.ctrlKey && !ev.metaKey && state.currentSearch) {
-    ev.preventDefault();
-    copyText(state.currentSearch, $('#queueCard .btn.primary[data-copy]'));
-    return;
-  }
+  if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+  const n = { 1: 1, 2: 2, 3: 3, c: 1, C: 1 }[ev.key];
+  if (n) { ev.preventDefault(); copyStep(n); return; }
   const map = { Enter: 'book', ArrowRight: 'next', ArrowLeft: 'prev' };
   if (!map[ev.key]) return;
   ev.preventDefault();
   const items = queueItems();
+  if (!state.currentSteps) return; // Abschluss-Ansicht
   if (ev.key === 'Enter' && items.length && effective(items[state.queueIndex]).booked) { queueAction('next'); return; }
   queueAction(map[ev.key]);
 });
@@ -1231,7 +1333,7 @@ function exportDoc() {
     return [ref, r.ci.provider, hhmm(r.ci.when), r.ci.name, r.ci.hfId, p ? p.name : '', p ? p.email : '', r.matchVia === 'email' ? 'E-Mail' : r.matchVia === 'name' ? 'Name' : '', KINDS[r.kind] || '', b ? b.activityName : '',
       b ? b.courts.join(', ') : '', b ? `${hhmm(b.start)}–${hhmm(b.end)}` : '', b ? b.type : '', b ? b.id : '',
       { ok: 'Erstatten', review: 'Prüfen', reject: 'Keine Erstattung' }[r.status], { auto: 'Automatisch', approve: 'Freigegeben', reject: 'Abgelehnt' }[e.decision],
-      e.inQueue ? e.amount : 0, [...r.reasons, ...r.notes].join(' | '), e.bookedAt || '', e.bookedBy || ''];
+      e.inQueue ? e.amount : 0, [getP(r).rejectReason ? 'Abgelehnt: ' + getP(r).rejectReason : '', ...r.reasons, ...r.notes].filter(Boolean).join(' | '), e.bookedAt || '', e.bookedBy || ''];
   });
   const fname = `Checkin-Erstattung_${state.bookings.refKey}`;
   if (typeof XLSX !== 'undefined') {
