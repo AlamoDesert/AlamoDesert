@@ -1,4 +1,4 @@
-const MARKUP = "<div class=\"wrap\">\n  <header class=\"top\">\n    <h1 class=\"brand\">Rezeption<small id=\"weekday\">–</small></h1>\n    <div class=\"clock\" id=\"clock\">--:--</div>\n    <button class=\"whobtn none\" id=\"whoBtn\" aria-label=\"Person wechseln\"><span class=\"av\" id=\"whoAv\">?</span><span id=\"whoName\">Name wählen</span></button>\n    <button class=\"btn outbtn\" id=\"outBtn\" hidden>Auschecken</button>\n    <div class=\"tabs\" role=\"tablist\">\n      <button class=\"tab\" role=\"tab\" data-view=\"schicht\"><b>Schicht</b><span class=\"meta\" id=\"meta-shift\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"dienst\"><b>Dienstplan</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"zeiten\"><b>Zeiten</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"erstattung\" hidden><b>Erstattung</b><span class=\"meta\" id=\"meta-ci\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"admin\"><b>Verwaltung</b></button>\n    </div>\n    <div class=\"datenav\">\n      <button class=\"iconbtn\" id=\"prev\" aria-label=\"Vorheriger Tag\">‹</button>\n      <label class=\"datebtn\"><span id=\"datelabel\">–</span><span class=\"src\" id=\"datesrc\"></span><input type=\"date\" id=\"datepick\" aria-label=\"Datum wählen\"></label>\n      <button class=\"iconbtn\" id=\"next\" aria-label=\"Nächster Tag\">›</button>\n      <button class=\"todaybtn\" id=\"today\">Heute</button>\n    </div>\n    <div class=\"status\" id=\"status\">Verbinde…</div>\n  </header>\n  <main id=\"main\"></main>\n  <div id=\"ciwrap\" class=\"ciwrap\" hidden></div>\n</div>\n<div id=\"picker\" hidden></div><div id=\"remind\" hidden></div>";
+const MARKUP = "<div class=\"wrap\">\n  <header class=\"top\">\n    <h1 class=\"brand\">Rezeption<small id=\"weekday\">–</small></h1>\n    <div class=\"clock\" id=\"clock\">--:--</div>\n    <div class=\"presence\" id=\"presence\" role=\"group\" aria-label=\"Eingecheckt\"></div>\n    <button class=\"btn outbtn\" id=\"outBtn\" hidden>Auschecken</button>\n    <div class=\"tabs\" role=\"tablist\">\n      <button class=\"tab\" role=\"tab\" data-view=\"schicht\"><b>Schicht</b><span class=\"meta\" id=\"meta-shift\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"dienst\"><b>Dienstplan</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"zeiten\"><b>Zeiten</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"erstattung\" hidden><b>Erstattung</b><span class=\"meta\" id=\"meta-ci\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"admin\"><b>Verwaltung</b></button>\n    </div>\n    <div class=\"datenav\">\n      <button class=\"iconbtn\" id=\"prev\" aria-label=\"Vorheriger Tag\">‹</button>\n      <label class=\"datebtn\"><span id=\"datelabel\">–</span><span class=\"src\" id=\"datesrc\"></span><input type=\"date\" id=\"datepick\" aria-label=\"Datum wählen\"></label>\n      <button class=\"iconbtn\" id=\"next\" aria-label=\"Nächster Tag\">›</button>\n      <button class=\"todaybtn\" id=\"today\">Heute</button>\n    </div>\n    <div class=\"status\" id=\"status\">Verbinde…</div>\n  </header>\n  <div class=\"vobar\" id=\"vobar\" hidden><b>Nur ansehen</b><span>Abhaken und Eintragen sind gesperrt.</span><button class=\"btn primary\" data-pres-add=\"1\">Einchecken</button></div>\n  <main id=\"main\"></main>\n  <div id=\"ciwrap\" class=\"ciwrap\" hidden></div>\n</div>\n<div id=\"picker\" hidden></div><div id=\"remind\" hidden></div><div id=\"toast\" class=\"toast\" role=\"status\" hidden></div>";
 
 /* Rezeption Schichtcheck – App-Kern.
    Wird von tools/build.mjs in index.html (eigenständig) und in das SharePoint-Webpart (app.gen.ts) eingebaut.
@@ -777,7 +777,11 @@ export function mount(container, opts = {}) {
     mode: "loading",
     readOnly: false,
     who: null,           // { date, shift, id } – wer gerade an der Rezeption arbeitet (pro Gerät)
-    pickerOpen: false, pickerSnoozeUntil: 0, // nach dem Auschecken nicht sofort neu fragen (gerätebezogen, rz2noask)
+    pickerOpen: false,
+    pickerMode: "login", // "login" = Anmeldemaske (niemand eingecheckt), "add" = weitere Person über „+“
+    pickAdd: false,      // Eingabefeld „Neue Person“ in der Anmeldemaske offen
+    viewOnly: false,     // „Nur ansehen“ gewählt: Schicht und Erstattung gesperrt, bis jemand eincheckt
+    byeSeen: false,      // Feierabend-Gruß in der Maske weggetippt
     unlockedUntil: 0,    // Leitungsbereich entsperrt bis (ms)
     pinStage: null,      // { mode: "unlock"|"set", first?: string, next: view }
     rosterEdit: false,
@@ -1072,7 +1076,7 @@ export function mount(container, opts = {}) {
     if (p) return p.name;
     return state.names[id] || (id === myId ? "dir" : "");
   }
-  function loadWho() { state.who = LS.get("rz2who", null); state.pickerSnoozeUntil = Math.max(state.pickerSnoozeUntil, Number(LS.get("rz2noask", 0)) || 0); }
+  function loadWho() { state.who = LS.get("rz2who", null); }
   // Aktive Person: heute eingecheckt (noch nicht ausgecheckt) und an diesem Gerät gewählt.
   function currentPerson() {
     const w = state.who, today = isoDate(new Date());
@@ -1085,8 +1089,21 @@ export function mount(container, opts = {}) {
   // Abhaken braucht eine gewählte Person, sobald ein Team angelegt ist.
   function needPerson() {
     if (!state.cfg.people.length || currentPerson()) return false;
-    openPicker(true);
+    if (state.viewOnly) pulseViewOnly(); else openPicker("login");
     return true;
+  }
+  // Alle heute Eingecheckten (offene Einträge), älteste zuerst.
+  function presentPeople() {
+    const today = isoDate(new Date());
+    return Object.values(timeOf(today)).filter(e => e && !e.out).sort((a, b) => a.in.localeCompare(b.in))
+      .map(e => ({ person: state.cfg.people.find(p => p.id === e.pid), entry: e })).filter(x => x.person)
+      .filter((x, i, arr) => arr.findIndex(y => y.person.id === x.person.id) === i);
+  }
+  // Ist die aktive Person ausgecheckt, aber noch jemand da, übernimmt die zuletzt Eingecheckte.
+  function ensureActive() {
+    if (currentPerson()) return;
+    const pres = presentPeople();
+    if (pres.length) { const last = pres[pres.length - 1]; setActive(last.person.id, last.entry.role); }
   }
 
   // ---------- Zeiterfassung ----------
@@ -1328,7 +1345,7 @@ export function mount(container, opts = {}) {
     const r = shift === "frueh" ? handRead("spaet") : null;
     return `<div class="note"><div class="nhead"><label for="note-${shift}">${esc(label)}</label>
         <label class="impchk${imp ? " on" : ""}"><input type="checkbox" data-noteimp="${shift}" ${imp ? "checked" : ""} ${state.readOnly ? "disabled" : ""}> Wichtig</label></div>
-      <textarea id="note-${shift}" data-note="${shift}" placeholder="z. B. offene Check-ins, defekte Schläger, Rückrufe…" ${state.readOnly ? "readonly" : ""}>${esc((n && n.text) || "")}</textarea>
+      <textarea id="note-${shift}" data-note="${shift}" placeholder="z. B. offene Check-ins, defekte Schläger, Rückrufe…" ${state.readOnly || (state.viewOnly && !currentPerson()) ? "readonly" : ""}>${esc((n && n.text) || "")}</textarea>
       <span class="saved" id="saved-${shift}">${n && n.at ? "Gespeichert" + noteAuthor(n) : ""}${r ? ` · <b class="okread">✓ ${readLine(r)}</b>` : ""}</span></div>`;
   }
   function noteReader(key, label) {
@@ -1944,7 +1961,7 @@ export function mount(container, opts = {}) {
   }
   function backupPayload() {
     const data = {};
-    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && ((k.startsWith("rz2") && k !== "rz2who" && k !== "rz2noask") || k.startsWith("cir."))) data[k] = localStorage.getItem(k); }
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && ((k.startsWith("rz2") && k !== "rz2who" && k !== "rz2bye") || k.startsWith("cir."))) data[k] = localStorage.getItem(k); }
     return JSON.stringify({ app: "rezeption-schichtcheck", version: 1, exportedAt: new Date().toISOString(), data }, null, 1);
   }
   async function writeFile(dir, name, text) {
@@ -2053,14 +2070,18 @@ export function mount(container, opts = {}) {
   }
 
   // ---------- Namensauswahl ----------
-  function openPicker(force) {
-    if (!force && Date.now() < state.pickerSnoozeUntil) return;
-    state.pickerOpen = true;
+  // Anmeldemaske: bildschirmfüllend, solange niemand eingecheckt ist; über „+“ als Fenster für eine weitere Person.
+  function openPicker(mode) {
+    state.pickerMode = mode || (presentPeople().length ? "add" : "login");
+    state.pickerOpen = true; state.pickAdd = false;
     renderPicker();
   }
+  function closePicker() { state.pickerOpen = false; state.checkin = null; state.pickAdd = false; renderPicker(); }
+  const byeInfo = () => { const b = LS.get("rz2bye", null); return b && b.date === isoDate(new Date()) ? b : null; };
   function renderPicker() {
     const el = $("picker");
-    if (!state.pickerOpen) { state.checkin = null; el.hidden = true; el.innerHTML = ""; return; }
+    if (!state.pickerOpen) { state.checkin = null; el.hidden = true; el.innerHTML = ""; el.className = ""; return; }
+    el.className = state.pickerMode === "login" ? "login" : "";
     if (state.checkin) return renderCheckin();
     const today = isoDate(new Date()), plan = resolvePlan(today, state.date === today ? state.dayPlan : null).plan;
     const shift = focusShift(plan, nowMin());
@@ -2070,21 +2091,45 @@ export function mount(container, opts = {}) {
     const btn = (p, cls) => `<button class="namebtn ${cls}" data-pick="${esc(p.id)}"><span class="av">${esc(initials(p.name))}</span><span>${esc(p.name)}${info[p.id] ? `<small class="ninfo">${esc(info[p.id])}</small>` : ""}</span></button>`;
     const checked = people.filter(p => openEntry(today, p.id));
     const inSched = people.filter(p => sched.includes(p.id) && !checked.includes(p)), others = people.filter(p => !sched.includes(p.id) && !checked.includes(p));
+    const login = state.pickerMode === "login", bye = login && !state.byeSeen ? byeInfo() : null;
+    const d = new Date(), brand = login ? `<div class="mhead"><div class="brand">Rezeption<small>${WD[d.getDay()]}, ${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}</small></div><div class="clock" id="mk-clock">${fmtMin(nowMin())}</div></div>` : "";
     el.hidden = false;
-    el.innerHTML = `<div class="overlay" role="dialog" aria-modal="true" aria-labelledby="pick-title"><div class="dialog">
-      <h2 id="pick-title">Wer arbeitet gerade?</h2>
+    if (bye) {
+      el.innerHTML = `<div class="overlay" role="dialog" aria-modal="true" aria-labelledby="bye-title">${brand}<div class="dialog bye">
+        <div class="byeic" aria-hidden="true">☾</div>
+        <h2 id="bye-title">Schönen Feierabend${bye.name ? ", " + esc(bye.name) : ""}!</h2>
+        <p>Ausgecheckt um ${esc(bye.out || "")}${bye.hours ? ` · ${esc(bye.hours)} Std.` : ""} – du kannst den Laptop jetzt zuklappen.</p>
+        <div class="row center"><button class="btn ghost" data-pick-close="1">Nur ansehen</button><button class="btn primary" data-bye-next="1">Jemand anderes einchecken</button></div>
+      </div></div>`;
+      return;
+    }
+    const addForm = state.pickAdd
+      ? `<form class="pkadd" id="pk-add"><input class="in" id="pk-new" maxlength="40" placeholder="Vor- und Nachname" autocomplete="off" aria-label="Name der neuen Person"><button class="btn primary" type="submit">Hinzufügen &amp; einchecken</button><button class="btn ghost" type="button" data-pick-addtoggle="1">Abbrechen</button></form>`
+      : `<button class="namebtn addbtn" data-pick-addtoggle="1"><span class="av">+</span><span>Neue Person</span></button>`;
+    el.innerHTML = `<div class="overlay" role="dialog" aria-modal="true" aria-labelledby="pick-title">${brand}<div class="dialog">
+      <h2 id="pick-title">${login ? "Wer arbeitet gerade?" : "Weitere Person einchecken"}</h2>
       <p>${SHIFT_META[shift].label} ${plan[shift].start}–${plan[shift].end}. Name antippen zum Einchecken – Haken und Notizen werden mit deinem Namen gespeichert.</p>
       ${(rosterFor(today).notes || {})[shift] ? `<p class="pnote">Anmerkung im Dienstplan: <b>${esc(rosterFor(today).notes[shift])}</b></p>` : ""}
       ${shift === "spaet" && state.date === today && pendingConfirms(plan, "frueh").length ? `<p class="pwarn">Von der Frühschicht nicht bestätigt: <b>${pendingConfirms(plan, "frueh").map(a => esc(a.t)).join(", ")}</b> – bitte prüfen.</p>` : ""}
-      ${people.length ? `
-        ${checked.length ? `<div class="grp">Eingecheckt</div><div class="names">${checked.map(p => btn(p, "inn")).join("")}</div>` : ""}
-        ${inSched.length ? `<div class="grp">Laut Dienstplan</div><div class="names">${inSched.map(p => btn(p, "sched")).join("")}</div>` : ""}
-        ${others.length ? `<div class="grp">${inSched.length || checked.length ? "Andere" : "Team"}</div><div class="names">${others.map(p => btn(p, "")).join("")}</div>` : ""}`
-        : `<p>Es ist noch kein Team angelegt. Die Schichtleitung legt Namen unter <b>Verwaltung › Team</b> an.</p>`}
-      <div class="row"><button class="btn ghost" data-pick-close="1">Nur ansehen</button></div>
+      ${checked.length ? `<p class="hint">Schon eingecheckt: ${checked.map(p => esc(p.name)).join(", ")}</p>` : ""}
+      ${inSched.length ? `<div class="grp">Laut Dienstplan</div><div class="names">${inSched.map(p => btn(p, "sched")).join("")}</div>` : ""}
+      <div class="grp">${inSched.length ? "Andere" : "Team"}</div><div class="names">${others.map(p => btn(p, "")).join("")}${state.pickAdd ? "" : addForm}</div>
+      ${state.pickAdd ? addForm : ""}
+      <div class="row">${login ? `<button class="btn ghost" data-pick-close="1">Nur ansehen</button>` : `<button class="btn ghost" data-pick-cancel="1">Abbrechen</button>`}</div>
     </div></div>`;
-    const first = el.querySelector(".namebtn");
-    if (first) first.focus();
+    const focus = el.querySelector("#pk-new") || el.querySelector(".namebtn.sched") || el.querySelector(".namebtn");
+    if (focus) focus.focus();
+  }
+  // Neue Person aus der Anmeldemaske: ohne PIN (Vertrauensbasis). Gleicher Name → vorhandene Person nehmen.
+  async function addPersonAndPick(raw) {
+    const name = String(raw || "").replace(/\s+/g, " ").trim().slice(0, 40);
+    if (!name) { const i = $("pk-new"); if (i) i.focus(); return; }
+    const known = state.cfg.people.find(p => p.name.toLowerCase() === name.toLowerCase());
+    if (known) return pickPerson(known.id);
+    const np = { id: newId("u"), name }, people = [...state.cfg.people, np];
+    state.cfg = { ...state.cfg, people };
+    persistCfg({ people });
+    pickPerson(np.id);
   }
   function setActive(pid, role) {
     const today = isoDate(new Date());
@@ -2098,8 +2143,8 @@ export function mount(container, opts = {}) {
     const open = openEntry(today, id);
     if (open) {
       setActive(id, open.entry.role);
-      state.pickerOpen = false; renderPicker(); render();
-      setStatus(`Willkommen zurück, ${personName(id)}`);
+      closePicker(); render();
+      toast(`${personName(id)} ist aktiv`);
       return;
     }
     const plan = resolvePlan(today, state.dayPlan).plan, now = nowMin();
@@ -2136,8 +2181,9 @@ export function mount(container, opts = {}) {
     state.checkin = null;
     persistTime(today, id, entry);
     setActive(c.pid, c.role);
-    state.shiftSel = null;
-    state.pickerOpen = false; renderPicker(); render();
+    state.shiftSel = null; state.viewOnly = false; state.byeSeen = false;
+    LS.set("rz2bye", null);
+    closePicker(); render();
     setStatus(`${personName(c.pid)} eingecheckt um ${entry.in}`);
     autoBackup("shift");
     maybeShowHandover(c.role);
@@ -2148,7 +2194,7 @@ export function mount(container, opts = {}) {
     const today = isoDate(new Date());
     if (state.date !== today) goDate(today);
     const open = openEntry(today, pid || (state.who && state.who.id));
-    if (!open) { openPicker(true); return; }
+    if (!open) { openPicker(); return; }
     const out = fmtMin(roundQ(nowMin()));
     let gross = toMin(out) - toMin(open.entry.in); if (gross < 0) gross += 1440;
     state.checkout = { ...open, out, pause: suggestPause(gross), pauseTouched: false, note: open.entry.note || "" };
@@ -2177,20 +2223,25 @@ export function mount(container, opts = {}) {
     persistTime(c.date, c.id, { ...c.entry, out: c.out, pause: c.pause, note: (c.note || "").trim().slice(0, 200) });
     if (state.who && state.who.id === c.entry.pid) { state.who = null; LS.set("rz2who", null); }
     state.checkout = null;
-    pauseAskAfterCheckout();
-    renderCheckout(); render();
-    setStatus(`${personName(c.entry.pid)} ausgecheckt um ${c.out} · ${fmtHours(workedMin({ in: c.entry.in, out: c.out, pause: c.pause }))} Std.`);
+    const name = personName(c.entry.pid), hours = fmtHours(workedMin({ in: c.entry.in, out: c.out, pause: c.pause }));
+    renderCheckout();
+    // Noch jemand da: der/die Nächste wird aktiv, kurzer Gruß. Sonst Feierabend-Bildschirm (bleibt bis zur nächsten Anmeldung).
+    ensureActive();
+    if (presentPeople().length) toast(`Schönen Feierabend, ${name}!`);
+    else { LS.set("rz2bye", { date: isoDate(new Date()), name, out: c.out, hours }); state.byeSeen = false; state.viewOnly = false; openPicker("login"); }
+    render();
+    setStatus(`${name} ausgecheckt um ${c.out} · ${hours} Std.`);
     autoBackup("shift");
   }
-  // Nach dem Auschecken nicht sofort „Wer arbeitet?“ zeigen: erst 15 Min. vor dem nächsten Schichtbeginn,
-  // nach der letzten Schicht des Tages gar nicht mehr (Laptop wird zugeklappt). Einchecken per Knopf geht jederzeit.
-  function pauseAskAfterCheckout() {
-    const now = new Date(), cur = now.getHours() * 60 + now.getMinutes(), plan = P();
-    const next = KEYS.map(k => toMin(plan[k].start) - 15).filter(m => m > cur).sort((a, b) => a - b)[0];
-    const until = new Date(now); until.setSeconds(0, 0);
-    if (next === undefined) until.setHours(24, 0, 0, 0); else until.setHours(0, Math.max(next, cur + 15), 0, 0);
-    state.pickerSnoozeUntil = until.getTime();
-    LS.set("rz2noask", state.pickerSnoozeUntil);
+  // Kurzer Hinweis unten in der Mitte.
+  let toastTimer = null;
+  function toast(msg) {
+    const t = $("toast"); t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 3500);
+  }
+  // „Nur ansehen“: Hinweisleiste kurz aufleuchten lassen, wenn etwas gesperrt ist.
+  function pulseViewOnly() {
+    const b = $("vobar"); b.classList.remove("pulse"); void b.offsetWidth; b.classList.add("pulse");
   }
   $("outBtn").addEventListener("click", () => openCheckout());
   $("remind").addEventListener("input", (e) => { if (e.target.id === "co-note" && state.checkout) state.checkout.note = e.target.value; });
@@ -2220,13 +2271,21 @@ export function mount(container, opts = {}) {
     const b = e.target.closest("button");
     if (!b) return;
     if (b.dataset.pick) return pickPerson(b.dataset.pick);
-    if (b.dataset.pickClose) { state.pickerOpen = false; state.pickerSnoozeUntil = Date.now() + 5 * 60000; renderPicker(); }
+    if (b.dataset.pickClose) { state.viewOnly = true; closePicker(); render(); return; }
+    if (b.dataset.pickCancel) { closePicker(); return; }
+    if (b.dataset.byeNext) { state.byeSeen = true; renderPicker(); return; }
+    if (b.dataset.pickAddtoggle) { state.pickAdd = !state.pickAdd; renderPicker(); return; }
     if (!state.checkin) return;
     if (b.dataset.tstep) return stepSelect(b);
     if (b.dataset.ciq) { state.checkin.time = b.dataset.ciq; renderPicker(); return; }
     if (b.dataset.cirole) { state.checkin.role = b.dataset.cirole; renderPicker(); return; }
     if (b.dataset.ci === "cancel") { state.checkin = null; renderPicker(); return; }
     if (b.dataset.ci === "ok") return confirmCheckin();
+  });
+  $("picker").addEventListener("submit", (e) => {
+    if (e.target.id !== "pk-add") return;
+    e.preventDefault();
+    addPersonAndPick(($("pk-new") || {}).value);
   });
   $("picker").addEventListener("change", (e) => {
     const c = state.checkin; if (!c) return;
@@ -2235,7 +2294,11 @@ export function mount(container, opts = {}) {
     if (m) { const x = c.stale[Number(m[2])]; if (m[1]) x.pause = Number(e.target.value); else x.out = e.target.value; }
   });
   const onKey = (e) => {
-    if (e.key === "Escape" && state.pickerOpen) { state.pickerOpen = false; state.pickerSnoozeUntil = Date.now() + 5 * 60000; renderPicker(); }
+    // Die Anmeldemaske lässt sich nur über „Nur ansehen“ verlassen; Escape schließt Eingabe bzw. „+“-Fenster.
+    if (e.key !== "Escape" || !state.pickerOpen) return;
+    if (state.checkin) { state.checkin = null; renderPicker(); }
+    else if (state.pickAdd) { state.pickAdd = false; renderPicker(); }
+    else if (state.pickerMode === "add") closePicker();
   };
   document.addEventListener("keydown", onKey);
   cleanups.push(() => document.removeEventListener("keydown", onKey));
@@ -2290,12 +2353,13 @@ export function mount(container, opts = {}) {
     if (b.dataset.rsnooze) { state.remindOpen = false; state.remindSnoozeUntil = Date.now() + 10 * 60000; renderRemind(); }
   });
 
-  // Zu Schichtbeginn bzw. bei Schichtwechsel automatisch nachfragen.
+  // Anmeldemaske, sobald niemand eingecheckt ist (außer „Nur ansehen“ und in den PIN-Bereichen der Leitung).
   function maybeAskPerson() {
-    if (state.mode === "loading" || state.pickerOpen || !state.cfg.people.length) return;
-    if (state.view !== "schicht") return;
-    if (state.date !== isoDate(new Date()) || currentPerson()) return;
-    openPicker(false);
+    if (state.mode === "loading" || state.pickerOpen || state.viewOnly || !state.cfg.people.length) return;
+    if (["admin", "plan", "pin", "monat"].includes(state.view)) return;
+    ensureActive();
+    if (currentPerson()) return;
+    openPicker("login");
   }
 
   // ---------- Zeiten (Ansicht, Korrektur, Export) ----------
@@ -2746,12 +2810,19 @@ export function mount(container, opts = {}) {
     { const k = state.shiftSel || focusShift(plan, ctx), pr = progress(plan, k, state.checks); $("meta-shift").textContent = `${SHIFT_META[k].short} ${pr.done}/${pr.total}`; }
     const tabView = ["plan", "pin", "monat"].includes(state.view) ? "admin" : state.view;
     root.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", String(t.dataset.view === tabView)));
-    const p = currentPerson(), wb = $("whoBtn");
-    wb.classList.toggle("none", !p);
-    wb.hidden = !state.cfg.people.length;
-    $("whoAv").textContent = p ? initials(p.name) : "?";
-    $("whoName").innerHTML = p ? `${esc(p.name)} <small>wechseln</small>` : "Einchecken";
+    const p = currentPerson(), pres = presentPeople(), bar = $("presence");
+    bar.hidden = !state.cfg.people.length;
+    bar.innerHTML = pres.map(({ person, entry }) => {
+      const on = p && p.id === person.id;
+      return `<button class="pchip${on ? " on" : ""}" data-pres="${esc(person.id)}" aria-pressed="${!!on}" title="${on ? "Gerade aktiv – Haken laufen auf diesen Namen" : "Antippen: " + esc(person.name) + " wird aktiv"}"><span class="av">${esc(initials(person.name))}</span><span>${esc(person.name)}<small>${ROLE_LABEL[entry.role] || ""} · ${entry.in}</small></span></button>`;
+    }).join("") + `<button class="pchip add" data-pres-add="1" title="Weitere Person einchecken">${pres.length ? "+" : "+ Einchecken"}</button>`;
     $("outBtn").hidden = !p;
+    $("outBtn").textContent = p && pres.length > 1 ? `${p.name.split(" ")[0]} auschecken` : "Auschecken";
+    const vo = state.viewOnly && !p && !!state.cfg.people.length;
+    $("vobar").hidden = !vo;
+    container.classList.toggle("viewonly", vo);
+    const mc = $("mk-clock");
+    if (mc) mc.textContent = fmtMin(nowMin());
   }
 
   function render() {
@@ -2776,6 +2847,13 @@ export function mount(container, opts = {}) {
   // Eigene Seite im iframe, einmal geladen und danach nur ein-/ausgeblendet: Prüfergebnisse liegen nur im Speicher der Seite.
   let ciFrame = null;
   function showCheckinTool() {
+    const locked = state.viewOnly && !currentPerson();
+    let lock = $("ciwrap").querySelector(".cilock");
+    if (locked && !lock) {
+      lock = document.createElement("div"); lock.className = "cilock";
+      lock.innerHTML = `<div><b>Nur ansehen</b><p>Für die Erstattung bitte einchecken.</p><button class="btn primary" data-pres-add="1">Einchecken</button></div>`;
+      $("ciwrap").appendChild(lock);
+    } else if (!locked && lock) lock.remove();
     if (!ciFrame) {
       ciFrame = document.createElement("iframe");
       ciFrame.src = opts.checkinUrl;
@@ -3038,7 +3116,26 @@ export function mount(container, opts = {}) {
     }
   });
   main.addEventListener("focusout", () => setTimeout(() => { if (renderPending) render(); }, 0));
-  $("whoBtn").addEventListener("click", () => openPicker(true));
+  // Anwesend-Leiste und „Nur ansehen“-Leiste
+  container.addEventListener("click", (e) => {
+    const b = e.target.closest && e.target.closest("[data-pres],[data-pres-add]");
+    if (!b || !container.contains(b) || b.closest("#picker")) return;
+    if (b.dataset.presAdd) { state.viewOnly = false; state.byeSeen = true; openPicker(); return; }
+    const id = b.dataset.pres, open = openEntry(isoDate(new Date()), id);
+    if (!open || (state.who && state.who.id === id)) return;
+    setActive(id, open.entry.role); render();
+    toast(`${personName(id)} ist jetzt aktiv`);
+  });
+  // „Nur ansehen“: in Schicht und Erstattung nur Anzeige-Bedienelemente zulassen.
+  const VIEW_OK = "[data-shiftsel],[data-toggle],[data-cols],[data-split],[data-view]";
+  const blockViewOnly = (e) => {
+    if (!state.viewOnly || currentPerson() || !["schicht", "erstattung"].includes(state.view)) return;
+    const el = e.target.closest && e.target.closest("button, input, textarea, select, label, a");
+    if (!el || el.closest(VIEW_OK)) return;
+    e.preventDefault(); e.stopPropagation();
+    if (e.type === "click") pulseViewOnly();
+  };
+  for (const ev of ["click", "focusin"]) { $("main").addEventListener(ev, blockViewOnly, true); }
 
   // Uhr, Fälligkeiten und „mitlaufende" Spalten jede Minute aktualisieren (nur Anzeige).
   timers.push(setInterval(() => {

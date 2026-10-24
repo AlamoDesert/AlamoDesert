@@ -242,11 +242,45 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
 .addrow { border: 0; border-top: 1px dashed var(--line); background: none; color: var(--accent); font-weight: 600; font-size: 13px; padding: 8px 12px; text-align: left; width: 100% }
 
 /* Person / Dienst */
-.whobtn { border: 1px solid var(--line); background: var(--surface); border-radius: 99px; height: 34px; padding: 0 12px 0 6px; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; white-space: nowrap }
-.whobtn .av { width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-size: 11px; font-weight: 700 }
-.whobtn.none { border-color: var(--warn); color: var(--warn) }
-.whobtn.none .av { background: var(--warn) }
-.whobtn small { font-weight: 500; color: var(--muted) }
+/* Anwesend-Leiste: alle Eingecheckten, aktive Person farbig */
+.presence { display: flex; gap: 6px; flex-wrap: wrap; align-items: center }
+.pchip { border: 1px solid var(--line); background: var(--surface); border-radius: 99px; height: 34px; padding: 0 10px 0 4px; display: inline-flex; align-items: center; gap: 7px; font-weight: 600; white-space: nowrap; line-height: 1.05; text-align: left }
+.pchip .av { width: 26px; height: 26px; border-radius: 50%; background: var(--surface-2); color: var(--muted); display: grid; place-items: center; font-size: 11px; font-weight: 700; box-shadow: inset 0 0 0 1px var(--line) }
+.pchip small { display: block; font-size: 10.5px; font-weight: 500; color: var(--muted) }
+.pchip.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent) }
+.pchip.on .av { background: var(--accent); color: #fff; box-shadow: none }
+.pchip.add { border-style: dashed; color: var(--accent); padding: 0 12px; font-size: 15px }
+/* Ab zwei Eingecheckten wird es im Kopf eng: Schichtzusatz an der Uhr ausblenden */
+@media (max-width: 1500px) { header.top:has(.pchip + .pchip:not(.add)) .clock small { display: none } }
+/* Nur ansehen */
+.vobar { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 8px 12px; border-radius: var(--r); background: var(--now-soft); color: var(--now); border: 1px solid var(--now) }
+.vobar b { font-family: var(--f-display); font-size: 17px; letter-spacing: .04em; text-transform: uppercase }
+.vobar span { flex: 1; color: var(--ink) }
+.vobar.pulse { animation: vopulse .6s ease-in-out 2 }
+@keyframes vopulse { 50% { box-shadow: 0 0 0 4px var(--now-soft), 0 0 0 5px var(--now) } }
+.rz-root.viewonly .schicht :is(.check, .tap, .skip, .undo, .golink, .impchk, textarea, [data-hread]) { cursor: not-allowed }
+.rz-root.viewonly .schicht :is(ul.items, .always, .note) { opacity: .7 }
+.ciwrap { position: relative }
+.cilock { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; background: color-mix(in srgb, var(--bg) 80%, transparent); text-align: center }
+.cilock > div { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px 24px; display: grid; gap: 8px; justify-items: center }
+.cilock b { font-family: var(--f-display); font-size: 22px; text-transform: uppercase; letter-spacing: .03em }
+.cilock p { margin: 0; color: var(--muted) }
+/* Hinweis unten */
+.toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 40; background: var(--ink); color: var(--surface); padding: 10px 18px; border-radius: 99px; font-weight: 600; box-shadow: 0 10px 30px rgba(0, 0, 0, .25) }
+/* Anmeldemaske: ganzer Bildschirm, kein durchscheinender Hintergrund */
+#picker.login .overlay { background: var(--bg); align-content: center; justify-items: center; gap: 18px; overflow: auto }
+#picker.login .dialog { box-shadow: 0 1px 0 var(--line); border: 1px solid var(--line); max-height: none }
+.mhead { display: flex; align-items: baseline; gap: 18px; width: min(640px, 100%) }
+.mhead .brand { flex: 1 }
+.mhead .clock { font-size: 44px }
+.dialog.bye { text-align: center; justify-items: center; padding: 32px 24px }
+.dialog.bye h2 { font-size: 34px }
+.byeic { font-size: 44px; line-height: 1; color: var(--accent) }
+.dialog .row.center { justify-content: center }
+.namebtn.addbtn { border-style: dashed; color: var(--accent); background: none }
+.namebtn.addbtn .av { background: none; box-shadow: inset 0 0 0 1px var(--accent); font-size: 18px }
+.pkadd { display: flex; gap: 8px; flex-wrap: wrap }
+.pkadd .in { flex: 1 1 220px; font-size: 17px; padding: 10px 12px }
 .duty { display: flex; gap: 6px 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); padding: 8px 12px; border-top: 1px solid var(--line) }
 .duty b { color: var(--ink) }
 .chip { display: inline-flex; align-items: center; gap: 4px; border-radius: 99px; padding: 2px 9px; font-size: 13px; font-weight: 600; background: var(--accent-soft); color: var(--accent); border: 1px solid transparent; white-space: nowrap }
