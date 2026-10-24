@@ -127,6 +127,7 @@ tr.current td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 .legend { padding-left: 18px; margin: 10px 0 0; }
 .reasons { margin: 0; padding-left: 16px; }
 .reasons li { margin: 0; }
+.reasons li.note { color: var(--muted); list-style: circle; }
 
 /* Wallet buchen: eine Karte pro Person */
 .card { max-width: 680px; margin: 0 auto; width: 100%; background: var(--surface); border: 1px solid var(--accent); box-shadow: 0 0 0 1px var(--accent); border-radius: var(--r); padding: 16px 18px; }
@@ -1077,7 +1078,8 @@ function renderResults() {
     const ciName = r.ci.name || (r.ci.hfId ? `ID ${r.ci.hfId}` : '–');
     const pt = p ? `${esc(p.name || '–')}${nameDiffers(r) ? ' <span class="chip review">abweichend</span>' : ''}<br><span class="muted">${esc(p.email || 'keine E-Mail')}</span>${r.matchVia === 'email' ? '<br><span class="chip review">über E-Mail</span>' : ''}` : '<span class="muted">–</span>';
     const bk = b ? `${esc(KINDS[b.kind] || b.sport)}${b.activityName ? ' · ' + esc(b.activityName) : ''}<br><span class="muted">${esc(b.courts.join(', '))} · ${hhmm(b.start)}–${hhmm(b.end)} · ${esc(b.type)} · ${b.participants.length} Teiln.</span>` : '<span class="muted">–</span>';
-    const reasons = [...r.reasons, ...r.notes.map(n => 'ℹ️ ' + n)];
+    // Gründe (wichtig) und Hinweise (nur zur Info, grau) getrennt darstellen.
+    const reasons = [...r.reasons.map(t => ({ t, note: false })), ...r.notes.map(t => ({ t, note: true }))];
     const hfBtn = !r.ci.norm && r.ci.hfId ? `<button class="btn small" data-act="hfmap" data-i="${i}">Name zuordnen</button>` : '';
     const dec = e.booked ? '' : `
       <select data-act="decision" data-i="${i}">
@@ -1093,7 +1095,7 @@ function renderResults() {
       <td>${pt}</td>
       <td>${bk}</td>
       <td class="num">${eur(e.decision === 'approve' ? e.amount : r.amount)}</td>
-      <td>${reasons.length ? `<ul class="reasons">${reasons.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}</td>
+      <td>${reasons.length ? `<ul class="reasons">${reasons.map(x => `<li${x.note ? ' class="note"' : ''}>${esc(x.t)}</li>`).join('')}</ul>` : ''}</td>
       <td>${dec}</td></tr>`;
   }).join('') || '<tr><td colspan="8" class="muted">Keine Einträge.</td></tr>';
 }

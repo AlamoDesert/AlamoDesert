@@ -1,0 +1,3 @@
+Name;Datum Check-in;Kurs
+Erika Beispiel;23.10.2026 09:58;Padel
+Katharina Schmidt;23.10.2026 12:57;Padel

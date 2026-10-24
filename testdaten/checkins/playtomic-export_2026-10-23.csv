@@ -1,0 +1,13 @@
+booking_id,tournament_id,resource_name,sport_id,booking_start_date,booking_end_date,price,booking_type,payment_status,status,is_canceled,activity_name,participant_name_1,participant_email_1,participant_name_2,participant_email_2,participant_name_3,participant_email_3,participant_name_4,participant_email_4
+B1001,,Padel Indoor 1,PADEL,2026-10-23 10:00,2026-10-23 11:30,60.00,REGULAR_BOOKING,PAID,CONFIRMED,false,,Max Mustermann,max.mustermann@example.com,Erika Beispiel,erika.beispiel@example.com,Tom Tester,tom.tester@example.com,Lena Probe,lena.probe@example.com
+B1002,,Padel Outdoor 2,PADEL,2026-10-23 17:00,2026-10-23 18:30,54.00,REGULAR_BOOKING,PAID,CONFIRMED,false,,Jan Platzhalter,jan.platzhalter@example.com,Sophie Schmetterball,sophie.s@example.com,Paul Volley,paul.volley@example.com,Mia Lob,mia.lob@example.com
+B1003,,Squash 1,SQUASH,2026-10-23 12:00,2026-10-23 13:00,18.00,REGULAR_BOOKING,PAID,CONFIRMED,false,,Jonas Wand,jonas.wand@example.com,Clara Ecke,clara.ecke@example.com,,,,
+B1004,,Padel Single,PADEL,2026-10-23 14:00,2026-10-23 15:00,22.00,REGULAR_BOOKING,PAID,CONFIRMED,false,,Felix Allein,felix.allein@example.com,,,,,,
+B1005,T77,Padel Indoor 1,PADEL,2026-10-23 19:00,2026-10-23 21:00,25.00,TOURNAMENT,PAID,CONFIRMED,false,Afterwork Padel,Nina Netz,nina.netz@example.com,Ben Bande,ben.bande@example.com,,,,
+B1006,T77,Padel Indoor 2,PADEL,2026-10-23 19:00,2026-10-23 21:00,25.00,TOURNAMENT,PAID,CONFIRMED,false,Afterwork Padel,Lara Lob,lara.lob@example.com,Kai Kante,kai.kante@example.com,,,,
+B1007,,Padel Indoor 3,PADEL,2026-10-23 16:00,2026-10-23 17:00,60.00,PRIVATE_CLASS,PAID,CONFIRMED,false,,Greta Griff,greta.griff@example.com,,,,,,
+B1008,,Padel Outdoor 1,PADEL,2026-10-23 08:00,2026-10-23 09:30,36.00,REGULAR_BOOKING,PAID,CANCELED,true,,Otto Storno,otto.storno@example.com,Ute Absage,ute.absage@example.com,,,,
+B1009,,Padel Outdoor 1,PADEL,2026-10-23 11:00,2026-10-23 12:30,36.00,REGULAR_BOOKING,PAID,CONFIRMED,false,,Toni M.,anton.meier@example.com,Rosa Rot,rosa.rot@example.com,Udo Ufer,udo.ufer@example.com,Vera Vorhand,vera.vorhand@example.com
+B1010,,Padel Indoor 2,PADEL,2026-10-23 13:00,2026-10-23 14:30,45.00,REGULAR_BOOKING,PAID,CONFIRMED,false,,Katharina Schmid,k.schmid@example.com,Leo Lang,leo.lang@example.com,Ida Ist,ida.ist@example.com,,
+B1011,,Tennis 1,TENNIS,2026-10-23 09:00,2026-10-23 10:00,20.00,REGULAR_BOOKING,PAID,CONFIRMED,false,,Hannes Aufschlag,hannes.aufschlag@example.com,Iris Netzroller,iris.n@example.com,,,,
+B1012,,Padel Indoor 2,PADEL,2026-10-23 20:00,2026-10-23 21:30,63.00,REGULAR_BOOKING,PENDING,CONFIRMED,false,,Rita Rückhand,rita.rueckhand@example.com,Sven Smash,sven.smash@example.com,Tina Tie,tina.tie@example.com,Olaf Out,olaf.out@example.com
