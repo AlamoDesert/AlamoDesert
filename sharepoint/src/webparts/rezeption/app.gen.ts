@@ -1531,7 +1531,7 @@ export function mount(container, opts = {}) {
         <datalist id="rhi-list">${state.cfg.people.map(p => `<option value="${esc(p.name)}">`).join("")}</datalist>
         ${state.rosterHi ? `<button class="btn ghost sm" data-act2="rhi-clear">×</button>` : ""}<span id="rhicount" class="hint"></span></div>
       <div class="rcal">${["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].map(w => `<div class="rh">${w}</div>`).join("")}${cells.join("")}</div>
-      <div class="legend">${edit ? "Tag antippen, um die Einteilung zu ändern." : "F = Frühschicht, S = Spätschicht. Bearbeiten braucht die Leitungs-PIN."}</div>
+      <div class="legend">${edit ? "Tag antippen, um die Einteilung zu ändern." : `F = Frühschicht, S = Spätschicht.${pinOff() ? "" : " Bearbeiten braucht die Leitungs-PIN."}`}</div>
       ${dayEditor}`;
   }
   // Tage einer Person hervorheben: Treffer am Wortanfang in Namen und Notiz („ar“ → Arne, nicht Marc).
@@ -1796,7 +1796,10 @@ export function mount(container, opts = {}) {
     for (const ch of "rezeption:" + pin) { h ^= ch.charCodeAt(0); h = Math.imul(h, 0x01000193) >>> 0; }
     return "f1:" + h.toString(16);
   }
-  const isUnlocked = () => Date.now() < state.unlockedUntil;
+  // adminPin "off" = PIN bewusst deaktiviert: Leitungsbereiche sind für alle offen.
+  const PIN_OFF = "off";
+  const pinOff = () => state.cfg.adminPin === PIN_OFF;
+  const isUnlocked = () => pinOff() || Date.now() < state.unlockedUntil;
   function requireAdmin(next) {
     if (isUnlocked()) { state.unlockedUntil = Date.now() + 10 * 60000; return true; }
     state.pinStage = { mode: state.cfg.adminPin ? "unlock" : "set", next };
@@ -1814,6 +1817,7 @@ export function mount(container, opts = {}) {
       <input class="in" id="pin-in" type="password" inputmode="numeric" autocomplete="off" maxlength="8" aria-label="PIN">
       <button class="btn primary" type="submit">${st.mode === "set" && !st.first ? "Weiter" : "Entsperren"}</button>
       <button class="btn ghost" type="button" data-act2="pin-cancel">Abbrechen</button>
+      ${st.mode === "set" && !st.first ? `<button class="btn ghost" type="button" data-act2="pin-off">Ohne PIN nutzen</button>` : ""}
       <p id="pin-msg"></p>
     </form>`;
   }
@@ -1893,9 +1897,13 @@ export function mount(container, opts = {}) {
           <label class="btn" style="text-align:center;cursor:pointer">Sicherung übernehmen<input type="file" id="importfile" accept="application/json,.json" hidden></label>
           <p id="import-msg"></p></div></section>` : ""}
       <section class="card"><div class="chead"><h2>Leitungs-PIN</h2></div>
-        <div class="cbody"><p>Entsperrt für 10 Minuten nach der letzten Aktion.</p>
+        <div class="cbody">${pinOff()
+          ? `<p><b>PIN ist deaktiviert.</b> Verwaltung, Aufgaben-Plan, Dienstplan-Bearbeitung und alle Zeiten sind für alle offen.</p>
+          <button class="btn primary" data-act2="pin-change">PIN festlegen</button>`
+          : `<p>Entsperrt für 10 Minuten nach der letzten Aktion.</p>
           <button class="btn" data-act2="pin-change">PIN ändern</button>
-          <button class="btn ghost" data-act2="lock">Jetzt sperren</button></div></section>
+          <button class="btn ghost" data-act2="lock">Jetzt sperren</button>
+          ${state.confirm === "pin-off" ? `<button class="btn danger" data-act2="pin-off">Wirklich deaktivieren?</button>` : `<button class="btn ghost danger" data-act2="pin-off-ask">PIN deaktivieren</button>`}`}</div></section>
     </div>`;
   }
   function addPerson(name) {
@@ -2991,6 +2999,21 @@ export function mount(container, opts = {}) {
       if (a === "backup-open") { if (NATIVE) NATIVE.openBackupDir(); return; }
       if (a === "backup-forget") return forgetBackupDir();
       if (a === "person-del") return deletePerson(t.dataset.pid);
+      if (a === "pin-off-ask") { state.confirm = "pin-off"; render(); return; }
+      if (a === "pin-off") {
+        // Vom PIN-Festlegen-Bildschirm (noch keine PIN) oder aus der Verwaltung (entsperrt).
+        if (state.cfg.adminPin && !isUnlocked()) return;
+        state.confirm = null;
+        state.cfg = { ...state.cfg, adminPin: PIN_OFF };
+        persistCfg({ adminPin: PIN_OFF });
+        const next = (state.pinStage && state.pinStage.next) || "admin";
+        state.pinStage = null;
+        if (next === "dienst-edit") { state.view = "dienst"; state.rosterEdit = true; }
+        else if (next === "zeiten-all") { state.view = "zeiten"; state.timesAll = true; state.timesPerson = ""; }
+        else state.view = state.view === "pin" ? next : state.view;
+        setStatus("Leitungs-PIN deaktiviert");
+        render(); return;
+      }
       if (a === "pin-change") { state.pinStage = { mode: "set", next: "admin" }; state.view = "pin"; render(); setTimeout(() => { const el = $("pin-in"); if (el) el.focus(); }, 0); return; }
       if (a === "lock") { state.unlockedUntil = 0; state.view = "schicht"; render(); return; }
       return;
