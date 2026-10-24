@@ -1811,7 +1811,7 @@ export function mount(container, opts = {}) {
   function renderPin() {
     const st = state.pinStage || { mode: "unlock" };
     const title = st.mode === "set" ? (st.first ? "PIN wiederholen" : "Leitungs-PIN festlegen") : "Leitungs-PIN";
-    const text = st.mode === "set" ? "Diese PIN schützt Team, Dienstplan und Aufgaben-Plan vor Änderungen. Mindestens 4 Ziffern." : "Nur für die Schichtleitung.";
+    const text = st.mode === "set" ? "Diese PIN schützt Team, Dienstplan und Aufgaben-Plan vor Änderungen. Mindestens 4 Ziffern." : "Nur für die Leitung.";
     return `<form class="pinform" id="pinform">
       <h2>${title}</h2><p>${text}</p>
       <input class="in" id="pin-in" type="password" inputmode="numeric" autocomplete="off" maxlength="8" aria-label="PIN">
