@@ -1,4 +1,4 @@
-const MARKUP = "<div class=\"wrap\">\n  <header class=\"top\">\n    <h1 class=\"brand\">Rezeption<small id=\"weekday\">–</small></h1>\n    <div class=\"clock\" id=\"clock\">--:--</div>\n    <button class=\"whobtn none\" id=\"whoBtn\" aria-label=\"Person wechseln\"><span class=\"av\" id=\"whoAv\">?</span><span id=\"whoName\">Name wählen</span></button>\n    <button class=\"btn outbtn\" id=\"outBtn\" hidden>Auschecken</button>\n    <div class=\"tabs\" role=\"tablist\">\n      <button class=\"tab\" role=\"tab\" data-view=\"schicht\"><b>Schicht</b><span class=\"meta\" id=\"meta-shift\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"dienst\"><b>Dienstplan</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"zeiten\"><b>Zeiten</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"erstattung\" hidden><b>Erstattung</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"admin\"><b>Verwaltung</b></button>\n    </div>\n    <div class=\"datenav\">\n      <button class=\"iconbtn\" id=\"prev\" aria-label=\"Vorheriger Tag\">‹</button>\n      <label class=\"datebtn\"><span id=\"datelabel\">–</span><span class=\"src\" id=\"datesrc\"></span><input type=\"date\" id=\"datepick\" aria-label=\"Datum wählen\"></label>\n      <button class=\"iconbtn\" id=\"next\" aria-label=\"Nächster Tag\">›</button>\n      <button class=\"todaybtn\" id=\"today\">Heute</button>\n    </div>\n    <div class=\"status\" id=\"status\">Verbinde…</div>\n  </header>\n  <main id=\"main\"></main>\n  <div id=\"ciwrap\" class=\"ciwrap\" hidden></div>\n</div>\n<div id=\"picker\" hidden></div><div id=\"remind\" hidden></div>";
+const MARKUP = "<div class=\"wrap\">\n  <header class=\"top\">\n    <h1 class=\"brand\">Rezeption<small id=\"weekday\">–</small></h1>\n    <div class=\"clock\" id=\"clock\">--:--</div>\n    <button class=\"whobtn none\" id=\"whoBtn\" aria-label=\"Person wechseln\"><span class=\"av\" id=\"whoAv\">?</span><span id=\"whoName\">Name wählen</span></button>\n    <button class=\"btn outbtn\" id=\"outBtn\" hidden>Auschecken</button>\n    <div class=\"tabs\" role=\"tablist\">\n      <button class=\"tab\" role=\"tab\" data-view=\"schicht\"><b>Schicht</b><span class=\"meta\" id=\"meta-shift\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"dienst\"><b>Dienstplan</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"zeiten\"><b>Zeiten</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"erstattung\" hidden><b>Erstattung</b><span class=\"meta\" id=\"meta-ci\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"admin\"><b>Verwaltung</b></button>\n    </div>\n    <div class=\"datenav\">\n      <button class=\"iconbtn\" id=\"prev\" aria-label=\"Vorheriger Tag\">‹</button>\n      <label class=\"datebtn\"><span id=\"datelabel\">–</span><span class=\"src\" id=\"datesrc\"></span><input type=\"date\" id=\"datepick\" aria-label=\"Datum wählen\"></label>\n      <button class=\"iconbtn\" id=\"next\" aria-label=\"Nächster Tag\">›</button>\n      <button class=\"todaybtn\" id=\"today\">Heute</button>\n    </div>\n    <div class=\"status\" id=\"status\">Verbinde…</div>\n  </header>\n  <main id=\"main\"></main>\n  <div id=\"ciwrap\" class=\"ciwrap\" hidden></div>\n</div>\n<div id=\"picker\" hidden></div><div id=\"remind\" hidden></div>";
 
 /* Rezeption Schichtcheck – App-Kern.
    Wird von tools/build.mjs in index.html (eigenständig) und in das SharePoint-Webpart (app.gen.ts) eingebaut.
@@ -209,7 +209,8 @@ export function mount(container, opts = {}) {
   let disposed = false;
   container.innerHTML = MARKUP;
   // Reiter „Erstattung“ (Check-in-Erstattung, eigene Seite im iframe) nur, wenn die Seite mitgeliefert wird (Mac-App, Webversion).
-  if (opts.checkinUrl) container.querySelector('[data-view="erstattung"]').hidden = false;
+  const CHECKIN_URL = opts.checkinUrl || null;
+  if (CHECKIN_URL) container.querySelector('[data-view="erstattung"]').hidden = false;
   // Farbschema: in SharePoint immer hell, sonst wie die einbettende Seite (claude.ai setzt data-theme).
   if (opts.mode === "sharepoint") host.setAttribute("data-theme", "light");
   else if (root.host) {
@@ -1247,6 +1248,7 @@ export function mount(container, opts = {}) {
         <span class="box">${na ? "" : CHECK_SVG}</span>
         <span class="txt"><span class="label">${esc(item.t)}</span>${tag}${item.s ? `<span class="sub">${esc(item.s)}</span>` : ""}${c ? `<span class="who">${whoLine(c)}</span>` : ""}</span>
       </button>
+      ${CHECKIN_URL && /check-?ins?\b/i.test(item.t) ? `<button class="golink" data-goview="erstattung" title="Check-in-Erstattung öffnen">Erstattung ›</button>` : ""}
       ${item.optional ? `<button class="skip" data-skip="${esc(item.id)}" aria-pressed="${na}" ${na ? 'aria-label="Entfällt rückgängig machen"' : ""}>${na ? "rückgängig" : "entfällt"}</button>` : ""}
     </li>`;
   }
@@ -2783,13 +2785,21 @@ export function mount(container, opts = {}) {
       $("ciwrap").appendChild(ciFrame);
     } else postCheckinUser();
   }
-  // Eingecheckte Person als „Bearbeitet von“ an die Seite melden.
+  // Eingecheckte Person („Bearbeitet von“) und Farbschema an die Seite melden.
   function postCheckinUser() {
+    if (!ciFrame || !ciFrame.contentWindow) return;
     const p = currentPerson();
-    if (p && ciFrame && ciFrame.contentWindow) ciFrame.contentWindow.postMessage({ type: "rz-user", name: p.name }, "*");
+    ciFrame.contentWindow.postMessage({ type: "rz-theme", theme: host.getAttribute("data-theme") }, "*");
+    ciFrame.contentWindow.postMessage({ type: "rz-user", name: p ? p.name : "" }, "*");
   }
   const onCheckinMessage = async (ev) => {
-    if (!ciFrame || ev.source !== ciFrame.contentWindow || !ev.data || ev.data.type !== "rz-download") return;
+    if (!ciFrame || ev.source !== ciFrame.contentWindow || !ev.data) return;
+    if (ev.data.type === "rz-status") {
+      const open = Number(ev.data.open) || 0;
+      $("meta-ci").textContent = Number(ev.data.total) ? (open ? `${open} offen` : "alles gebucht") : "";
+      return;
+    }
+    if (ev.data.type !== "rz-download") return;
     const { name, data, mime } = ev.data;
     if (typeof name !== "string" || !/^[\w.\-ÄÖÜäöüß ]{1,120}\.(xlsx|csv|json)$/.test(name) || data == null) return;
     try { if (await offerFile(name, data, typeof mime === "string" ? mime : "application/octet-stream")) setStatus("Gespeichert: " + name); }
@@ -2926,6 +2936,7 @@ export function mount(container, opts = {}) {
     }
     if (t.dataset.rday) { if (isUnlocked()) { state.unlockedUntil = Date.now() + 10 * 60000; state.rosterDay = t.dataset.rday; render(); } return; }
     if (t.dataset.shiftsel) { const k = t.dataset.shiftsel; const plan = P(); state.shiftSel = k === focusShift(plan, timeCtx()) ? null : k; state.expanded.clear(); scrolledOnce = false; render(); return; }
+    if (t.dataset.goview) return setView(t.dataset.goview);
     if (t.dataset.edscope) {
       if (t.dataset.edscope === state.edScope) return;
       if (state.draftDirty) { setStatus("Erst speichern oder verwerfen, dann wechseln", true); return; }

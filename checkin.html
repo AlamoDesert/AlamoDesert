@@ -6,99 +6,158 @@
 <title>Check-in Erstattung</title>
 <!-- Eingebunden in die Rezeption-App (Reiter „Erstattung“). Mac-App: SheetJS lokal aus vendor/, sonst von cdnjs. -->
 <script src="vendor/xlsx.full.min.js" onerror="this.remove();document.write('<script src=&quot;https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js&quot;><\/script>')"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
 <style>
+/* Gestaltung wie die Rezeption-App (app/app.css): gleiche Farben, Schriften, Karten, Knöpfe.
+   Hell/Dunkel folgt dem System; eingebettet setzt die App data-theme passend zu ihrer Ansicht. */
 :root {
-  --bg: #f6f7f9; --panel: #ffffff; --text: #1b1f24; --muted: #5f6b7a; --border: #dde2e8;
-  --accent: #1f6feb; --accent-text: #ffffff;
-  --ok: #1a7f37; --ok-bg: #e6f4ea; --warn: #9a6700; --warn-bg: #fff4d6; --bad: #b42318; --bad-bg: #fde8e7;
-  --done-bg: #eef1f4;
+  --bg: #eef2f6; --surface: #ffffff; --surface-2: #f6f8fb; --ink: #142130; --muted: #5a6879; --line: #d7dee7;
+  --accent: #1d5bb8; --accent-soft: #e2ecfa; --done: #23804f; --done-soft: #e1f2e8;
+  --warn: #c0392b; --warn-soft: #fbe6e3; --na: #8a96a5; --now: #b8700a; --now-soft: #fdf1dc;
+  --f-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --r: 10px;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #111418; --panel: #1a1f25; --text: #e6e9ed; --muted: #9aa5b1; --border: #2c333b;
-    --accent: #4c8dff; --accent-text: #0b0d10;
-    --ok: #4ac26b; --ok-bg: #12301c; --warn: #e3b341; --warn-bg: #3a2e0c; --bad: #ff7b72; --bad-bg: #3d1614;
-    --done-bg: #222830;
-  }
-}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1620; --surface: #17212d; --surface-2: #1c2836; --ink: #e6edf5; --muted: #95a3b4; --line: #2b3a4b;
+  --accent: #6aa2f2; --accent-soft: #1d3150; --done: #4cc184; --done-soft: #173627;
+  --warn: #f07a6c; --warn-soft: #3d1f1c; --na: #6d7a8a; --now: #f0b04f; --now-soft: #3a2c14; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0f1620; --surface: #17212d; --surface-2: #1c2836; --ink: #e6edf5; --muted: #95a3b4; --line: #2b3a4b;
+  --accent: #6aa2f2; --accent-soft: #1d3150; --done: #4cc184; --done-soft: #173627;
+  --warn: #f07a6c; --warn-soft: #3d1f1c; --na: #6d7a8a; --now: #f0b04f; --now-soft: #3a2c14; color-scheme: dark }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-header { background: var(--panel); border-bottom: 1px solid var(--border); padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
-header h1 { font-size: 17px; margin: 0 16px 0 0; }
-nav { display: flex; gap: 4px; flex-wrap: wrap; }
-nav button { background: none; border: 1px solid transparent; color: var(--muted); padding: 6px 12px; border-radius: 6px; cursor: pointer; font: inherit; }
-nav button.active { color: var(--text); border-color: var(--border); background: var(--bg); font-weight: 600; }
-.user { margin-left: auto; display: flex; gap: 6px; align-items: center; color: var(--muted); }
-main { max-width: 1400px; margin: 0 auto; padding: 16px; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.35 var(--f-body); -webkit-text-size-adjust: 100%; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+code { font-size: 13px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+
+/* Kopf: Unterreiter als Umschalter wie in der App */
+header { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; padding: 12px 16px 0; }
+header h1 { margin: 0; font-family: var(--f-display); font-weight: 700; font-size: 22px; letter-spacing: .03em; text-transform: uppercase; }
+nav { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
+nav button { border: 0; background: var(--surface); padding: 6px 14px; font-weight: 600; font-size: 14px; color: var(--muted); white-space: nowrap; }
+nav button + button { border-left: 1px solid var(--line); }
+nav button.active { background: var(--accent); color: #fff; }
+.user { margin-left: auto; display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); }
+.user b { color: var(--ink); }
+main { padding: 12px 16px 24px; }
 section.tab { display: none; }
-section.tab.active { display: block; }
-.panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
-.panel h2 { font-size: 15px; margin: 0 0 12px; }
-.panel h3 { font-size: 14px; margin: 16px 0 8px; }
-.grid4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
-textarea { width: 100%; min-height: 140px; font: 12px/1.4 ui-monospace, Consolas, monospace; border: 1px solid var(--border); border-radius: 6px; padding: 8px; background: var(--bg); color: var(--text); resize: vertical; }
-input, select { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 5px; padding: 4px 6px; }
-input[type=number] { width: 80px; }
-input.time { width: 70px; }
-button.btn { font: inherit; border: 1px solid var(--border); background: var(--panel); color: var(--text); padding: 6px 12px; border-radius: 6px; cursor: pointer; }
-button.btn:hover { border-color: var(--accent); }
-button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
-button.small { padding: 2px 8px; font-size: 12px; }
-button:disabled { opacity: .5; cursor: default; }
+section.tab.active { display: grid; gap: 12px; align-content: start; }
+
+/* Karten mit Kopfzeile wie .card/.chead */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 0 12px 12px; min-width: 0; overflow: hidden; }
+.panel > h2:first-child { margin: 0 -12px 12px; padding: 9px 12px 7px; background: var(--surface-2); border-bottom: 1px solid var(--line); font-family: var(--f-display); font-size: 17px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.panel > h2:first-child .muted { font-family: var(--f-body); font-size: 13px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+.panel h3 { margin: 16px 0 8px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.panel.muted { padding: 16px; }
+.grid4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.grid4 b { font-family: var(--f-display); font-size: 16px; letter-spacing: .03em; text-transform: uppercase; }
+
+/* Eingaben wie .in */
+textarea { width: 100%; min-height: 140px; margin-top: 4px; font: 12.5px/1.4 ui-monospace, Menlo, Consolas, monospace; border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; background: var(--surface-2); resize: vertical; }
+input, select { border: 1px solid var(--line); background: var(--surface-2); border-radius: 6px; padding: 5px 8px; min-width: 0; }
+input[type=number] { width: 84px; font-variant-numeric: tabular-nums; }
+input.time { width: 70px; text-align: center; font-variant-numeric: tabular-nums; }
+input[type=checkbox] { accent-color: var(--accent); }
+input[type=file] { border: 0; background: none; padding: 0; font-size: 14px; color: var(--muted); }
+input[type=file]::file-selector-button { font: inherit; font-weight: 600; font-size: 14px; color: var(--ink); border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 7px 12px; margin-right: 10px; cursor: pointer; }
+
+/* Knöpfe wie .btn */
+.btn, button.btn { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 7px 12px; font-weight: 600; font-size: 14px; white-space: nowrap; }
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.small { padding: 4px 10px; font-size: 13px; }
+.btn:disabled { opacity: .5; cursor: default; }
+label.btn { display: inline-block; cursor: pointer; }
+
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .muted { color: var(--muted); }
-.hint { color: var(--muted); font-size: 12px; margin: 4px 0 0; }
-.msg { padding: 8px 12px; border-radius: 6px; margin: 8px 0; }
-.msg.warn { background: var(--warn-bg); color: var(--warn); }
-.msg.bad { background: var(--bad-bg); color: var(--bad); }
-.msg.ok { background: var(--ok-bg); color: var(--ok); }
-.table-wrap { overflow-x: auto; }
-table { border-collapse: collapse; width: 100%; }
-th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
-th { font-size: 12px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+.hint { color: var(--muted); font-size: 12.5px; margin: 6px 0 0; }
+.msg { padding: 8px 12px; border-radius: 8px; margin: 8px 0 0; font-size: 14px; }
+.msg.warn { background: var(--now-soft); color: var(--now); }
+.msg.bad { background: var(--warn-soft); color: var(--warn); }
+.msg.ok { background: var(--done-soft); color: var(--done); }
+
+/* Tabellen wie .ttab */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+thead th { position: sticky; top: 0; background: var(--surface-2); color: var(--muted); font-size: 12px; font-weight: 600; white-space: nowrap; }
 td.num, th.num { text-align: right; white-space: nowrap; }
-tr.booked td { background: var(--done-bg); color: var(--muted); }
-.chip { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; white-space: nowrap; }
-.chip.ok { background: var(--ok-bg); color: var(--ok); }
-.chip.review { background: var(--warn-bg); color: var(--warn); }
-.chip.reject { background: var(--bad-bg); color: var(--bad); }
-.chip.done { background: var(--done-bg); color: var(--muted); }
-.stats { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
-.stat { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; min-width: 120px; }
-.stat b { display: block; font-size: 18px; }
-.filters button.active { border-color: var(--accent); color: var(--accent); }
+td.num { font-weight: 700; }
+tr.booked td { color: var(--muted); background: var(--surface-2); }
+tr.current td { background: var(--accent-soft); }
+tr.current td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+
+/* Status wie .pill */
+.chip { display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; padding: 2px 8px; border-radius: 99px; white-space: nowrap; background: var(--accent-soft); color: var(--accent); }
+.chip.ok { background: var(--done-soft); color: var(--done); }
+.chip.review { background: var(--now-soft); color: var(--now); }
+.chip.reject { background: var(--warn-soft); color: var(--warn); }
+.chip.done { background: var(--surface-2); color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
+.dot.ok { background: var(--done); } .dot.review { background: var(--now); } .dot.reject { background: var(--warn); }
+
+/* Kennzahlen */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-bottom: 12px; }
+.stat { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font-size: 12px; }
+.stat b { display: block; font-family: var(--f-display); font-weight: 700; font-size: 26px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.filters { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; gap: 0; margin-bottom: 4px; }
+.filters button.btn { border: 0; border-radius: 0; color: var(--muted); }
+.filters button.btn + button.btn { border-left: 1px solid var(--line); }
+.filters button.active { background: var(--accent); color: #fff; }
+.filters button.active .dot { box-shadow: 0 0 0 2px #fff; }
+
+/* Regeln */
+.ruleset-bar label { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
 .matrix th:first-child { min-width: 170px; }
 .matrix td { min-width: 150px; }
 .matrix td select { width: 100%; }
 .matrix .amt { display: flex; align-items: center; gap: 4px; margin-top: 4px; }
 .matrix .amt input { width: 90px; }
-.matrix .cell-hint { color: var(--muted); font-size: 11px; margin-top: 3px; }
-.matrix td.m-none { background: var(--bad-bg); }
-.matrix td.m-manual { background: var(--warn-bg); }
-.legend { padding-left: 18px; margin-top: 10px; }
+.matrix .cell-hint { color: var(--muted); font-size: 11.5px; margin-top: 3px; }
+.matrix td.m-none { background: var(--warn-soft); }
+.matrix td.m-manual { background: var(--now-soft); }
+.legend { padding-left: 18px; margin: 10px 0 0; }
 .reasons { margin: 0; padding-left: 16px; }
 .reasons li { margin: 0; }
-.card { max-width: 640px; margin: 0 auto 16px; background: var(--panel); border: 2px solid var(--accent); border-radius: 10px; padding: 20px; }
-.card .name { font-size: 22px; font-weight: 700; }
-.card .field { display: flex; align-items: center; gap: 8px; margin: 10px 0; font-size: 16px; }
-.card .field .label { width: 120px; flex-shrink: 0; color: var(--muted); font-size: 13px; }
-.card .amount { font-size: 28px; font-weight: 700; }
+
+/* Wallet buchen: eine Karte pro Person */
+.card { max-width: 680px; margin: 0 auto; width: 100%; background: var(--surface); border: 1px solid var(--accent); box-shadow: 0 0 0 1px var(--accent); border-radius: var(--r); padding: 16px 18px; }
+.card .name { font-family: var(--f-display); font-weight: 700; font-size: 28px; letter-spacing: .02em; line-height: 1.1; margin-top: 2px; }
+.card .field { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 16px; }
+.card .field:first-of-type { margin-top: 10px; }
+.card .field .label { width: 140px; flex-shrink: 0; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.card .field .btn { margin-left: auto; }
+.card .amount { font-family: var(--f-display); font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .card .meta { color: var(--muted); font-size: 13px; margin-top: 8px; }
-.card .actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
-.card .actions .primary { font-size: 16px; padding: 10px 20px; }
-.progress { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin: 8px 0 16px; }
-.progress div { height: 100%; background: var(--ok); }
-.kbd { font: 11px ui-monospace, monospace; border: 1px solid var(--border); border-radius: 3px; padding: 0 4px; }
-tr.current td { outline: 2px solid var(--accent); outline-offset: -2px; }
-@media (max-width: 640px) { main { padding: 12px 16px; } .card { padding: 14px; } }
-/* In der Rezeption-App: Titel steht schon im Reiter, Kopfzeile kompakter, Seite ohne eigenen Rand */
-.askwrap { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: grid; place-items: center; z-index: 50; padding: 16px; }
-.askbox { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; width: min(420px, 100%); display: grid; gap: 10px; }
-.askbox p { margin: 0; }
+.card .actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.card .actions .primary { font-size: 16px; padding: 10px 20px; flex: 1; }
+#queueArea { display: grid; gap: 12px; }
+#queueArea > .row b { font-family: var(--f-display); font-size: 18px; letter-spacing: .03em; text-transform: uppercase; }
+.progress { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.progress div { height: 100%; background: var(--done); transition: width .3s; }
+.kbd { font: 11px ui-monospace, monospace; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; background: var(--surface); }
+
+/* Eigene Rückfragen (statt prompt/confirm) wie .dialog */
+.askwrap { position: fixed; inset: 0; background: rgba(15, 22, 32, .55); display: grid; place-items: center; z-index: 50; padding: 16px; }
+.askbox { background: var(--surface); border-radius: 14px; width: min(440px, 100%); padding: 20px; display: grid; gap: 12px; box-shadow: 0 20px 60px rgba(0, 0, 0, .3); }
+.askbox p { margin: 0; font-weight: 600; }
 .askbox .row { justify-content: flex-end; }
+
+/* In der Rezeption-App: Titel steht schon im Reiter */
 html.embedded header h1 { display: none; }
-html.embedded header { padding: 8px 12px; }
-html.embedded main { max-width: none; padding: 12px; }
+html.embedded header { padding: 0; }
+html.embedded main { padding: 12px 0 16px; }
+html.embedded body { background: transparent; }
+@media (max-width: 640px) { main { padding: 12px 16px; } .card { padding: 14px; } .card .field .label { width: 100px; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
@@ -110,7 +169,7 @@ html.embedded main { max-width: none; padding: 12px; }
     <button data-tab="regeln">Regeln &amp; Preise</button>
     <button data-tab="hansefit">Hansefit-Liste</button>
   </nav>
-  <div class="user">Bearbeitet von <input id="userInitials" size="6" placeholder="Kürzel"></div>
+  <div class="user">Bearbeitet von <b id="userFixed" hidden></b><input id="userInitials" size="10" placeholder="Kürzel"></div>
 </header>
 
 <main>
@@ -147,12 +206,12 @@ html.embedded main { max-width: none; padding: 12px; }
     <div class="stats" id="stats"></div>
     <div class="row filters" id="filters">
       <button class="btn small active" data-f="all">Alle</button>
-      <button class="btn small" data-f="ok">✅ Erstatten</button>
-      <button class="btn small" data-f="review">⚠️ Prüfen</button>
-      <button class="btn small" data-f="reject">❌ Keine Erstattung</button>
+      <button class="btn small" data-f="ok"><i class="dot ok"></i>Erstatten</button>
+      <button class="btn small" data-f="review"><i class="dot review"></i>Prüfen</button>
+      <button class="btn small" data-f="reject"><i class="dot reject"></i>Keine Erstattung</button>
       <button class="btn small" data-f="open">Offen zu buchen</button>
     </div>
-    <p class="hint">⚠️-Zeilen kommen erst nach „Freigeben“ in die Buchungsliste. Beträge freigegebener Zeilen kannst du anpassen.</p>
+    <p class="hint">„Prüfen“-Zeilen kommen erst nach „Freigeben“ in die Buchungsliste. Beträge freigegebener Zeilen kannst du anpassen.</p>
     <div class="table-wrap"><table id="resultTable">
       <thead><tr><th>Status</th><th>Check-in</th><th>Name (Check-in)</th><th>Playtomic-Kunde</th><th>Buchung</th><th class="num">Betrag</th><th>Begründung</th><th>Entscheidung</th></tr></thead>
       <tbody></tbody>
@@ -197,7 +256,7 @@ html.embedded main { max-width: none; padding: 12px; }
       <li><b>Festbetrag:</b> fester Euro-Betrag pro Check-in.</li>
       <li><b>Platzanteil 1 h:</b> Stundenpreis des Platzes (Peak/Off-Peak) ÷ Spieler pro Platz, siehe „Plätze und Preise“.</li>
       <li><b>Faktor:</b> vervielfacht den Betrag, z. B. ×2 bei Squash, weil der Bucher für beide zahlt.</li>
-      <li><b>Immer prüfen:</b> Treffer landen als ⚠️ in der Liste und brauchen eine Freigabe.</li>
+      <li><b>Immer prüfen:</b> Treffer landen als „Prüfen“ in der Liste und brauchen eine Freigabe.</li>
       <li>Jede Gutschrift ist automatisch auf den selbst bezahlten Anteil begrenzt.</li>
     </ul>
   </div>
@@ -977,7 +1036,7 @@ function effective(r) {
 }
 
 /* ================= Darstellung Ergebnis ================= */
-const STATUS_LABEL = { ok: '✅ Erstatten', review: '⚠️ Prüfen', reject: '❌ Keine' };
+const STATUS_LABEL = { ok: 'Erstatten', review: 'Prüfen', reject: 'Keine' };
 
 /** Name im Check-in und Name in Playtomic stimmen nicht (sicher) überein. */
 function nameDiffers(r) {
@@ -987,6 +1046,7 @@ function nameDiffers(r) {
 }
 
 function renderResults() {
+  reportStatus();
   const panel = $('#resultPanel');
   panel.hidden = !state.bookings;
   if (!state.bookings) return;
@@ -1001,9 +1061,9 @@ function renderResults() {
   }
   $('#stats').innerHTML = `
     <div class="stat"><span class="muted">Check-ins</span><b>${state.results.length}</b></div>
-    <div class="stat"><span class="muted">✅ Erstatten</span><b>${counts.ok}</b></div>
-    <div class="stat"><span class="muted">⚠️ Prüfen</span><b>${counts.review}</b></div>
-    <div class="stat"><span class="muted">❌ Keine</span><b>${counts.reject}</b></div>
+    <div class="stat"><span class="muted"><i class="dot ok"></i>Erstatten</span><b>${counts.ok}</b></div>
+    <div class="stat"><span class="muted"><i class="dot review"></i>Prüfen</span><b>${counts.review}</b></div>
+    <div class="stat"><span class="muted"><i class="dot reject"></i>Keine</span><b>${counts.reject}</b></div>
     <div class="stat"><span class="muted">Summe Buchungsliste</span><b>${eur(round2(sumQueue))}</b></div>
     <div class="stat"><span class="muted">Offen zu buchen</span><b>${open}</b></div>`;
 
@@ -1065,6 +1125,7 @@ $('#filters').addEventListener('click', ev => {
 function queueItems() { return state.results.filter(r => effective(r).inQueue); }
 
 function renderQueue() {
+  reportStatus();
   const items = queueItems();
   $('#queueEmpty').hidden = items.length > 0;
   $('#queueArea').hidden = items.length === 0;
@@ -1220,11 +1281,25 @@ $('#nav').addEventListener('click', ev => {
 });
 $('#userInitials').value = lsGet(LS.user, '');
 // Die Rezeption-App meldet die eingecheckte Person; ihr Name gilt dann als „Bearbeitet von“.
+// Ohne eingecheckte Person bleibt das Kürzel-Feld zum Eintippen.
 window.addEventListener('message', ev => {
-  if (ev.source !== window.parent || !ev.data || ev.data.type !== 'rz-user' || typeof ev.data.name !== 'string' || !ev.data.name) return;
-  $('#userInitials').value = ev.data.name.slice(0, 40);
-  lsSet(LS.user, $('#userInitials').value);
+  if (ev.source !== window.parent || !ev.data) return;
+  if (ev.data.type === 'rz-theme') {
+    if (ev.data.theme === 'dark' || ev.data.theme === 'light') document.documentElement.setAttribute('data-theme', ev.data.theme);
+    else document.documentElement.removeAttribute('data-theme');
+    return;
+  }
+  if (ev.data.type !== 'rz-user' || typeof ev.data.name !== 'string') return;
+  const name = ev.data.name.trim().slice(0, 40);
+  $('#userFixed').hidden = !name; $('#userInitials').hidden = !!name;
+  if (name) { $('#userFixed').textContent = name; $('#userInitials').value = name; lsSet(LS.user, name); }
 });
+// Stand an die App melden (Reiter zeigt „n offen“).
+function reportStatus() {
+  if (!EMBEDDED) return;
+  const items = state.results.length ? queueItems() : [];
+  window.parent.postMessage({ type: 'rz-status', open: items.filter(r => !effective(r).booked).length, total: items.length }, '*');
+}
 $('#userInitials').addEventListener('change', e => lsSet(LS.user, e.target.value.trim()));
 
 /* ================= Regeln-Editor ================= */
@@ -1272,7 +1347,7 @@ function renderRules() {
     const row = set.kinds[k];
     const cells = PROVIDERS.map(p => {
       const c = row.providers[p];
-      const hint = c.mode === 'court1h' ? shareHint(k) : c.mode === 'none' ? 'Check-in wird abgelehnt' : c.mode === 'manual' ? 'Check-in landet bei ⚠️' : '';
+      const hint = c.mode === 'court1h' ? shareHint(k) : c.mode === 'none' ? 'Check-in wird abgelehnt' : c.mode === 'manual' ? 'Check-in landet bei „Prüfen“' : '';
       return `<td data-p="${p}" class="m-${c.mode}">
         <select data-k="mode">${opt(MODES, c.mode)}</select>
         ${c.mode === 'fixed' ? `<div class="amt"><input type="number" step="0.5" min="0" data-k="amount" value="${esc(c.amount)}"> €</div>` : ''}
