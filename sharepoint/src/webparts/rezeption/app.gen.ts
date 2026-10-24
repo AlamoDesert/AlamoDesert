@@ -1629,6 +1629,11 @@ export function mount(container, opts = {}) {
     try { lib = await import(/* webpackIgnore: true */ PDFJS); }
     catch { throw new Error("PDF-Leser konnte nicht geladen werden (Internet bzw. in SharePoint die Freigabe für cdn.jsdelivr.net nötig). Excel-Datei funktioniert immer."); }
     lib.GlobalWorkerOptions.workerSrc = PDFJS.replace(/pdf\.min\.mjs$/, "pdf.worker.min.mjs");
+    // Außerhalb der Mac-App (claude.ai, SharePoint) darf die Seite oft keinen Worker von fremder Adresse starten.
+    // pdf.js nutzt dann den hier geladenen Worker-Code direkt in der Seite (für Monatspläne schnell genug).
+    if (!NATIVE && !globalThis.pdfjsWorker) {
+      try { globalThis.pdfjsWorker = await import(/* webpackIgnore: true */ lib.GlobalWorkerOptions.workerSrc); } catch { /* dann normaler Worker */ }
+    }
     const doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
     const rows = [];
     for (let i = 1; i <= doc.numPages; i++) {
@@ -1774,8 +1779,8 @@ export function mount(container, opts = {}) {
     }
     state.cfg = { ...state.cfg, roster };
     state.importPreview = null;
+    // Im Bearbeiten-Modus bleiben und den eingelesenen Monat zeigen – so sieht man das Ergebnis sofort.
     state.rosterMonth = `${ip.year}-${pad(ip.month + 1)}`;
-    state.rosterEdit = false;
     render();
     const ok = await persistCfg({ roster: patch });
     setStatus(ok ? `Monatsplan ${MONTHS[ip.month]} ${ip.year} übernommen` : "Monatsplan konnte nicht gespeichert werden", !ok);
@@ -2369,6 +2374,7 @@ export function mount(container, opts = {}) {
   function maybeAskPerson() {
     if (state.mode === "loading" || state.pickerOpen || state.viewOnly || !state.cfg.people.length) return;
     if (["admin", "plan", "pin", "monat"].includes(state.view)) return;
+    if (state.view === "dienst" && state.rosterEdit) return; // Leitung bearbeitet den Dienstplan
     ensureActive();
     if (currentPerson()) return;
     openPicker("login");
