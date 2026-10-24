@@ -1519,7 +1519,7 @@ export function mount(container, opts = {}) {
         <button class="iconbtn" id="mrprev" aria-label="Vorheriger Monat">‹</button>
         <h2>Dienstplan ${MONTHS[m - 1]} ${y}</h2>
         <button class="iconbtn" id="mrnext" aria-label="Nächster Monat">›</button>
-        ${edit ? `<label class="btn" style="cursor:pointer">Monatsplan einlesen (PDF/Excel)<input type="file" id="planfile" accept=".pdf,.xlsx,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></label><button class="btn primary" data-act2="roster-done">Fertig</button>`
+        ${edit ? `<label class="btn filepick">Monatsplan einlesen (PDF/Excel)<input type="file" id="planfile" accept=".pdf,.xlsx,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label><button class="btn primary" data-act2="roster-done">Fertig</button>`
                : `<button class="btn" data-act2="roster-edit">Bearbeiten</button>`}
       </div>
       ${edit ? renderImportPreview() : ""}
@@ -1895,11 +1895,11 @@ export function mount(container, opts = {}) {
           : `<p>Dieser Browser kann nicht direkt in einen Ordner schreiben. Bitte Google Chrome verwenden.</p>
              <button class="btn" data-act2="export">Einmalig herunterladen</button>`}`}
           <p>Letzte Sicherung: <b>${last ? new Date(last).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) : "noch nie"}</b></p>
-          <label class="btn" style="text-align:center;cursor:pointer">Sicherung einspielen<input type="file" id="importfile" accept="application/json,.json" hidden></label>
+          <label class="btn filepick">Sicherung einspielen<input type="file" id="importfile" accept="application/json,.json"></label>
           <p id="import-msg"></p></div></section>` : state.mode === "shared" ? `<section class="card"><div class="chead"><h2>Datenspeicher</h2></div>
         <div class="cbody">${opts.mode === "sharepoint" ? `<p>Alle Daten liegen in der SharePoint-Bibliothek <b>${esc(opts.library || "RezeptionDaten")}</b> dieser Website. SharePoint speichert jede Änderung im Versionsverlauf – ein früherer Stand lässt sich dort wiederherstellen.</p>` : `<p>Die Webversion speichert online und ist für alle mit dem Link gleich. Die Mac-App hat ihre eigenen Daten – beide gleichen sich nicht ab.</p>`}
           <p>Daten aus der bisherigen Mac-Version übernehmen: dort unter Verwaltung › Datensicherung eine Sicherung herunterladen und hier einspielen.</p>
-          <label class="btn" style="text-align:center;cursor:pointer">Sicherung übernehmen<input type="file" id="importfile" accept="application/json,.json" hidden></label>
+          <label class="btn filepick">Sicherung übernehmen<input type="file" id="importfile" accept="application/json,.json"></label>
           <p id="import-msg"></p></div></section>` : ""}
       <section class="card"><div class="chead"><h2>Leitungs-PIN</h2></div>
         <div class="cbody">${pinOff()
@@ -2128,7 +2128,7 @@ export function mount(container, opts = {}) {
       <p>${SHIFT_META[shift].label} ${plan[shift].start}–${plan[shift].end}. Name antippen zum Einchecken – Haken und Notizen werden mit deinem Namen gespeichert.</p>
       ${(rosterFor(today).notes || {})[shift] ? `<p class="pnote">Anmerkung im Dienstplan: <b>${esc(rosterFor(today).notes[shift])}</b></p>` : ""}
       ${shift === "spaet" && state.date === today && pendingConfirms(plan, "frueh").length ? `<p class="pwarn">Von der Frühschicht nicht bestätigt: <b>${pendingConfirms(plan, "frueh").map(a => esc(a.t)).join(", ")}</b> – bitte prüfen.</p>` : ""}
-      ${checked.length ? `<p class="hint">Schon eingecheckt: ${checked.map(p => esc(p.name)).join(", ")}</p>` : ""}
+      ${checked.length ? `<div class="grp in">Schon eingecheckt – antippen, um weiterzuarbeiten</div><div class="names">${checked.map(p => { const o = openEntry(today, p.id); return `<button class="namebtn inn" data-pick="${esc(p.id)}"><span class="av">${esc(initials(p.name))}</span><span>${esc(p.name)}<small class="ninfo ok">${ROLE_LABEL[o.entry.role] || ""} seit ${o.entry.in}</small></span></button>`; }).join("")}</div>` : ""}
       ${inSched.length ? `<div class="grp">Laut Dienstplan</div><div class="names">${inSched.map(p => btn(p, "sched")).join("")}</div>` : ""}
       <div class="grp">${inSched.length ? "Andere" : "Team"}</div><div class="names">${others.map(p => btn(p, "")).join("")}${state.pickAdd ? "" : addForm}</div>
       ${state.pickAdd ? addForm : ""}
@@ -2845,7 +2845,7 @@ export function mount(container, opts = {}) {
 
   function render() {
     const active = root.activeElement;
-    const typing = active && $("main").contains(active) && (active.tagName === "TEXTAREA" || (active.tagName === "INPUT" && active.type !== "checkbox"));
+    const typing = active && $("main").contains(active) && (active.tagName === "TEXTAREA" || (active.tagName === "INPUT" && !["checkbox", "radio", "file", "button", "submit"].includes(active.type)));
     if (typing || drag) { renderPending = true; renderHeader(); return; }
     renderPending = false;
     renderHeader();
@@ -2857,6 +2857,12 @@ export function mount(container, opts = {}) {
     main.innerHTML = v === "monat" ? renderMonth() : v === "plan" ? renderEditor()
       : v === "dienst" ? renderRoster() : v === "admin" ? renderAdmin() : v === "pin" ? renderPin() : v === "zeiten" ? renderTimes() : renderSchicht();
     maybeAskPerson();
+    // Offene Anmeldemaske mit frischen Daten neu zeichnen (z. B. wer inzwischen eingecheckt ist), außer beim Eintippen.
+    if (state.pickerOpen && !state.checkin && !state.pickAdd) {
+      // Maske ging vor dem Laden auf, inzwischen ist jemand eingecheckt → diese Person übernimmt, Maske zu.
+      if (state.pickerMode === "login" && presentPeople().length) { ensureActive(); closePicker(); renderHeader(); }
+      else renderPicker();
+    }
     maybeRemind();
     if (v === "schicht") scrollToNow();
     if (v === "dienst") applyRosterHi();
@@ -3136,7 +3142,8 @@ export function mount(container, opts = {}) {
     const el = e.target;
     if (el.dataset.person) return renamePerson(el.dataset.person, el.value);
     if (el.id === "importfile" && el.files && el.files[0]) return importBackup(el.files[0]);
-    if (el.id === "planfile" && el.files && el.files[0]) return onPlanFile(el.files[0]);
+    // Feld sofort leeren und Fokus lösen: dieselbe Datei lässt sich erneut wählen, und die Vorschau erscheint direkt.
+    if (el.id === "planfile" && el.files && el.files[0]) { const f = el.files[0]; el.value = ""; el.blur(); return onPlanFile(f); }
     if (el.id === "t-person") { state.timesPerson = el.value; render(); return; }
     if (el.id === "autostart" && NATIVE) {
       NATIVE.setAutoStart(el.checked).then((on) => { nativeInfo = { ...(nativeInfo || {}), autoStart: !!on }; setStatus(on ? "Startet künftig beim Anmelden" : "Autostart aus"); }).catch(() => setStatus("Autostart konnte nicht geändert werden", true));

@@ -380,6 +380,12 @@ ul.hints .sub { font-size: 12px; color: var(--muted) }
 /* Ein-/Auschecken + Zeiten */
 .outbtn { height: 34px; padding: 0 12px; border-color: var(--warn); color: var(--warn); background: var(--surface) }
 .namebtn.inn { border-color: var(--done); background: var(--done-soft) }
+.namebtn.inn { border-width: 2px }
+.dialog .grp.in { color: var(--done) }
+.namebtn small.ninfo.ok { color: var(--done) }
+/* Datei-Auswahl: Feld liegt unsichtbar über dem Knopf (iPad-Safari öffnet bei versteckten Feldern keine Auswahl) */
+.filepick { position: relative; overflow: hidden; cursor: pointer; display: inline-block; text-align: center }
+.filepick input[type=file] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: 100px }
 .namebtn.inn .av { background: var(--done); color: #fff }
 .trow { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center }
 .trow label { display: inline-flex; gap: 8px; align-items: center; font-weight: 600 }
