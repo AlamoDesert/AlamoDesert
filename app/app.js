@@ -1,4 +1,4 @@
-const MARKUP = "<div class=\"wrap\">\n  <header class=\"top\">\n    <h1 class=\"brand\">Rezeption<small id=\"weekday\">–</small></h1>\n    <div class=\"clock\" id=\"clock\">--:--</div>\n    <div class=\"presence\" id=\"presence\" role=\"group\" aria-label=\"Eingecheckt\"></div>\n    <button class=\"btn outbtn\" id=\"outBtn\" hidden>Auschecken</button>\n    <div class=\"tabs\" role=\"tablist\">\n      <button class=\"tab\" role=\"tab\" data-view=\"schicht\"><b>Schicht</b><span class=\"meta\" id=\"meta-shift\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"dienst\"><b>Dienstplan</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"zeiten\"><b>Zeiten</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"erstattung\" hidden><b>Check-ins</b><span class=\"meta\" id=\"meta-ci\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"admin\"><b>Verwaltung</b></button>\n    </div>\n    <div class=\"datenav\">\n      <button class=\"iconbtn\" id=\"prev\" aria-label=\"Vorheriger Tag\">‹</button>\n      <label class=\"datebtn\"><span id=\"datelabel\">–</span><span class=\"src\" id=\"datesrc\"></span><input type=\"date\" id=\"datepick\" aria-label=\"Datum wählen\"></label>\n      <button class=\"iconbtn\" id=\"next\" aria-label=\"Nächster Tag\">›</button>\n      <button class=\"todaybtn\" id=\"today\">Heute</button>\n    </div>\n    <div class=\"status\" id=\"status\">Verbinde…</div>\n  </header>\n  <div class=\"vobar\" id=\"vobar\" hidden><b>Nur ansehen</b><span>Abhaken und Eintragen sind gesperrt.</span><button class=\"btn primary\" data-pres-add=\"1\">Einchecken</button></div>\n  <main id=\"main\"></main>\n  <div id=\"ciwrap\" class=\"ciwrap\" hidden></div>\n</div>\n<div id=\"picker\" hidden></div><div id=\"remind\" hidden></div><div id=\"toast\" class=\"toast\" role=\"status\" hidden></div>";
+const MARKUP = "<div class=\"wrap\">\n  <header class=\"top\">\n    <h1 class=\"brand\">Rezeption<small id=\"weekday\">–</small></h1>\n    <div class=\"clock\" id=\"clock\">--:--</div>\n    <div class=\"presence\" id=\"presence\" role=\"group\" aria-label=\"Eingecheckt\"></div>\n    <button class=\"btn outbtn\" id=\"outBtn\" hidden>Auschecken</button>\n    <div class=\"tabs\" role=\"tablist\">\n      <button class=\"tab\" role=\"tab\" data-view=\"schicht\"><b>Schicht</b><span class=\"meta\" id=\"meta-shift\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"dienst\"><b>Dienstplan</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"zeiten\"><b>Zeiten</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"erstattung\" hidden><b>Check-ins</b><span class=\"meta\" id=\"meta-ci\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"admin\"><b>Verwaltung</b></button>\n    </div>\n    <div class=\"datenav\">\n      <button class=\"iconbtn\" id=\"prev\" aria-label=\"Vorheriger Tag\">‹</button>\n      <label class=\"datebtn\"><span id=\"datelabel\">–</span><span class=\"src\" id=\"datesrc\"></span><input type=\"date\" id=\"datepick\" aria-label=\"Datum wählen\"></label>\n      <button class=\"iconbtn\" id=\"next\" aria-label=\"Nächster Tag\">›</button>\n      <button class=\"todaybtn\" id=\"today\">Heute</button>\n    </div>\n    <div class=\"status\" id=\"status\">Verbinde…</div>\n  </header>\n  <div class=\"vobar\" id=\"vobar\" hidden><b>Nur ansehen</b><span>Abhaken und Eintragen sind gesperrt.</span><button class=\"btn primary\" data-pres-add=\"1\">Einchecken</button></div>\n  <main id=\"main\"></main>\n  <div id=\"ciwrap\" class=\"ciwrap\" hidden></div>\n</div>\n<input type=\"file\" id=\"rzfile\" class=\"rzfile\" tabindex=\"-1\" aria-hidden=\"true\"><div id=\"picker\" hidden></div><div id=\"remind\" hidden></div><div id=\"toast\" class=\"toast\" role=\"status\" hidden></div>";
 
 /* Rezeption Schichtcheck – App-Kern.
    Wird von tools/build.mjs in index.html (eigenständig) und in das SharePoint-Webpart (app.gen.ts) eingebaut.
@@ -1519,7 +1519,7 @@ export function mount(container, opts = {}) {
         <button class="iconbtn" id="mrprev" aria-label="Vorheriger Monat">‹</button>
         <h2>Dienstplan ${MONTHS[m - 1]} ${y}</h2>
         <button class="iconbtn" id="mrnext" aria-label="Nächster Monat">›</button>
-        ${edit ? `<label class="btn filepick">Monatsplan einlesen (PDF/Excel)<input type="file" id="planfile" accept=".pdf,.xlsx,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label><button class="btn primary" data-act2="roster-done">Fertig</button>`
+        ${edit ? `<label class="btn" for="rzfile" data-filepick="plan">Monatsplan einlesen (PDF/Excel)</label><button class="btn primary" data-act2="roster-done">Fertig</button>`
                : `<button class="btn" data-act2="roster-edit">Bearbeiten</button>`}
       </div>
       ${edit ? renderImportPreview() : ""}
@@ -1725,6 +1725,7 @@ export function mount(container, opts = {}) {
   function renderImportPreview() {
     const ip = state.importPreview;
     if (!ip) return "";
+    if (ip.loading) return `<section class="card imp"><div class="chead"><h2>Arbeitsplan einlesen</h2></div><div class="cbody"><p><b>Lese ${esc(ip.fileName)} …</b> Das dauert ein paar Sekunden.</p></div></section>`;
     if (ip.error) return `<section class="card imp"><div class="chead"><h2>Arbeitsplan einlesen</h2></div><div class="cbody"><p class="err">${esc(ip.error)}</p><div class="row"><button class="btn" data-act2="import-cancel">Schließen</button></div></div></section>`;
     const daysIn = new Date(ip.year, ip.month + 1, 0).getDate();
     const valid = ip.entries.filter(e => e.day <= daysIn);
@@ -1748,7 +1749,7 @@ export function mount(container, opts = {}) {
   }
   async function applyImport() {
     const ip = state.importPreview;
-    if (!ip || ip.error) return;
+    if (!ip || ip.error || ip.loading) return;
     // Unbekannte Namen als Teammitglieder anlegen.
     let people = state.cfg.people;
     const ids = {};
@@ -1787,10 +1788,29 @@ export function mount(container, opts = {}) {
   }
   async function onPlanFile(file) {
     setStatus("Lese " + file.name + " …");
-    try { state.importPreview = await readPlanFile(file); setStatus(statusLine()); }
+    state.importPreview = { fileName: file.name, loading: true };
+    render();
+    const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error("Zeitüberschreitung – der PDF-Leser hat nicht geantwortet. Bitte Seite neu laden und erneut versuchen.")), 45000));
+    try { state.importPreview = await Promise.race([readPlanFile(file), timeout]); setStatus(statusLine()); }
     catch (e) { state.importPreview = { fileName: file.name, error: (e && e.message) || "Datei konnte nicht gelesen werden" }; }
     render();
   }
+  // Ein festes Datei-Feld außerhalb von <main>: Neuzeichnen ersetzt es nicht. Sonst geht die gewählte Datei auf dem
+  // iPad verloren (Safari zeichnet beim Zurückkehren aus der Dateiauswahl neu, bevor es die Datei übergibt).
+  const FILE_ACCEPT = { plan: ".pdf,.xlsx,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", backup: "application/json,.json" };
+  let filePurpose = "plan";
+  container.addEventListener("click", (e) => {
+    const l = e.target.closest && e.target.closest("[data-filepick]");
+    if (!l) return;
+    filePurpose = l.dataset.filepick;
+    const inp = $("rzfile"); inp.accept = FILE_ACCEPT[filePurpose] || ""; inp.value = "";
+  }, true);
+  $("rzfile").addEventListener("change", (e) => {
+    const inp = e.target, f = inp.files && inp.files[0];
+    if (!f) return;
+    inp.value = ""; inp.blur();
+    if (filePurpose === "backup") importBackup(f); else onPlanFile(f);
+  });
 
 
 
@@ -1895,11 +1915,11 @@ export function mount(container, opts = {}) {
           : `<p>Dieser Browser kann nicht direkt in einen Ordner schreiben. Bitte Google Chrome verwenden.</p>
              <button class="btn" data-act2="export">Einmalig herunterladen</button>`}`}
           <p>Letzte Sicherung: <b>${last ? new Date(last).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) : "noch nie"}</b></p>
-          <label class="btn filepick">Sicherung einspielen<input type="file" id="importfile" accept="application/json,.json"></label>
+          <label class="btn" for="rzfile" data-filepick="backup">Sicherung einspielen</label>
           <p id="import-msg"></p></div></section>` : state.mode === "shared" ? `<section class="card"><div class="chead"><h2>Datenspeicher</h2></div>
         <div class="cbody">${opts.mode === "sharepoint" ? `<p>Alle Daten liegen in der SharePoint-Bibliothek <b>${esc(opts.library || "RezeptionDaten")}</b> dieser Website. SharePoint speichert jede Änderung im Versionsverlauf – ein früherer Stand lässt sich dort wiederherstellen.</p>` : `<p>Die Webversion speichert online und ist für alle mit dem Link gleich. Die Mac-App hat ihre eigenen Daten – beide gleichen sich nicht ab.</p>`}
           <p>Daten aus der bisherigen Mac-Version übernehmen: dort unter Verwaltung › Datensicherung eine Sicherung herunterladen und hier einspielen.</p>
-          <label class="btn filepick">Sicherung übernehmen<input type="file" id="importfile" accept="application/json,.json"></label>
+          <label class="btn" for="rzfile" data-filepick="backup">Sicherung übernehmen</label>
           <p id="import-msg"></p></div></section>` : ""}
       <section class="card"><div class="chead"><h2>Leitungs-PIN</h2></div>
         <div class="cbody">${pinOff()
@@ -3141,9 +3161,6 @@ export function mount(container, opts = {}) {
   main.addEventListener("change", (e) => {
     const el = e.target;
     if (el.dataset.person) return renamePerson(el.dataset.person, el.value);
-    if (el.id === "importfile" && el.files && el.files[0]) return importBackup(el.files[0]);
-    // Feld sofort leeren und Fokus lösen: dieselbe Datei lässt sich erneut wählen, und die Vorschau erscheint direkt.
-    if (el.id === "planfile" && el.files && el.files[0]) { const f = el.files[0]; el.value = ""; el.blur(); return onPlanFile(f); }
     if (el.id === "t-person") { state.timesPerson = el.value; render(); return; }
     if (el.id === "autostart" && NATIVE) {
       NATIVE.setAutoStart(el.checked).then((on) => { nativeInfo = { ...(nativeInfo || {}), autoStart: !!on }; setStatus(on ? "Startet künftig beim Anmelden" : "Autostart aus"); }).catch(() => setStatus("Autostart konnte nicht geändert werden", true));
