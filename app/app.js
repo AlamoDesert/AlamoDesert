@@ -790,6 +790,19 @@ export function mount(container, opts = {}) {
     importPreview: null, // eingelesener Arbeitsplan vor dem Übernehmen
   };
   let db = null, user = null, myId = null, unsubDay = null, unsubMonth = null, unsubCfg = null, monthKey = null;
+  // Import-Protokoll zur Fehlersuche (Webversion): letzte Schritte als Dokument debug/import, damit sie ohne Zugriff
+  // auf das Gerät lesbar sind. Enthält nur Gerätetyp, Dateiname/-größe und Meldungen – keine Planinhalte.
+  const DBG_RUN = Math.random().toString(36).slice(2, 8);
+  let dbgLog = [], dbgTimer = null;
+  function dbg(msg) {
+    dbgLog.push(`${new Date().toISOString().slice(11, 23)} [${DBG_RUN}] ${msg}`);
+    dbgLog = dbgLog.slice(-80);
+    clearTimeout(dbgTimer);
+    dbgTimer = setTimeout(() => {
+      if (state.mode !== "shared" || !db || opts.mode === "sharepoint") return;
+      try { const prev = dbgLog.slice(); db.doc("debug/import").set({ at: new Date().toISOString(), ua: navigator.userAgent.slice(0, 200), log: prev }).catch(() => {}); } catch { /* egal */ }
+    }, 400);
+  }
   let writeChain = Promise.resolve();
   let renderPending = false;
   let scrolledOnce = false;
@@ -1625,7 +1638,7 @@ export function mount(container, opts = {}) {
   async function pdfRows(file) {
     let lib, src, lastErr;
     for (const url of PDFJS_CANDIDATES) {
-      try { lib = await import(/* webpackIgnore: true */ url); src = url; break; } catch (e) { lastErr = e; }
+      try { lib = await import(/* webpackIgnore: true */ url); src = url; dbg("pdf.js geladen: " + url.split("/").slice(-2).join("/")); break; } catch (e) { lastErr = e; dbg("pdf.js FEHLER " + url.split("/").slice(-2).join("/") + ": " + (e && e.message)); }
     }
     if (!lib) throw new Error("PDF-Leser konnte nicht geladen werden (" + ((lastErr && lastErr.message) || "unbekannt") + "). Die Excel-Datei des Plans funktioniert immer.");
     lib.GlobalWorkerOptions.workerSrc = src.replace(/pdf\.min\.mjs$/, "pdf.worker.min.mjs");
@@ -1634,7 +1647,9 @@ export function mount(container, opts = {}) {
     if (!NATIVE && !globalThis.pdfjsWorker) {
       try { globalThis.pdfjsWorker = await import(/* webpackIgnore: true */ lib.GlobalWorkerOptions.workerSrc); } catch { /* dann normaler Worker */ }
     }
+    dbg("Worker im Hauptthread: " + !!globalThis.pdfjsWorker);
     const doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+    dbg("PDF geöffnet, Seiten: " + doc.numPages);
     const rows = [];
     for (let i = 1; i <= doc.numPages; i++) {
       const items = (await (await doc.getPage(i)).getTextContent()).items.filter(it => it.str && it.str.trim());
@@ -1787,13 +1802,15 @@ export function mount(container, opts = {}) {
     setStatus(ok ? `Monatsplan ${MONTHS[ip.month]} ${ip.year} übernommen` : "Monatsplan konnte nicht gespeichert werden", !ok);
   }
   async function onPlanFile(file) {
+    dbg(`onPlanFile ${file.name} ${file.size} B ${file.type}`);
     setStatus("Lese " + file.name + " …");
     state.importPreview = { fileName: file.name, loading: true };
     render();
     const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error("Zeitüberschreitung – der PDF-Leser hat nicht geantwortet. Bitte Seite neu laden und erneut versuchen.")), 45000));
-    try { state.importPreview = await Promise.race([readPlanFile(file), timeout]); setStatus(statusLine()); }
-    catch (e) { state.importPreview = { fileName: file.name, error: (e && e.message) || "Datei konnte nicht gelesen werden" }; }
+    try { state.importPreview = await Promise.race([readPlanFile(file), timeout]); setStatus(statusLine()); dbg(`gelesen: ${state.importPreview.entries.length} Tage`); }
+    catch (e) { state.importPreview = { fileName: file.name, error: (e && e.message) || "Datei konnte nicht gelesen werden" }; dbg("Fehler: " + ((e && (e.stack || e.message)) || e)); }
     render();
+    dbg(`Vorschau gezeichnet: ${!!root.querySelector(".imp")} view=${state.view} edit=${state.rosterEdit}`);
   }
   // Ein festes Datei-Feld außerhalb von <main>: Neuzeichnen ersetzt es nicht. Sonst geht die gewählte Datei auf dem
   // iPad verloren (Safari zeichnet beim Zurückkehren aus der Dateiauswahl neu, bevor es die Datei übergibt).
@@ -1804,9 +1821,12 @@ export function mount(container, opts = {}) {
     if (!l) return;
     filePurpose = l.dataset.filepick;
     const inp = $("rzfile"); inp.accept = FILE_ACCEPT[filePurpose] || ""; inp.value = "";
+    dbg("Knopf " + filePurpose);
   }, true);
+  for (const ev of ["input", "cancel"]) $("rzfile").addEventListener(ev, (e) => dbg(`rzfile ${ev}: ${(e.target.files || []).length} Datei(en)`));
   $("rzfile").addEventListener("change", (e) => {
     const inp = e.target, f = inp.files && inp.files[0];
+    dbg(`rzfile change: ${f ? f.name + " " + f.size + " B" : "keine Datei"}`);
     if (!f) return;
     inp.value = ""; inp.blur();
     if (filePurpose === "backup") importBackup(f); else onPlanFile(f);
@@ -3214,6 +3234,8 @@ export function mount(container, opts = {}) {
     }
     if (user) { try { myId = await user.id(); } catch { myId = null; } }
     state.mode = db ? "shared" : "local";
+    dbg(`Start ${state.mode} ${innerWidth}x${innerHeight} withResolvers=${typeof Promise.withResolvers}`);
+    for (const ev of ["visibilitychange", "pagehide", "pageshow"]) window.addEventListener(ev, () => dbg(`${ev} ${document.visibilityState}`));
     if (user && typeof user.can === "function") {
       try { if ((await user.can("data.write")) === false) state.readOnly = true; } catch { /* unbekannt */ }
     }
