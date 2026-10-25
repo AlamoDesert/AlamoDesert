@@ -192,7 +192,9 @@ li.na .skip { color: var(--ink); background: var(--surface-2) }
 
 /* Monat */
 .monthhead { display: flex; align-items: center; gap: 8px; margin-top: 14px }
-.monthhead h2 { margin: 0; font-family: var(--f-display); font-size: 22px; text-transform: uppercase; letter-spacing: .03em; flex: 1 }
+.monthhead h2 { margin: 0; font-family: var(--f-display); font-size: 22px; text-transform: uppercase; letter-spacing: .03em; flex: 0 1 auto; min-width: 0 }
+/* Pfeile direkt am Monat, weitere Knöpfe rechtsbündig */
+.monthhead h2 + .iconbtn + * { margin-left: auto }
 .mscroll { overflow-x: auto; margin-top: 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface) }
 table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 13px; width: 100% }
 .mgrid th, .mgrid td { padding: 0; border-bottom: 1px solid var(--line); text-align: center }
