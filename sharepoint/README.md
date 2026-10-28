@@ -1,77 +1,40 @@
-# rezeption-checkliste
+# Rezeption Schichtcheck – SharePoint-Webpart
 
-## Summary
+SPFx-1.23.2-Webpart ohne Framework. Es zeigt dieselbe App wie die Mac-App, speichert aber in einer SharePoint-Dokumentbibliothek. **Status: vorbereitet, nicht im Einsatz** – der Echtbetrieb läuft über die Mac-App.
 
-Short summary on functionality and used technologies.
+## Wie es funktioniert
 
-[picture of the solution in action, if possible]
+- `src/webparts/rezeption/RezeptionWebPart.ts` bindet `app.gen.ts` ein und ruft `mount(container, { mode: "sharepoint", … })` auf.
+- `src/webparts/rezeption/app.gen.ts` ist **generiert** aus `app/app.js` + `app/app.css` (`node tools/build.mjs` im Hauptordner) – nie direkt bearbeiten.
+- Speicher: Bibliothek `RezeptionDaten` mit `config/plan.json` und `days/JJJJ-MM/JJJJ-MM-TT.json`. Schreiben per Lesen-Mergen-Schreiben mit ETag/If-Match, Abgleich alle 15 s. Der Versionsverlauf der Bibliothek dient als Sicherung.
+- Der Reiter „Check-ins“ erscheint hier nicht (kein `checkinUrl`).
+- Zugriffsschutz kommt aus den **SharePoint-Berechtigungen** der Website bzw. Bibliothek; die Leitungs-PIN der App schützt nur vor Versehen.
 
-## Used SharePoint Framework Version
+## Bauen
 
-![version](https://img.shields.io/badge/version-1.23.2-green.svg)
+```sh
+nvm use                         # Node 22 (Hauptordner .nvmrc; hier gefordert: >=22.14 <23)
+node ../tools/build.mjs         # app.gen.ts aktualisieren (aus dem Hauptordner: node tools/build.mjs)
+npm install
+npm run build
+```
 
-## Applies to
+Ergebnis: `sharepoint/solution/rezeption-checkliste.sppkg` (wird committet).
 
-- [SharePoint Framework](https://aka.ms/spfx)
-- [Microsoft 365 tenant](https://docs.microsoft.com/sharepoint/dev/spfx/set-up-your-developer-tenant)
+**Neue Version:** `version` in `config/package-solution.json` erhöhen (Solution und Feature), dazu `mac/package.json` und [`../CHANGELOG.md`](../CHANGELOG.md).
 
-> Get your own free development tenant by subscribing to [Microsoft 365 developer program](http://aka.ms/o365devprogram)
+## Testen ohne Tenant
 
-## Prerequisites
+```sh
+node ../tools/sp-mock.mjs 8899
+```
 
-> Any special pre-requisites?
+Öffnet unter `http://localhost:8899/sites/rez/test.html` die App im SharePoint-Modus (Abgleich jede Sekunde). `/__dump` zeigt die gespeicherten Dateien, `/__fail?n=3` lässt die nächsten Schreibzugriffe scheitern. Mit `PDFJS_DIR=<pdfjs-dist>/build` liefert der Nachbau pdf.js lokal aus.
 
-## Solution
+## Einrichtung im Tenant
 
-| Solution    | Author(s)                                               |
-| ----------- | ------------------------------------------------------- |
-| folder name | Author details (name, company, twitter alias with link) |
+Siehe [ANLEITUNG-ADMIN.md](ANLEITUNG-ADMIN.md).
 
-## Version history
+## Weitere Unterlagen
 
-| Version | Date             | Comments        |
-| ------- | ---------------- | --------------- |
-| 1.1     | March 10, 2021   | Update comment  |
-| 1.0     | January 29, 2021 | Initial release |
-
-## Disclaimer
-
-**THIS CODE IS PROVIDED _AS IS_ WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING ANY IMPLIED WARRANTIES OF FITNESS FOR A PARTICULAR PURPOSE, MERCHANTABILITY, OR NON-INFRINGEMENT.**
-
----
-
-## Minimal Path to Awesome
-
-- Clone this repository
-- Ensure that you are at the solution folder
-- in the command-line run:
-  - `npm install -g @rushstack/heft`
-  - `npm install`
-  - `heft start`
-
-> Include any additional steps as needed.
-
-Other build commands can be listed using `heft --help`.
-
-## Features
-
-Description of the extension that expands upon high-level summary above.
-
-This extension illustrates the following concepts:
-
-- topic 1
-- topic 2
-- topic 3
-
-> Notice that better pictures and documentation will increase the sample usage and the value you are providing for others. Thanks for your submissions advance.
-
-> Share your web part with others through Microsoft 365 Patterns and Practices program to get visibility and exposure. More details on the community, open-source projects and other activities from http://aka.ms/m365pnp.
-
-## References
-
-- [Getting started with SharePoint Framework](https://docs.microsoft.com/sharepoint/dev/spfx/set-up-your-developer-tenant)
-- [Building for Microsoft teams](https://docs.microsoft.com/sharepoint/dev/spfx/build-for-teams-overview)
-- [Use Microsoft Graph in your solution](https://docs.microsoft.com/sharepoint/dev/spfx/web-parts/get-started/using-microsoft-graph-apis)
-- [Publish SharePoint Framework applications to the Marketplace](https://docs.microsoft.com/sharepoint/dev/spfx/publish-to-marketplace-overview)
-- [Microsoft 365 Patterns and Practices](https://aka.ms/m365pnp) - Guidance, tooling, samples and open-source controls for your Microsoft 365 development
-- [Heft Documentation](https://heft.rushstack.io/)
+[`../README.md`](../README.md) · [`../ENTWICKLUNG.md`](../ENTWICKLUNG.md) · [`../CLAUDE.md`](../CLAUDE.md)
