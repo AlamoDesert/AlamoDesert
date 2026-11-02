@@ -2,6 +2,12 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.13.0 – 02.11.2026
+- Auschecken mit offenen Punkten geht jetzt für alle – aber nur mit Grund. Der Grund steht in den Zeiten (Notiz-Spalte und Export) als „Offen gelassen (n): …“.
+- Wer als Früh- oder Spätschicht eingecheckt ist, sieht nur die eigene Schicht; der Umschalter Früh/Spät entfällt dann.
+- Aufgaben-Plan: Beim Öffnen ist der erste Abschnitt aufgeklappt.
+- Beispieltexte in Eingabefeldern allgemein gehalten (keine Namen oder Einzelfälle); „Check-ins“ ohne Zusatz.
+
 ## 1.12.0 – 02.11.2026
 - Übersicht: Der Fahrplan ist einspaltig; aufgeklappt sind nur der laufende und überfällige Abschnitte, erledigte und spätere stehen als eine Zeile zum Aufklappen. Rechts sind nur fällige Rundgänge und offene Pflicht-Punkte sichtbar, der Rest steckt in aufklappbaren Zeilen. Die Spalten-Umschaltung (Auto/1/2) entfällt.
 - Eigene Übergabe wird im Fenster geschrieben (mit „Wichtig“), in der Karte steht nur noch die Vorschau.

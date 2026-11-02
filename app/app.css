@@ -574,3 +574,4 @@ ul.edlist li.dragging { box-shadow: 0 6px 20px rgba(0, 0, 0, .18); position: rel
 .taskrem .trhead svg { width: 24px; height: 24px }
 .taskrem h2 { font-size: 32px; line-height: 1.1 }
 .btn.done { background: var(--done); border-color: var(--done) }
+.ttab td.tnotecell.gap { color: var(--warn) }
