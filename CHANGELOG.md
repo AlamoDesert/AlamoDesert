@@ -2,6 +2,12 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.12.0 – 02.11.2026
+- Übersicht: Der Fahrplan ist einspaltig; aufgeklappt sind nur der laufende und überfällige Abschnitte, erledigte und spätere stehen als eine Zeile zum Aufklappen. Rechts sind nur fällige Rundgänge und offene Pflicht-Punkte sichtbar, der Rest steckt in aufklappbaren Zeilen. Die Spalten-Umschaltung (Auto/1/2) entfällt.
+- Eigene Übergabe wird im Fenster geschrieben (mit „Wichtig“), in der Karte steht nur noch die Vorschau.
+- Aufgaben-Plan neu: ein Plan für alle Tage mit getrennten Uhrzeiten für Mo–Fr und Sa+So. Neue Aufgaben in einer Zeile (Enter), Bearbeiten und Löschen im Fenster, Sortieren per Ziehen, Änderungen gelten sofort (kein Speichern-Knopf). Bisherige Vorlagen werden beim ersten Bearbeiten zusammengeführt.
+- Erinnerungs-Popups: Jede Aufgabe kann zu einer Uhrzeit (Mo–Fr und Sa+So getrennt) ein Fenster öffnen, solange sie offen ist – mit „Erledigt“ und „In 10 Minuten erinnern“.
+
 ## 1.11.0 – 02.11.2026
 - Vergangene Tage behalten ihren Stand: Jeder Tag hält beim ersten Eintrag seinen Plan fest (`snap`). Spätere Änderungen am Aufgaben-Plan verändern Aufgaben und Prozente vergangener Tage nicht mehr. Bestehende Tage mit Einträgen werden beim ersten Start einmalig mit dem dann gültigen Plan festgehalten.
 - Auschecken als Früh- oder Spätschicht erst, wenn die Schicht bei 100 % ist (Aufgaben und Pflicht-Bestätigungen, egal wer sie erledigt hat). Das Fenster listet die offenen Punkte zum direkten Abhaken; „Zurück zur Schicht“ markiert sie rot im Fahrplan. Keine Ausnahme.
