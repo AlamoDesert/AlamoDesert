@@ -4,11 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Check-ins</title>
-<!-- Eingebunden in die Rezeption-App (Reiter „Erstattung“). Mac-App: SheetJS lokal aus vendor/, sonst von cdnjs. -->
-<script src="vendor/xlsx.full.min.js" onerror="this.remove();document.write('<script src=&quot;https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js&quot;><\/script>')"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<!-- Eingebunden in die Rezeption-App (Reiter „Check-ins“). SheetJS liegt lokal in vendor/ (Mac-App: mitgeliefert, Webversion: mitveröffentlicht) – keine Abrufe von fremden Servern. -->
+<script src="vendor/xlsx.full.min.js"></script>
+<!-- RZ-FONTS: tools/build.mjs ersetzt diese Zeile durch die eingebetteten Barlow-Schriften aus app/fonts/. -->
 <style>
 /* Gestaltung wie die Rezeption-App (app/app.css): gleiche Farben, Schriften, Karten, Knöpfe.
    Hell/Dunkel folgt dem System; eingebettet setzt die App data-theme passend zu ihrer Ansicht. */
@@ -675,7 +673,7 @@ function parseCSV(text) {
 async function readTableFile(file) {
   const name = file.name.toLowerCase();
   if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
-    if (typeof XLSX === 'undefined') throw new Error('Excel-Unterstützung nicht geladen (keine Internetverbindung?). Bitte als CSV speichern.');
+    if (typeof XLSX === 'undefined') throw new Error('Excel-Unterstützung fehlt (vendor/xlsx.full.min.js nicht mitgeliefert). Bitte als CSV speichern.');
     const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
     const ws = wb.Sheets[wb.SheetNames[0]];
     return XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' }).filter(r => r.some(v => String(v).trim() !== ''));

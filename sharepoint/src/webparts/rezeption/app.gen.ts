@@ -1578,9 +1578,10 @@ export function mount(container, opts = {}) {
   // Pro Tag stehen die Namen in „Vormittags“ bzw. „Nachmittags/Abends“. Anmerkungen werden nur angezeigt.
   // Zuordnung über die Spaltenposition der Kopfzeile (PDF: x-Koordinate, Excel: Spaltenbuchstabe).
   const MONTH_NAMES = ["jan", "feb", "mär|mar|maer", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "dez"];
-  // pdf.js: Mac-App lokal, Webversion aus der mitveröffentlichten Kopie (pdfjs/ neben index.html), sonst jsDelivr.
+  // pdf.js: Mac-App lokal, Webversion aus der mitveröffentlichten Kopie (pdfjs/ neben index.html), SharePoint von jsDelivr.
   const PDFJS_CDN = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.mjs";
-  const PDFJS_CANDIDATES = [opts.pdfjsUrl, NATIVE && NATIVE.pdfjsUrl, (() => { try { return new URL("pdfjs/pdf.min.mjs", document.baseURI).href; } catch { return null; } })(), PDFJS_CDN].filter(Boolean);
+  // jsDelivr nur im SharePoint-Betrieb (dort liegt keine eigene Kopie); Mac-App und Webversion laden nichts von fremden Servern.
+  const PDFJS_CANDIDATES = [opts.pdfjsUrl, NATIVE && NATIVE.pdfjsUrl, (() => { try { return new URL("pdfjs/pdf.min.mjs", document.baseURI).href; } catch { return null; } })(), opts.mode === "sharepoint" ? PDFJS_CDN : null].filter(Boolean);
   const TIME_RANGE = /(\d{1,2})[:.](\d{2})\s*[-–]\s*(\d{1,2})[:.](\d{2})/;
   async function unzipEntries(buf) {
     const dv = new DataView(buf), u8 = new Uint8Array(buf);
@@ -1829,6 +1830,8 @@ export function mount(container, opts = {}) {
   const PIN_OFF = "off";
   const pinOff = () => state.cfg.adminPin === PIN_OFF;
   const isUnlocked = () => pinOff() || Date.now() < state.unlockedUntil;
+  // Leitungs-PIN festgelegt (nicht leer, nicht „off“): Zeiten anderer nur für die Leitung.
+  const timesOwnOnly = () => !!state.cfg.adminPin && !pinOff();
   function requireAdmin(next) {
     if (isUnlocked()) { state.unlockedUntil = Date.now() + 10 * 60000; return true; }
     state.pinStage = { mode: state.cfg.adminPin ? "unlock" : "set", next };
@@ -2444,9 +2447,16 @@ export function mount(container, opts = {}) {
           <button class="btn" data-act2="t-xlsx">Excel</button><button class="btn primary" data-act2="t-pdf">PDF</button>`
           : `<button class="btn" data-act2="t-all">Alle Zeiten (Leitung)</button>`}
       </div>`;
+    // Mit Leitungs-PIN sieht jede Person nur ihre eigenen Zeiten (= die eingecheckte Person), alle anderen nur die Leitung.
+    // Ohne PIN (nicht festgelegt oder „off“) bleibt die Namenswahl.
+    const ownOnly = timesOwnOnly();
     if (!state.timesAll || !isUnlocked()) {
       state.timesAll = false;
-      if (!state.timesPerson) {
+      if (ownOnly) {
+        const cp = currentPerson();
+        state.timesPerson = cp ? cp.id : null;
+        if (!cp) return head + `<section class="card tpick"><div class="chead"><h2>Eigene Zeiten</h2></div><div class="cbody"><p>Checke dich ein, um deine eigenen Zeiten zu sehen. Die Zeiten anderer sieht nur die Leitung.</p></div></section>`;
+      } else if (!state.timesPerson) {
         return head + `<section class="card tpick"><div class="chead"><h2>Eigene Zeiten ansehen</h2></div><div class="cbody"><div class="names">${state.cfg.people.map(p => `<button class="namebtn" data-tperson="${esc(p.id)}"><span class="av">${esc(initials(p.name))}</span>${esc(p.name)}</button>`).join("") || "<p>Noch kein Team angelegt.</p>"}</div></div></section>`;
       }
     }
@@ -2460,7 +2470,7 @@ export function mount(container, opts = {}) {
     }).join("");
     const sm = sums(rows);
     return head + `<div class="times">
-      <section class="card"><div class="chead"><h2>${pid ? esc(personName(pid)) : "Alle"}</h2><span class="hint">${rows.length} Einträge${loading ? " · lädt…" : ""}</span>${!state.timesAll ? `<button class="btn ghost" data-act2="t-back">Andere Person</button>` : ""}</div>
+      <section class="card"><div class="chead"><h2>${pid ? esc(personName(pid)) : "Alle"}</h2><span class="hint">${rows.length} Einträge${loading ? " · lädt…" : ""}</span>${!state.timesAll && !ownOnly ? `<button class="btn ghost" data-act2="t-back">Andere Person</button>` : ""}</div>
         <div class="cbody tscroll"><table class="ttab"><thead><tr><th>Datum</th><th>Name</th><th>Rolle</th><th>Ein</th><th>Aus</th><th>Pause</th><th>Stunden</th><th>Geplant</th><th>Notiz</th><th></th></tr></thead><tbody>${body || `<tr><td colspan="10" class="empty">Keine Einträge in diesem Monat.</td></tr>`}</tbody></table></div></section>
       <section class="card"><div class="chead"><h2>Summe</h2></div><div class="cbody"><table class="ttab"><thead><tr><th>Name</th><th>Tage</th><th>Stunden</th><th>Offen</th></tr></thead><tbody>${sm.map(x => `<tr><td>${esc(personName(x.pid))}</td><td>${x.days}</td><td class="num">${x.mins || !x.open ? fmtHours(x.mins) : "–"}</td><td>${x.open || ""}</td></tr>`).join("")}</tbody></table></div></section>
     </div>${state.timesEdit ? renderTimeEdit() : ""}`;
@@ -3012,7 +3022,7 @@ export function mount(container, opts = {}) {
       if (a === "rday-close") { state.rosterDay = null; render(); return; }
       if (a === "rhi-clear") { state.rosterHi = ""; render(); return; }
       if (a === "t-all") { if (requireAdmin("zeiten-all")) { state.timesAll = true; state.timesPerson = ""; render(); } return; }
-      if (a === "t-back") { state.timesPerson = null; render(); return; }
+      if (a === "t-back") { if (!timesOwnOnly()) state.timesPerson = null; render(); return; }
       if (a === "t-add") { if (isUnlocked()) { state.timesEdit = { id: null, date: state.date, e: { pid: (state.cfg.people[0] || {}).id, role: "frueh", in: "08:30", out: null, pause: 0 } }; render(); } return; }
       if (a === "te-cancel") { state.timesEdit = null; state.confirm = null; render(); return; }
       if (a === "te-save") { if (isUnlocked()) saveTimeEdit(); return; }
@@ -3061,7 +3071,7 @@ export function mount(container, opts = {}) {
       state.rosterMonth = `${nd.getFullYear()}-${pad(nd.getMonth() + 1)}`; state.rosterDay = null; render(); return;
     }
     if (t.dataset.cols) { saveLayout({ cols: t.dataset.cols }); render(); return; }
-    if (t.dataset.tperson) { state.timesPerson = t.dataset.tperson; render(); return; }
+    if (t.dataset.tperson) { if (!timesOwnOnly()) state.timesPerson = t.dataset.tperson; render(); return; }
     if (t.dataset.tedit) {
       if (!isUnlocked()) return;
       state.unlockedUntil = Date.now() + 10 * 60000;

@@ -25,6 +25,9 @@ cpSync(join(repo, "index.html"), join(stage, "app/index.html"));
 cpSync(join(repo, "checkin.html"), join(stage, "app/checkin.html"));
 mkdirSync(join(stage, "app/vendor"), { recursive: true });
 cpSync(join(here, "node_modules/xlsx/dist/xlsx.full.min.js"), join(stage, "app/vendor/xlsx.full.min.js"));
+// Lizenztexte der eingebetteten Schriften (SIL OFL 1.1 verlangt, dass sie mitgeliefert werden).
+mkdirSync(join(stage, "app/fonts"), { recursive: true });
+for (const f of ["OFL-Barlow.txt", "OFL-Barlow-Condensed.txt"]) cpSync(join(repo, "app/fonts", f), join(stage, "app/fonts", f));
 for (const f of ["pdf.min.mjs", "pdf.worker.min.mjs"]) cpSync(join(here, "node_modules/pdfjs-dist/build", f), join(stage, "app/pdfjs", f));
 writeFileSync(join(stage, "package.json"), JSON.stringify({ name: pkg.name, productName: pkg.productName, version: pkg.version, description: pkg.description, main: "main.js" }, null, 2));
 

@@ -2,8 +2,9 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
-## Unveröffentlicht
-
+## 1.10.0 – 02.11.2026
+- Zeiten: Ist eine Leitungs-PIN festgelegt, sieht jede Person nur ihre eigenen Zeiten (die gerade eingecheckte Person); die Zeiten anderer nur die Leitung. Ohne PIN bleibt die Namenswahl.
+- Datenschutz: Schriften (Barlow, Barlow Condensed) lokal eingebettet statt von Google Fonts geladen. SheetJS nur noch lokal (kein cdnjs), pdf.js nur noch im SharePoint-Betrieb von jsDelivr. Mac-App und Webversion rufen damit keine fremden Server mehr ab.
 - Entwickler-Unterlagen: `README.md`, `ENTWICKLUNG.md`, `CHANGELOG.md`, `.nvmrc` (Node 22), `sharepoint/README.md` neu; `.gitignore` schließt Sicherungen und Exporte aus.
 
 ## 1.9.3 – 25.10.2026

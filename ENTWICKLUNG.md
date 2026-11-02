@@ -14,7 +14,8 @@ Kurzanleitung für Entwicklerinnen und Entwickler. Details zu Datenmodell, Ansic
 | --- | --- |
 | `app/app.js`, `app/app.css` | **Quelle** der App: `mount(container, opts)` und `createSpDb(opts)` |
 | `app/checkin.html` | **Quelle** der Check-in-Erstattung (eigene Seite, im iframe) |
-| `tools/build.mjs` | erzeugt `index.html`, `checkin.html`, `pdfjs/` und `sharepoint/src/webparts/rezeption/app.gen.ts` |
+| `app/fonts/` | Barlow-Schriften (woff2) und Lizenztexte (SIL OFL 1.1); werden beim Bauen eingebettet |
+| `tools/build.mjs` | erzeugt `index.html`, `checkin.html` (Schriften eingebettet), `pdfjs/`, `vendor/` und `sharepoint/src/webparts/rezeption/app.gen.ts` |
 | `index.html`, `checkin.html` | **generiert** – nie direkt bearbeiten |
 | `mac/` | Electron-Hülle: `main.js` (Schema `rezeption://app/`, Sicherungen, Export), `preload.js` (Brücke `window.rezeptionNative`), `build-mac.mjs` |
 | `sharepoint/` | SPFx-1.23.2-Webpart; `.sppkg` unter `sharepoint/sharepoint/solution/` wird committet |
@@ -44,7 +45,7 @@ node tools/build.mjs && cd sharepoint && npm install && npm run build
 
 Ergebnis: `sharepoint/sharepoint/solution/rezeption-checkliste.sppkg`. Admin-Anleitung: [`sharepoint/ANLEITUNG-ADMIN.md`](sharepoint/ANLEITUNG-ADMIN.md).
 
-**Webversion** (claude.ai-Artifact, nur Testbetrieb): `index.html` veröffentlichen mit `files: {checkin.html, pdfjs/pdf.min.mjs, pdfjs/pdf.worker.min.mjs}` und den Fähigkeiten `db`, `user`, `downloads`.
+**Webversion** (claude.ai-Artifact, nur Testbetrieb): `index.html` veröffentlichen mit `files: {checkin.html, pdfjs/pdf.min.mjs, pdfjs/pdf.worker.min.mjs, vendor/xlsx.full.min.js}` (`pdfjs/` und `vendor/` entstehen nur nach `cd mac && npm install`) und den Fähigkeiten `db`, `user`, `downloads`.
 
 ## Testen
 
@@ -72,5 +73,5 @@ Kein automatisiertes Test-Setup für die Rezeption. Mindestens prüfen:
 - **Keine echten Daten** ins Repository, in Issues, Commits oder Screenshots. `.gitignore` schließt Sicherungen (`rezeption-sicherung-*.json`) und Exporte aus; trotzdem vor jedem Commit `git status` prüfen.
 - Zum Nachstellen von Fehlern nur erfundene Daten oder eine vom Betreiber geschwärzte Sicherung verwenden.
 - Die **Webversion** enthält nur Testdaten. Keine Mac-Sicherung dort einspielen.
-- Neue externe Abrufe (Schriften, CDNs, APIs) vermeiden: Sie übertragen die IP-Adresse an Dritte. Fremdbibliotheken lokal bündeln.
+- **Keine externen Abrufe** (Schriften, CDNs, APIs): Sie übertragen die IP-Adresse an Dritte. Schriften liegen in `app/fonts/`, Fremdbibliotheken werden lokal gebündelt. Einzige Ausnahme: pdf.js von jsDelivr im SharePoint-Betrieb.
 - Sicherungen enthalten die gesamte Historie inkl. Check-in-Kundendaten (`cir.*`) und den PIN-Hash. Änderungen an `backupPayload()` / `rz:saveBackup` mit dem Betreiber abstimmen.

@@ -3,6 +3,7 @@ node_modules/
 mac/dist/
 mac/stage/
 pdfjs/
+/vendor/
 .DS_Store
 
 # Echte Daten gehören nie ins Repository (nur erfundene Testdaten unter testdaten/):
