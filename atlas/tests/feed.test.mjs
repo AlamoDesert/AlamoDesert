@@ -116,3 +116,49 @@ test('Unerwartetes Format zählt als Fehler', async () => {
   const { get } = setup(() => okJson({ html: 'Wartung' }));
   assert.equal((await get('/api/feed/quakes')).status, 502);
 });
+
+test('Kameras: TfL, NYC, Caltrans und Digitraffic werden einheitlich', async () => {
+  const { parseTfl, parseNyc, parseCaltrans, parseDigitraffic } = await import('../netlify/functions/feed/sources.mts');
+  const tfl = parseTfl([
+    { id: 'JamCams_1', commonName: 'A ', lat: 51.5, lon: -0.1, additionalProperties: [{ key: 'imageUrl', value: 'https://s3/x.jpg' }, { key: 'available', value: 'true' }] },
+    { id: 'JamCams_2', lat: 51.5, lon: -0.1, additionalProperties: [{ key: 'imageUrl', value: 'https://s3/y.jpg' }, { key: 'available', value: 'false' }] },
+    { id: 'JamCams_3', lat: 51.5, lon: -0.1, additionalProperties: [] }
+  ]);
+  assert.equal(tfl.length, 1);
+  assert.equal(tfl[0].id, 'tfl:JamCams_1');
+  assert.equal(tfl[0].props.name, 'A');
+  assert.equal(tfl[0].props.image, 'https://s3/x.jpg');
+
+  const nyc = parseNyc([{ id: 'u1', name: 'B', latitude: '40.7', longitude: '-73.9', isOnline: 'true', area: 'Queens' }, { id: 'u2', latitude: 0, longitude: 0 }]);
+  assert.equal(nyc.length, 1);
+  assert.equal(nyc[0].lat, 40.7);
+  assert.equal(nyc[0].props.image, 'https://webcams.nyctmc.org/api/cameras/u1/image');
+
+  const ca = parseCaltrans({ data: [
+    { cctv: { index: '7', inService: 'true', location: { latitude: '37.8', longitude: '-122.4', locationName: 'Bay Bridge', county: 'SF', route: 'I-80' },
+      imageData: { streamingVideoURL: 'https://v/x.m3u8', static: { currentImageURL: 'http://cwwp2.dot.ca.gov/a.jpg' } } } },
+    { cctv: { index: '8', inService: 'false', location: { latitude: '37', longitude: '-122' }, imageData: { static: { currentImageURL: 'https://x' } } } }
+  ] }, '4');
+  assert.equal(ca.length, 1);
+  assert.equal(ca[0].id, 'caltrans:4-7');
+  assert.equal(ca[0].props.image, 'https://cwwp2.dot.ca.gov/a.jpg', 'http wird auf https hochgestuft');
+  assert.equal(ca[0].props.area, 'Kalifornien · SF · I-80');
+
+  const fi = parseDigitraffic({ features: [
+    { id: 'C01', geometry: { coordinates: [24.9, 60.2, 10] }, properties: { id: 'C01', name: 'Helsinki', presets: [{ id: 'C0100101', inCollection: true }] } },
+    { id: 'C02', geometry: { coordinates: [25, 61] }, properties: { id: 'C02', presets: [] } }
+  ] });
+  assert.equal(fi.length, 1);
+  assert.equal(fi[0].props.image, 'https://weathercam.digitraffic.fi/C0100101.jpg');
+});
+
+test('Kameras: nur bekannte Anbieter, Parser bekommt den Anbieter', async () => {
+  const { get, calls } = setup(() => okJson({ data: [] }));
+  assert.equal((await get('/api/feed/cams')).status, 400);
+  assert.equal((await get('/api/feed/cams?p=evil')).status, 400);
+  assert.equal((await get('/api/feed/cams?p=caltrans-13')).status, 400);
+  const r = await get('/api/feed/cams?p=caltrans-4');
+  assert.equal(r.status, 200);
+  assert.equal(calls[0], 'https://cwwp2.dot.ca.gov/data/d4/cctv/cctvStatusD04.json');
+  assert.match(r.headers.get('netlify-cdn-cache-control'), /s-maxage=600/);
+});

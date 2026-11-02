@@ -42,7 +42,82 @@ function planeImage(size = 48) {
   return g.getImageData(0, 0, size, size);
 }
 
+/** Kamera-Anbieter mit Abdeckung [West, Süd, Ost, Nord]; abgefragt wird nur, was im Ausschnitt liegt. */
+const CA = [-124.6, 32.4, -114.0, 42.1];
+const CAM_PROVIDERS = [
+  { p: 'tfl', bbox: [-0.65, 51.25, 0.4, 51.72], name: 'TfL JamCams', refresh: 60 },
+  { p: 'nyc', bbox: [-74.3, 40.45, -73.65, 40.95], name: 'NYC DOT', refresh: 10 },
+  { p: 'fi', bbox: [19.0, 59.5, 31.7, 70.2], name: 'Digitraffic', refresh: 120 },
+  ...Array.from({ length: 12 }, (_, i) => ({ p: `caltrans-${i + 1}`, bbox: CA, name: 'Caltrans', refresh: 30 }))
+];
+const CAM_INFO = Object.fromEntries(CAM_PROVIDERS.map((c) => [c.p.replace(/-\d+$/, ''), c]));
+
+function intersects(bounds, [w, s, e, n]) {
+  if (bounds.getEast() - bounds.getWest() >= 360) return bounds.getSouth() <= n && bounds.getNorth() >= s;
+  return bounds.getWest() <= e && bounds.getEast() >= w && bounds.getSouth() <= n && bounds.getNorth() >= s;
+}
+
 export const LAYERS = [
+  {
+    id: 'cams',
+    name: 'Verkehrskameras',
+    desc: 'London, New York, Kalifornien, Finnland',
+    attribution: 'Kameras: <a href="https://tfl.gov.uk" target="_blank" rel="noopener">TfL</a> · <a href="https://webcams.nyctmc.org" target="_blank" rel="noopener">NYC DOT</a> · <a href="https://cwwp2.dot.ca.gov" target="_blank" rel="noopener">Caltrans</a> · <a href="https://www.digitraffic.fi" target="_blank" rel="noopener">Fintraffic / Digitraffic</a> (CC BY 4.0)',
+    refresh: 600_000,
+    minzoom: 2,
+    viewport: true,
+    sourceOptions: { cluster: true, clusterRadius: 42, clusterMaxZoom: 12 },
+    requests(map) {
+      if (map.getZoom() < this.minzoom) return { hint: 'Zum Anzeigen näher heranzoomen' };
+      const b = map.getBounds();
+      const hits = CAM_PROVIDERS.filter((c) => intersects(b, c.bbox));
+      if (!hits.length) return { hint: 'Hier keine freien Kameras – London, New York, Kalifornien oder Finnland' };
+      return { queries: hits.map((c) => `p=${c.p}`) };
+    },
+    install(map, src) {
+      map.addLayer({
+        id: `${src}-cluster`, type: 'circle', source: src, filter: ['has', 'point_count'],
+        paint: {
+          'circle-color': '#0c8599',
+          'circle-opacity': 0.85,
+          'circle-radius': ['step', ['get', 'point_count'], 12, 20, 16, 100, 21, 500, 27],
+          'circle-stroke-color': 'rgba(255,255,255,.8)',
+          'circle-stroke-width': 2
+        }
+      });
+      // Zahl in der Gruppe braucht Schriften aus dem Kartenstil; der Ersatzstil hat keine.
+      if (map.getStyle()?.glyphs) {
+        map.addLayer({
+          id: `${src}-count`, type: 'symbol', source: src, filter: ['has', 'point_count'],
+          layout: { 'text-field': ['get', 'point_count_abbreviated'], 'text-size': 12, 'text-allow-overlap': true },
+          paint: { 'text-color': '#fff' }
+        });
+      }
+      map.addLayer({
+        id: `${src}-cam`, type: 'circle', source: src, filter: ['!', ['has', 'point_count']],
+        paint: {
+          'circle-color': '#15aabf',
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, 4, 14, 7],
+          'circle-stroke-color': '#fff',
+          'circle-stroke-width': 1.5
+        }
+      });
+    },
+    detail(p) {
+      const image = safeUrl(p.image);
+      const video = safeUrl(p.video);
+      const info = CAM_INFO[p.provider] || { name: p.provider, refresh: 30 };
+      return {
+        title: esc(p.name),
+        body: (image
+          ? `<img class="cam" alt="Kamerabild ${esc(p.name)}" data-src="${esc(image)}" data-refresh="${info.refresh}" referrerpolicy="no-referrer">`
+          : '<p class="noimg">Kein Bild verfügbar</p>')
+          + `<dl>${row('Ort', esc(p.area))}${row('Quelle', esc(info.name))}${row('Aktualisierung', `alle ${info.refresh} s`)}</dl>`
+          + `<div class="links">${image ? `<a class="ext" href="${esc(image)}" target="_blank" rel="noopener">Bild öffnen ›</a>` : ''}`
+          + `${video ? `<a class="ext" href="${esc(video)}" target="_blank" rel="noopener">Video ›</a>` : ''}</div>`
+      };
+    }
+  },
   {
     id: 'flights',
     name: 'Flugzeuge',

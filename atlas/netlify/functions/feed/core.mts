@@ -24,7 +24,8 @@ export function createProxy(deps: Deps) {
     for (const url of urls) {
       try {
         const res = await deps.fetch(url, {
-          headers: { accept: 'application/json', 'user-agent': UA },
+          // Digitraffic bittet um eine Kennung im Header; die übrigen Quellen ignorieren ihn.
+          headers: { accept: 'application/json', 'user-agent': UA, 'digitraffic-user': 'LiveKarten' },
           signal: AbortSignal.timeout(TIMEOUT_MS)
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -79,7 +80,8 @@ export function createProxy(deps: Deps) {
     // Gleichzeitige Anfragen für dieselbe Zelle teilen sich eine Upstream-Abfrage.
     let p = inflight.get(key);
     if (!p) {
-      p = upstream(src.urls(key.slice(src.id.length + 1)), src.parse)
+      const sub = key.slice(src.id.length + 1);
+      p = upstream(src.urls(sub), (j) => src.parse(j, sub))
         .then((features) => {
           const e = { at: deps.now(), features };
           remember(key, e);

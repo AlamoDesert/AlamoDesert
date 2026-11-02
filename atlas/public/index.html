@@ -65,6 +65,9 @@
     border-radius: 50%; font-size: 18px; line-height: 1; cursor: pointer; }
   #detail dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0 0 12px; font-size: 14px; }
   #detail dt { color: var(--muted); } #detail dd { margin: 0; font-variant-numeric: tabular-nums; }
+  #detail .cam { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 10px; background: var(--line); margin: 0 0 10px; }
+  #detail .noimg { margin: 0 0 10px; padding: 24px 12px; text-align: center; border-radius: 10px; background: var(--line); color: var(--muted); font-size: 14px; }
+  #detail .links { display: flex; gap: 16px; flex-wrap: wrap; }
   #detail .ext { color: var(--accent); text-decoration: none; font-weight: 600; font-size: 14px; }
 
   /* Oben statt unten: unten liegen Detailkarte (mobil), Zoom und Quellennachweis. */

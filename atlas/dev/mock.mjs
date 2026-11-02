@@ -1,4 +1,6 @@
 // Erfundene Antworten im Format der echten Quellen. Positionen wandern mit der Zeit, damit die Aktualisierung sichtbar ist.
+// Testbild vom eigenen Dev-Server (App-Symbol), damit die Detailkarte ohne Internet ein Bild zeigt.
+const IMG = 'http://localhost:8890/icons/icon-512.png';
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
 
 function rand(seed) {
@@ -51,5 +53,12 @@ export async function mockFetch(url) {
   const point = /\/v2\/point\/(-?[\d.]+)\/(-?[\d.]+)\//.exec(u.pathname);
   if (point) return json(aircraft(Number(point[1]), Number(point[2])));
   if (u.host === 'earthquake.usgs.gov') return json(quakes());
+  if (u.host === 'api.tfl.gov.uk') return json(Array.from({ length: 60 }, (_, i) => ({
+    id: `JamCams_${i}`, commonName: `Testkreuzung ${i}`, lat: 51.45 + (i % 10) * 0.012, lon: -0.2 + Math.floor(i / 10) * 0.05,
+    additionalProperties: [{ key: 'available', value: 'true' }, { key: 'imageUrl', value: `${IMG}?cam=${i}` }, { key: 'videoUrl', value: 'https://example.org/v.mp4' }]
+  })));
+  if (u.host === 'webcams.nyctmc.org') return json([{ id: 'n1', name: 'Broadway @ 42 St', latitude: 40.756, longitude: -73.986, area: 'Manhattan', isOnline: 'true', imageUrl: IMG }]);
+  if (u.host === 'cwwp2.dot.ca.gov') return json({ data: [] });
+  if (u.host === 'tie.digitraffic.fi') return json({ type: 'FeatureCollection', features: [] });
   return new Response('not found', { status: 404 });
 }

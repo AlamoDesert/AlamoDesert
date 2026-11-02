@@ -17,7 +17,7 @@ function save(prefs) {
 }
 
 const prefs = load();
-const active = new Set(Array.isArray(prefs.layers) ? prefs.layers.filter((id) => LAYERS.some((l) => l.id === id)) : ['flights', 'quakes']);
+const active = new Set(Array.isArray(prefs.layers) ? prefs.layers.filter((id) => LAYERS.some((l) => l.id === id)) : ['flights', 'quakes', 'cams']);
 const runtime = new Map(LAYERS.map((l) => [l.id, { features: [], at: null, error: null, hint: null, stale: false, timer: 0, ctrl: null }]));
 
 const dark = matchMedia('(prefers-color-scheme: dark)');
@@ -80,13 +80,25 @@ const bound = new Set();
 function ensureInstalled(l) {
   if (map.getSource(srcId(l))) return;
   // Quellennachweis hängt an der Quelle: MapLibre zeigt ihn nur, solange die Ebene sichtbar ist.
-  map.addSource(srcId(l), { type: 'geojson', data: toGeoJSON(runtime.get(l.id).features), attribution: l.attribution });
+  map.addSource(srcId(l), { type: 'geojson', data: toGeoJSON(runtime.get(l.id).features), attribution: l.attribution, ...(l.sourceOptions || {}) });
   l.install(map, srcId(l));
   // Ebenen-Handler überleben setStyle; nur einmal binden, sonst öffnet ein Klick die Details mehrfach.
   if (bound.has(l.id)) return;
   bound.add(l.id);
   for (const id of layerIds(l)) {
-    map.on('click', id, (e) => { if (e.features?.length) showDetail(l, e.features[0].properties); });
+    map.on('click', id, async (e) => {
+      const f = e.features?.[0];
+      if (!f) return;
+      if (f.properties.cluster) {
+        // Gruppe antippen = so weit hineinzoomen, bis sie zerfällt.
+        try {
+          const zoom = await map.getSource(srcId(l)).getClusterExpansionZoom(f.properties.cluster_id);
+          map.easeTo({ center: f.geometry.coordinates, zoom });
+        } catch { map.easeTo({ center: f.geometry.coordinates, zoom: map.getZoom() + 2 }); }
+        return;
+      }
+      showDetail(l, f.properties);
+    });
     map.on('mouseenter', id, () => { map.getCanvas().style.cursor = 'pointer'; });
     map.on('mouseleave', id, () => { map.getCanvas().style.cursor = ''; });
   }
@@ -230,6 +242,25 @@ $('#layerbtn').addEventListener('click', () => {
 
 /* ---------- Detailansicht ---------- */
 
+let imgTimer = 0;
+
+/** Kamerabilder (img[data-refresh]) laden sich alle n Sekunden neu, solange die Detailkarte offen ist. */
+function startImageRefresh() {
+  clearInterval(imgTimer);
+  const img = $('#detail img[data-refresh]');
+  if (!img) return;
+  const base = img.dataset.src;
+  const load = () => { img.src = `${base}${base.includes('?') ? '&' : '?'}t=${Date.now()}`; };
+  img.addEventListener('error', () => { img.replaceWith(Object.assign(document.createElement('p'), { className: 'noimg', textContent: 'Bild gerade nicht verfügbar' })); clearInterval(imgTimer); }, { once: true });
+  load();
+  imgTimer = setInterval(() => { if (!document.hidden) load(); }, Number(img.dataset.refresh) * 1000);
+}
+
+function closeDetail() {
+  clearInterval(imgTimer);
+  $('#detail').hidden = true;
+}
+
 function showDetail(l, props) {
   // MapLibre liefert null-Werte aus GeoJSON-Properties als String "null" zurück, Zahlen bleiben Zahlen.
   const p = Object.fromEntries(Object.entries(props).map(([k, v]) => [k, v === 'null' ? null : v]));
@@ -237,9 +268,10 @@ function showDetail(l, props) {
   $('#detail').innerHTML = `<header><span class="kind">${esc(l.name)}</span><h2>${d.title}</h2>
     <button class="close" aria-label="Schließen">×</button></header>${d.body}`;
   $('#detail').hidden = false;
+  startImageRefresh();
 }
-$('#detail').addEventListener('click', (e) => { if (e.target.closest('.close')) $('#detail').hidden = true; });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { $('#detail').hidden = true; $('#panel').hidden = true; } });
+$('#detail').addEventListener('click', (e) => { if (e.target.closest('.close')) closeDetail(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeDetail(); $('#panel').hidden = true; } });
 
 /* ---------- Ablauf ---------- */
 
