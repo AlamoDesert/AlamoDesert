@@ -208,9 +208,9 @@ export function mount(container, opts = {}) {
   const NATIVE = opts.native || (typeof window !== "undefined" && window.rezeptionNative) || null;
   let disposed = false;
   container.innerHTML = MARKUP;
-  // Reiter „Erstattung“ (Check-in-Erstattung, eigene Seite im iframe) nur, wenn die Seite mitgeliefert wird (Mac-App, Webversion).
+  // Reiter „Check-ins“ (Check-in-Erstattung, eigene Seite im iframe) nur, wenn die Seite mitgeliefert wird (Mac-App, Webversion)
+  // und die Leitung ihn unter Verwaltung › Funktionen eingeschaltet hat (Standard: aus).
   const CHECKIN_URL = opts.checkinUrl || null;
-  if (CHECKIN_URL) container.querySelector('[data-view="erstattung"]').hidden = false;
   // Farbschema: in SharePoint immer hell, sonst wie die einbettende Seite (claude.ai setzt data-theme).
   if (opts.mode === "sharepoint") host.setAttribute("data-theme", "light");
   else if (root.host) {
@@ -763,10 +763,12 @@ export function mount(container, opts = {}) {
     timesMonth: null, timesPerson: null, timesData: null, timesEdit: null, timesAll: false,
     checks: {}, notes: {}, prevNotes: {},
     read: {},            // Übergabe gelesen: { <Empfänger-Schicht>: { by, at, noteAt } } – noteAt = Stand der gelesenen Notiz
-    handPop: null,       // Schicht, deren wichtige Übergabe gerade als Fenster angezeigt wird
+    handPop: null,       // Schicht, deren Übergabe gerade als Fenster angezeigt wird
+    coFlag: null,        // Schicht, deren offene Punkte nach einem gescheiterten Auschecken im Fahrplan markiert sind
     logs: {},            // Daueraufgaben: { frueh|spaet: { <id>: { <key>: {at, by} | null } } }
     dayPlan: null,       // Tagesanpassung (normalisiert) oder null
-    cfg: { base: null, weekday: {}, people: [], roster: {}, adminPin: null }, // Pläne, Team, Dienstplan, Leitungs-PIN
+    daySnap: null,       // festgehaltener Plan-Stand des Tages (gilt nur für vergangene Tage)
+    cfg: { base: null, weekday: {}, people: [], roster: {}, adminPin: null, features: { checkins: false } }, // Pläne, Team, Dienstplan, Leitungs-PIN, Funktionen
     docExists: false, cfgExists: false,
     month: {},           // date -> { checks, plan }
     names: {},
@@ -795,9 +797,11 @@ export function mount(container, opts = {}) {
   let scrolledOnce = false;
 
   // raw = ohne Schichtzeiten aus dem Dienstplan (für den Plan-Editor).
-  function resolvePlan(date, dayPlan, raw) {
+  // snap = festgehaltener Plan-Stand eines Tages: vergangene Tage behalten so Aufgaben und Prozente, auch wenn die Vorlagen später geändert werden.
+  function resolvePlan(date, dayPlan, raw, snap) {
     let r;
     if (dayPlan) r = { plan: dayPlan, source: "day" };
+    else if (snap && date < isoDate(new Date())) r = { plan: snap, source: "snap" };
     else {
       const wd = String(parseIso(date).getDay());
       if (state.cfg.weekday[wd]) r = { plan: state.cfg.weekday[wd], source: "weekday" };
@@ -820,7 +824,7 @@ export function mount(container, opts = {}) {
     timesCache.set(key, { src: plan, plan: out });
     return out;
   }
-  const P = () => resolvePlan(state.date, state.dayPlan).plan;
+  const P = () => resolvePlan(state.date, state.dayPlan, false, state.daySnap).plan;
 
   // ---------- Speicher ----------
   const LS = {
@@ -831,7 +835,7 @@ export function mount(container, opts = {}) {
       try {
         for (let i = 0; i < localStorage.length; i++) {
           const k = localStorage.key(i);
-          if (k && k.startsWith("rz2:" + ym)) { const d = JSON.parse(localStorage.getItem(k) || "{}"); out[k.slice(4)] = { checks: d.checks || {}, plan: normalizePlan(d.plan), time: normTimes(d.time) }; }
+          if (k && k.startsWith("rz2:" + ym)) { const d = JSON.parse(localStorage.getItem(k) || "{}"); out[k.slice(4)] = { checks: d.checks || {}, plan: normalizePlan(d.plan), snap: normalizePlan(d.snap), time: normTimes(d.time) }; }
         }
       } catch { /* blockiert */ }
       return out;
@@ -853,6 +857,7 @@ export function mount(container, opts = {}) {
     state.logs = (data && data.logs && typeof data.logs === "object") ? data.logs : {};
     state.time = normTimes(data && data.time);
     state.dayPlan = data ? normalizePlan(data.plan) : null;
+    state.daySnap = data ? normalizePlan(data.snap) : null;
   }
   function applyCfg(data) {
     const weekday = {};
@@ -890,11 +895,12 @@ export function mount(container, opts = {}) {
         roster[d] = e;
       }
     }
-    state.cfg = { base: data ? normalizePlan(data.base) : null, weekday, people, roster, adminPin: data && typeof data.adminPin === "string" ? data.adminPin.slice(0, 64) : null };
+    state.cfg = { base: data ? normalizePlan(data.base) : null, weekday, people, roster, adminPin: data && typeof data.adminPin === "string" ? data.adminPin.slice(0, 64) : null,
+      features: { checkins: !!(data && data.features && data.features.checkins === true) } };
   }
 
   function currentDayDoc() {
-    return { month: state.date.slice(0, 7), checks: state.checks, notes: state.notes, read: state.read, logs: state.logs, time: state.time, plan: state.dayPlan };
+    return { month: state.date.slice(0, 7), checks: state.checks, notes: state.notes, read: state.read, logs: state.logs, time: state.time, plan: state.dayPlan, snap: state.daySnap };
   }
 
   async function loadPrevNotes() {
@@ -919,7 +925,7 @@ export function mount(container, opts = {}) {
       return;
     }
     const m = state.month[state.date];
-    applyDoc(m ? { checks: m.checks, plan: m.plan } : null);
+    applyDoc(m ? { checks: m.checks, plan: m.plan, snap: m.snap } : null);
     state.docExists = !!m;
     render(); loadPrevNotes();
     unsubDay = db.doc("days/" + state.date).onSnapshot(
@@ -938,7 +944,7 @@ export function mount(container, opts = {}) {
     unsubMonth = db.collection("days").where("month", "==", ym).onSnapshot(
       (snap) => {
         const m = {};
-        snap.docs.forEach(d => { if (d.exists) { const x = d.data(); m[d.id] = { checks: x.checks || {}, plan: normalizePlan(x.plan), time: normTimes(x.time) }; } });
+        snap.docs.forEach(d => { if (d.exists) { const x = d.data(); m[d.id] = { checks: x.checks || {}, plan: normalizePlan(x.plan), snap: normalizePlan(x.snap), time: normTimes(x.time) }; } });
         state.month = m;
         if (state.view === "monat") render();
       },
@@ -995,11 +1001,53 @@ export function mount(container, opts = {}) {
     writeChain = job;
     return job;
   }
-  const persistDay = (date, patch) => persistDoc("days/" + date, patch, currentDayDoc(), "rz2:" + date, currentDayDoc());
+  // Plan-Stand festhalten: Jeder Schreibvorgang am angezeigten Tag speichert den gültigen Plan mit (heute immer der aktuelle,
+  // an vergangenen Tagen nur, falls noch keiner festgehalten ist). Tage mit Tagesanpassung brauchen das nicht.
+  function snapFor(date) {
+    if (date !== state.date || state.dayPlan) return null;
+    if (date < isoDate(new Date()) && state.daySnap) return null;
+    const snap = resolvePlan(date, null, true).plan;
+    return state.daySnap && JSON.stringify(state.daySnap) === JSON.stringify(snap) ? null : snap;
+  }
+  const persistDay = (date, patch) => {
+    const snap = snapFor(date);
+    if (snap) { state.daySnap = snap; patch = { ...patch, snap }; }
+    return persistDoc("days/" + date, patch, currentDayDoc(), "rz2:" + date, currentDayDoc());
+  };
+  // Nach einer Änderung der Vorlagen: heutigen Stand nachziehen (sonst hielte der Tag den Stand vom letzten Haken fest).
+  async function refreshTodaySnap() {
+    const today = isoDate(new Date());
+    if (state.date === today) { if (state.daySnap && snapFor(today)) await persistDay(today, {}); return; }
+    const snap = resolvePlan(today, null, true).plan;
+    if (state.mode !== "shared") {
+      const doc = LS.get("rz2:" + today, null);
+      if (doc && doc.snap && !doc.plan) LS.set("rz2:" + today, { ...doc, snap });
+      return;
+    }
+    try { const ref = db.doc("days/" + today), cur = await ref.get(); if (cur.exists && cur.data().snap && !cur.data().plan) await ref.update({ snap }); } catch { /* beim nächsten Haken */ }
+  }
+  // Einmalig (lokaler Speicher): vergangene Tage mit Einträgen, die noch keinen festgehaltenen Stand haben, mit dem jetzt gültigen Plan festhalten.
+  function migrateSnaps() {
+    if (state.mode !== "local") return;
+    const meta = LS.get("rz2meta", {});
+    if (meta.snapV1) return;
+    const today = isoDate(new Date());
+    try {
+      const keys = [];
+      for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && /^rz2:\d{4}-\d{2}-\d{2}$/.test(k) && k.slice(4) < today) keys.push(k); }
+      for (const k of keys) {
+        const doc = LS.get(k, null);
+        if (!doc || doc.plan || doc.snap) continue;
+        const touched = (doc.checks && Object.keys(doc.checks).length) || (doc.logs && Object.keys(doc.logs).length);
+        if (touched) LS.set(k, { ...doc, snap: resolvePlan(k.slice(4), null, true).plan });
+      }
+    } catch { return; }
+    LS.set("rz2meta", { ...LS.get("rz2meta", {}), snapV1: true });
+  }
   function cfgPayload() {
     const weekday = {};
     for (const k of Object.keys(state.cfg.weekday)) weekday[k] = state.cfg.weekday[k];
-    return { base: state.cfg.base, weekday, people: state.cfg.people, roster: state.cfg.roster, adminPin: state.cfg.adminPin };
+    return { base: state.cfg.base, weekday, people: state.cfg.people, roster: state.cfg.roster, adminPin: state.cfg.adminPin, features: state.cfg.features };
   }
   const persistCfg = (patch) => persistDoc("config/plan", patch, cfgPayload(), "rz2cfg", cfgPayload());
 
@@ -1009,7 +1057,7 @@ export function mount(container, opts = {}) {
     const next = { ...state.checks, [id]: value };
     if (!value) delete next[id];
     state.checks = next;
-    state.month = { ...state.month, [state.date]: { checks: next, plan: state.dayPlan } };
+    state.month = { ...state.month, [state.date]: { checks: next, plan: state.dayPlan, snap: state.daySnap } };
     render();
     persistDay(state.date, { checks: { [id]: value } });
     // Letzter Punkt der Spätschicht heute erledigt → Tagesabschluss sichern.
@@ -1054,18 +1102,18 @@ export function mount(container, opts = {}) {
     const r = state.read && state.read[key];
     return n && r && r.noteAt === n.at ? r : null;
   }
-  function markHandRead(key) {
+  function markHandRead(key, reply) {
     const n = handIn(key); if (!n) return;
-    const val = { by: actorId(), at: new Date().toISOString(), noteAt: n.at };
+    const txt = String(reply || "").trim().slice(0, 300);
+    const val = { by: actorId(), at: new Date().toISOString(), noteAt: n.at, ...(txt ? { reply: txt } : {}) };
     state.read = { ...state.read, [key]: val };
     persistDay(state.date, { read: { [key]: val } });
   }
-  // Nach dem Einchecken: wichtige, ungelesene Übergabe der eigenen Schicht als Fenster zeigen.
+  // Nach jedem Einchecken: Übergabe der eigenen Schicht als Fenster – auch wenn keine hinterlassen wurde (dann ein kurzer Hinweis).
   function maybeShowHandover(role) {
     if (state.date !== isoDate(new Date())) return;
-    const key = KEYS.includes(role) ? role : activeShift(P(), timeCtx());
-    const n = key && handIn(key);
-    if (n && n.important && !handRead(key, n)) { state.handPop = key; renderRemind(); }
+    const key = KEYS.includes(role) ? role : (activeShift(P(), timeCtx()) || focusShift(P(), nowMin()));
+    if (key) { state.handPop = key; renderRemind(); }
   }
 
   // ---------- Personen ----------
@@ -1179,7 +1227,8 @@ export function mount(container, opts = {}) {
   }
   function plannedFor(date, pid, role) {
     if (!["frueh", "spaet"].includes(role) || !rosterFor(date)[role].includes(pid)) return null;
-    const pl = resolvePlan(date, date === state.date ? state.dayPlan : null).plan[role];
+    const m = date === state.date ? { plan: state.dayPlan, snap: state.daySnap } : (state.month[date] || {});
+    const pl = resolvePlan(date, m.plan || null, false, m.snap).plan[role];
     return `${pl.start}–${pl.end}`;
   }
   function timeSelect(id, value, opts2 = {}) {
@@ -1256,7 +1305,8 @@ export function mount(container, opts = {}) {
 
   function itemHtml(item, opts = {}) {
     const c = state.checks[item.id];
-    const cls = [item.important ? "important" : "", c ? (c.s === "na" ? "na" : "done") : "", opts.upcoming ? "upcoming" : ""].join(" ");
+    const flag = !c && state.coFlag === item.shift && state.date === isoDate(new Date());
+    const cls = [item.important ? "important" : "", c ? (c.s === "na" ? "na" : "done") : "", opts.upcoming ? "upcoming" : "", flag ? "flag" : ""].join(" ");
     const tag = opts.showPhase ? `<span class="tag">${esc(item.phase.title)} · bis ${item.phase.to}</span>` : "";
     // „entfällt“ sperrt den Haken für diesen Tag; nur „rückgängig“ gibt ihn wieder frei.
     const na = !!c && c.s === "na";
@@ -1265,7 +1315,7 @@ export function mount(container, opts = {}) {
         <span class="box">${na ? "" : CHECK_SVG}</span>
         <span class="txt"><span class="label">${esc(item.t)}</span>${tag}${item.s ? `<span class="sub">${esc(item.s)}</span>` : ""}${c ? `<span class="who">${whoLine(c)}</span>` : ""}</span>
       </button>
-      ${CHECKIN_URL && /check-?ins?\b/i.test(item.t) ? `<button class="golink" data-goview="erstattung" title="Check-ins öffnen">Check-ins ›</button>` : ""}
+      ${checkinsOn() && /check-?ins?\b/i.test(item.t) ? `<button class="golink" data-goview="erstattung" title="Check-ins öffnen">Check-ins ›</button>` : ""}
       ${item.optional ? `<button class="skip" data-skip="${esc(item.id)}" aria-pressed="${na}" ${na ? 'aria-label="Entfällt rückgängig machen"' : ""}>${na ? "rückgängig" : "entfällt"}</button>` : ""}
     </li>`;
   }
@@ -1292,7 +1342,7 @@ export function mount(container, opts = {}) {
     }).join("");
     const confirm = list.filter(a => a.kind === "confirm").map(a => {
       const entries = logEntries(key, a.id), last = entries[entries.length - 1];
-      return `<li class="confirm ${last ? "ok" : "open"}${a.important ? " important" : ""}">
+      return `<li class="confirm ${last ? "ok" : "open"}${a.important ? " important" : ""}${!last && state.coFlag === key && state.date === isoDate(new Date()) ? " flag" : ""}">
         <button class="tap" data-log="${esc(a.id)}" data-shift="${key}" ${canLog && !last ? "" : "disabled"} aria-label="${esc(a.t)} bestätigen">
           <span class="box" aria-hidden="true">${CHECK_SVG}</span>
           <span><span class="label">${esc(a.t)}</span>${last ? `<span class="last">bestätigt ${lastLine(last)}</span>` : `<span class="sub">${a.s ? esc(a.s) + " · " : ""}vor Schichtende bestätigen</span>`}</span>
@@ -1346,12 +1396,12 @@ export function mount(container, opts = {}) {
     return `<div class="note"><div class="nhead"><label for="note-${shift}">${esc(label)}</label>
         <label class="impchk${imp ? " on" : ""}"><input type="checkbox" data-noteimp="${shift}" ${imp ? "checked" : ""} ${state.readOnly ? "disabled" : ""}> Wichtig</label></div>
       <textarea id="note-${shift}" data-note="${shift}" placeholder="z. B. offene Check-ins, defekte Schläger, Rückrufe…" ${state.readOnly || (state.viewOnly && !currentPerson()) ? "readonly" : ""}>${esc((n && n.text) || "")}</textarea>
-      <span class="saved" id="saved-${shift}">${n && n.at ? "Gespeichert" + noteAuthor(n) : ""}${r ? ` · <b class="okread">✓ ${readLine(r)}</b>` : ""}</span></div>`;
+      <span class="saved" id="saved-${shift}">${n && n.at ? "Gespeichert" + noteAuthor(n) : ""}${r ? ` · <b class="okread">✓ ${readLine(r)}</b>` : ""}</span>${r && r.reply ? `<div class="reply">Rückmeldung: ${esc(r.reply)}</div>` : ""}</div>`;
   }
   function noteReader(key, label) {
     const n = handIn(key), r = n && handRead(key, n), wasRead = n && state.read && state.read[key];
     const canMark = n && !r && state.date === isoDate(new Date()) && !state.readOnly;
-    const foot = !n ? "" : r ? `<div class="rfoot"><b class="okread">✓ ${readLine(r)}</b></div>`
+    const foot = !n ? "" : r ? `<div class="rfoot"><b class="okread">✓ ${readLine(r)}</b></div>${r.reply ? `<div class="reply">Rückmeldung: ${esc(r.reply)}</div>` : ""}`
       : `<div class="rfoot"><span>${wasRead ? "Nach dem Lesen geändert" : "Noch nicht gelesen"}</span>${canMark ? `<button class="btn primary sm" data-hread="${key}">Gelesen</button>` : ""}</div>`;
     return `<div class="note"><label>${n && n.important ? '<span class="imptag">Wichtig</span> ' : ""}${esc(label)}${n ? noteAuthor(n) : ""}</label>
       <div class="read${n ? (n.important && !r ? " imp" : "") : " none"}">${n ? esc(n.text) : "Keine Notiz hinterlassen."}</div>${foot}</div>`;
@@ -1397,7 +1447,11 @@ export function mount(container, opts = {}) {
     const title = ctx === "past" ? "Rückblick" : ctx === "future" ? "Vorschau" : "Fahrplan";
     const lay = getLayout();
     const colBtns = `<div class="seg" role="group" aria-label="Spalten im Fahrplan">${[["auto", "Auto"], ["1", "1 Spalte"], ["2", "2 Spalten"]].map(([v, l]) => `<button class="segbtn${lay.cols === v ? " on" : ""}" data-cols="${v}" aria-pressed="${lay.cols === v}">${l}</button>`).join("")}</div>`;
-    return `<div class="schicht cols-${lay.cols}" style="--side:${lay.side}px">
+    // Ungelesene Übergabe: Leiste über dem Fahrplan, bis die eingecheckte Person sie als gelesen markiert.
+    const hb = state.date === isoDate(new Date()) && cp && !state.readOnly ? handIn(key) : null;
+    const banner = hb && !handRead(key, hb) ? `<div class="handbar${hb.important ? " imp" : ""}"><span class="imptag">Übergabe</span><span class="htxt"><b>${key === "frueh" ? "Von der Spätschicht" : "Von der Frühschicht"}:</b> ${esc(hb.text)}</span><button class="btn" data-hopen="${key}">Öffnen</button><button class="btn primary" data-hread="${key}">Gelesen</button></div>` : "";
+    if (state.coFlag === key && !shiftOpenList(key).items.length && !shiftOpenList(key).confirms.length) state.coFlag = null;
+    return `${banner}<div class="schicht cols-${lay.cols}" style="--side:${lay.side}px">
       <section class="card boardcard">
         <div class="chead"><h2>${title} ${meta.label}</h2><span class="hint">${s.start}–${s.end} · ${pr.done}/${pr.total} erledigt</span><div class="seg" role="group" aria-label="Schicht wählen">${seg}</div>${colBtns}</div>
         <div class="bar flat"><i style="width:${pr.pct}%"></i></div>
@@ -1465,8 +1519,8 @@ export function mount(container, opts = {}) {
     const head = Array.from({ length: days }, (_, i) => `<th scope="col">${pad(i + 1)}.</th>`).join("");
     const row = (key) => Array.from({ length: days }, (_, i) => {
       const date = `${y}-${pad(m + 1)}-${pad(i + 1)}`;
-      const entry = date === state.date ? { checks: state.checks, plan: state.dayPlan } : (state.month[date] || { checks: {}, plan: null });
-      const plan = resolvePlan(date, entry.plan).plan;
+      const entry = date === state.date ? { checks: state.checks, plan: state.dayPlan, snap: state.daySnap } : (state.month[date] || { checks: {}, plan: null });
+      const plan = resolvePlan(date, entry.plan, false, entry.snap).plan;
       const p = progress(plan, key, entry.checks || {});
       const cls = date > today && !p.done ? "future" : p.pct === 100 ? "full" : p.done ? "part" : "none";
       const text = p.done ? (p.pct === 100 ? "✓" : p.pct + "%") : "·";
@@ -1826,6 +1880,7 @@ export function mount(container, opts = {}) {
   const PIN_OFF = "off";
   const pinOff = () => state.cfg.adminPin === PIN_OFF;
   const isUnlocked = () => pinOff() || Date.now() < state.unlockedUntil;
+  const checkinsOn = () => !!CHECKIN_URL && !!(state.cfg.features && state.cfg.features.checkins);
   // Leitungs-PIN festgelegt (nicht leer, nicht „off“): Zeiten anderer nur für die Leitung.
   const timesOwnOnly = () => !!state.cfg.adminPin && !pinOff();
   function requireAdmin(next) {
@@ -1924,6 +1979,9 @@ export function mount(container, opts = {}) {
           <p>Daten aus der bisherigen Mac-Version übernehmen: dort unter Verwaltung › Datensicherung eine Sicherung herunterladen und hier einspielen.</p>
           <label class="btn" for="rzfile" data-filepick="backup">Sicherung übernehmen</label>
           <p id="import-msg"></p></div></section>` : ""}
+      ${CHECKIN_URL ? `<section class="card"><div class="chead"><h2>Funktionen</h2></div>
+        <div class="cbody"><div class="featrow"><span><b>Check-ins (Firmenfitness)</b><small>Reiter „Check-ins“ und die Knöpfe im Fahrplan. Ausgeschaltet bleiben die gespeicherten Daten erhalten.</small></span>
+          <button class="switch${checkinsOn() ? " on" : ""}" role="switch" aria-checked="${checkinsOn()}" aria-label="Check-ins ${checkinsOn() ? "ausschalten" : "einschalten"}" data-act2="feat-checkins"><span></span></button></div></div></section>` : ""}
       <section class="card"><div class="chead"><h2>Leitungs-PIN</h2></div>
         <div class="cbody">${pinOff()
           ? `<p><b>PIN ist deaktiviert.</b> Verwaltung, Aufgaben-Plan, Dienstplan-Bearbeitung und alle Zeiten sind für alle offen.</p>
@@ -2149,8 +2207,6 @@ export function mount(container, opts = {}) {
     el.innerHTML = `<div class="overlay" role="dialog" aria-modal="true" aria-labelledby="pick-title">${brand}<div class="dialog">
       <h2 id="pick-title">${login ? "Wer arbeitet gerade?" : "Weitere Person einchecken"}</h2>
       <p>${SHIFT_META[shift].label} ${plan[shift].start}–${plan[shift].end}. Name antippen zum Einchecken – Haken und Notizen werden mit deinem Namen gespeichert.</p>
-      ${(rosterFor(today).notes || {})[shift] ? `<p class="pnote">Anmerkung im Dienstplan: <b>${esc(rosterFor(today).notes[shift])}</b></p>` : ""}
-      ${shift === "spaet" && state.date === today && pendingConfirms(plan, "frueh").length ? `<p class="pwarn">Von der Frühschicht nicht bestätigt: <b>${pendingConfirms(plan, "frueh").map(a => esc(a.t)).join(", ")}</b> – bitte prüfen.</p>` : ""}
       ${checked.length ? `<div class="grp in">Schon eingecheckt – antippen, um weiterzuarbeiten</div><div class="names">${checked.map(p => { const o = openEntry(today, p.id); return `<button class="namebtn inn" data-pick="${esc(p.id)}"><span class="av">${esc(initials(p.name))}</span><span>${esc(p.name)}<small class="ninfo ok">${ROLE_LABEL[o.entry.role] || ""} seit ${o.entry.in}</small></span></button>`; }).join("")}</div>` : ""}
       ${inSched.length ? `<div class="grp">Laut Dienstplan</div><div class="names">${inSched.map(p => btn(p, "sched")).join("")}</div>` : ""}
       <div class="grp">${inSched.length ? "Andere" : "Team"}</div><div class="names">${others.map(p => btn(p, "")).join("")}${state.pickAdd ? "" : addForm}</div>
@@ -2240,13 +2296,26 @@ export function mount(container, opts = {}) {
     state.checkout = { ...open, out, pause: suggestPause(gross), pauseTouched: false, note: open.entry.note || "" };
     renderCheckout();
   }
+  // Früh- und Spätschicht checken erst aus, wenn ihre Schicht (Aufgaben und Pflicht-Bestätigungen) bei 100 % ist – unabhängig davon, wer was erledigt hat.
+  function shiftOpenList(key) {
+    const plan = P(), d = derive(plan);
+    const items = d.ids[key].filter(id => !state.checks[id]).map(id => d.item[id]);
+    return { items, confirms: pendingConfirms(plan, key), pr: progress(plan, key, state.checks) };
+  }
+  function checkoutGate(c) {
+    if (!c || c.date !== isoDate(new Date()) || state.date !== c.date || !KEYS.includes(c.entry.role)) return null;
+    const g = shiftOpenList(c.entry.role);
+    return g.items.length || g.confirms.length ? { key: c.entry.role, ...g } : null;
+  }
   function renderCheckout() {
     const c = state.checkout, el = $("remind");
     if (!c) { el.hidden = true; el.innerHTML = ""; renderRemind(); return; }
-    const today = isoDate(new Date()), plan = P();
+    const today = isoDate(new Date());
     const others = Object.entries(timeOf(today)).filter(([, e]) => e && !e.out);
     const mins = workedMin({ in: c.entry.in, out: c.out, pause: c.pause });
-    const pend = ["frueh", "spaet"].includes(c.entry.role) ? pendingConfirms(plan, c.entry.role) : [];
+    const gate = checkoutGate(c);
+    const openList = gate ? `<p>${SHIFT_META[gate.key].label}: noch <b>${gate.items.length + gate.confirms.length} offen</b> (${gate.pr.pct} %). Auschecken geht erst bei 100 % – hake direkt hier ab oder setze optionale Punkte auf „entfällt“.</p>
+      <ul class="coopen">${gate.items.map(i => `<li><button class="cobox" data-cocheck="${esc(i.id)}" aria-label="${esc(i.t)} abhaken"></button><span><b>${esc(i.t)}</b><small>${esc(i.phase.from)} ${esc(i.phase.title)}${i.optional ? " · optional" : ""}</small></span>${i.optional ? `<button class="btn sm" data-coskip="${esc(i.id)}">entfällt</button>` : ""}</li>`).join("")}${gate.confirms.map(a => `<li><button class="cobox" data-coconfirm="${esc(a.id)}" aria-label="${esc(a.t)} bestätigen"></button><span><b>${esc(a.t)}</b><small>Pflicht · einmal pro Schicht bestätigen</small></span></li>`).join("")}</ul>` : "";
     el.hidden = false;
     el.innerHTML = `<div class="overlay" role="dialog" aria-modal="true" aria-labelledby="co-title"><div class="dialog">
       <h2 id="co-title">Auschecken</h2>
@@ -2254,12 +2323,14 @@ export function mount(container, opts = {}) {
       <div class="trow big"><label>Ende ${timeSelect("co-time", c.out)}</label><label>Pause ${pauseSelect("co-pause", c.pause)}</label></div>
       <label class="tnote">Notiz (optional) <input class="in" id="co-note" maxlength="200" value="${esc(c.note || "")}" placeholder="z. B. Einarbeitung mit Lisa"></label>
       <p>Arbeitszeit: <b>${fmtHours(mins)} Std.</b> (${c.entry.in}–${c.out}, ${c.pause} Min. Pause)</p>
-      ${pend.length ? `<p class="pwarn">Noch nicht bestätigt: <b>${pend.map(a => esc(a.t)).join(", ")}</b></p>` : ""}
-      <div class="row"><button class="btn ghost" data-co="cancel">Abbrechen</button><button class="btn primary" data-co="ok">Auschecken</button></div>
+      ${openList}
+      <div class="row">${gate ? `<button class="btn" data-co="flag">Zurück zur Schicht</button><button class="btn primary" data-co="ok" disabled>Auschecken</button>` : `<button class="btn ghost" data-co="cancel">Abbrechen</button><button class="btn primary" data-co="ok">Auschecken</button>`}</div>
     </div></div>`;
   }
   function confirmCheckout() {
     const c = state.checkout; if (!c) return;
+    if (checkoutGate(c)) return renderCheckout();
+    state.coFlag = null;
     persistTime(c.date, c.id, { ...c.entry, out: c.out, pause: c.pause, note: (c.note || "").trim().slice(0, 200) });
     if (state.who && state.who.id === c.entry.pid) { state.who = null; LS.set("rz2who", null); }
     state.checkout = null;
@@ -2297,6 +2368,18 @@ export function mount(container, opts = {}) {
       return;
     }
     if (b.dataset.co === "cancel") { state.checkout = null; renderCheckout(); return; }
+    // Offene Punkte direkt im Fenster erledigen; „Zurück zur Schicht“ markiert sie im Fahrplan.
+    const stamp = (st) => ({ s: st, by: actorId(), at: new Date().toISOString() });
+    if (b.dataset.cocheck) { setCheck(b.dataset.cocheck, stamp("done")); renderCheckout(); return; }
+    if (b.dataset.coskip) { setCheck(b.dataset.coskip, stamp("na")); renderCheckout(); return; }
+    if (b.dataset.coconfirm) { const g = checkoutGate(state.checkout); if (g) logAlways(g.key, b.dataset.coconfirm); renderCheckout(); return; }
+    if (b.dataset.co === "flag") {
+      const g = checkoutGate(state.checkout);
+      state.checkout = null; renderCheckout();
+      if (g) { state.coFlag = g.key; state.shiftSel = g.key; if (state.view !== "schicht") setView("schicht"); else render(); }
+      setTimeout(() => { const f = root.querySelector("li.flag, li.confirm.flag"); if (f && f.scrollIntoView) f.scrollIntoView({ block: "center", behavior: "smooth" }); }, 50);
+      return;
+    }
     if (b.dataset.co === "ok") return confirmCheckout();
   });
   $("remind").addEventListener("change", (e) => {
@@ -2362,15 +2445,22 @@ export function mount(container, opts = {}) {
   function renderRemind() {
     if (state.checkout) return;
     const el = $("remind");
-    const hk = state.handPop, hn = hk && handIn(hk);
-    if (hn && hn.important && !handRead(hk, hn)) {
+    const hk = state.handPop;
+    if (hk) {
+      const hn = handIn(hk), hr = hn && handRead(hk, hn), today = isoDate(new Date());
+      const from = hk === "frueh" ? "von der Spätschicht (gestern)" : "von der Frühschicht";
+      const rnote = (rosterFor(today).notes || {})[hk];
+      const unconf = hk === "spaet" ? pendingConfirms(P(), "frueh") : [];
+      const extra = `${rnote ? `<p class="pnote">Anmerkung im Dienstplan: <b>${esc(rnote)}</b></p>` : ""}${unconf.length ? `<p class="pwarn">Von der Frühschicht nicht bestätigt: <b>${unconf.map(a => esc(a.t)).join(", ")}</b> – bitte prüfen.</p>` : ""}`;
       el.hidden = false;
       el.innerHTML = `<div class="overlay" role="dialog" aria-modal="true" aria-labelledby="hand-title"><div class="dialog">
-        <h2 id="hand-title"><span class="imptag">Wichtig</span> Übergabe ${hk === "frueh" ? "von der Spätschicht (gestern)" : "von der Frühschicht"}</h2>
-        <div class="handpop">${esc(hn.text)}</div>
-        <p class="hint">${noteAuthor(hn).replace(/^ · /, "")}</p>
-        <div class="row"><button class="btn ghost" data-hlater="1">Später</button><button class="btn primary" data-hread="${hk}">Gelesen</button></div>
+        <h2 id="hand-title">${hn && hn.important ? '<span class="imptag">Wichtig</span> ' : ""}Übergabe ${from}</h2>
+        ${hn ? `<div class="handpop${hn.important ? "" : " plain"}">${esc(hn.text)}</div><p class="hint">${noteAuthor(hn).replace(/^ · /, "")}</p>` : `<div class="handpop none">Keine Übergabe hinterlassen – es gibt nichts Besonderes zu beachten.</div>`}
+        ${extra}
+        ${hn && !hr ? `<label class="tnote">Rückmeldung oder Ergänzung (optional, steht danach unter der Übergabe) <textarea class="in" id="hand-reply" maxlength="300" rows="2" placeholder="z. B. Netz um 16:10 getauscht"></textarea></label>` : ""}
+        <div class="row">${hn && !hr ? `<button class="btn ghost" data-hlater="1">Später</button><button class="btn primary" data-hread="${hk}">Gelesen</button>` : `<button class="btn primary" data-hlater="1">OK</button>`}</div>
       </div></div>`;
+      const ta = el.querySelector("#hand-reply"); if (ta) ta.focus();
       return;
     }
     state.handPop = null;
@@ -2387,7 +2477,7 @@ export function mount(container, opts = {}) {
   $("remind").addEventListener("click", (e) => {
     const b = e.target.closest("button");
     if (!b) return;
-    if (b.dataset.hread) { markHandRead(b.dataset.hread); state.handPop = null; renderRemind(); render(); return; }
+    if (b.dataset.hread) { const r = $("hand-reply"); markHandRead(b.dataset.hread, r ? r.value : ""); state.handPop = null; renderRemind(); render(); return; }
     if (b.dataset.hlater) { state.handPop = null; renderRemind(); return; }
     if (b.dataset.rconfirm) { logAlways(b.dataset.shift, b.dataset.rconfirm); renderRemind(); return; }
     if (b.dataset.rsnooze) { state.remindOpen = false; state.remindSnoozeUntil = Date.now() + 10 * 60000; renderRemind(); }
@@ -2652,7 +2742,7 @@ export function mount(container, opts = {}) {
   function ensureDraft() {
     const scope = state.edScope || "day";
     if (!state.draft || state.draft.date !== state.date || state.draft.scope !== scope) {
-      const src = scope === "day" ? resolvePlan(state.date, state.dayPlan, true) : resolvePlan(dateForWeekday(GROUPS[scope].days[0]), null, true);
+      const src = scope === "day" ? resolvePlan(state.date, state.dayPlan, true, state.daySnap) : resolvePlan(dateForWeekday(GROUPS[scope].days[0]), null, true);
       state.draft = { date: state.date, scope, plan: clone(src.plan) }; state.draftDirty = false;
     }
     return state.draft.plan;
@@ -2811,7 +2901,7 @@ export function mount(container, opts = {}) {
       for (const d of GROUPS[scope].days) patch[String(d)] = plan;
       state.cfg = { ...state.cfg, weekday: { ...state.cfg.weekday, ...patch } };
       ok = await persistCfg({ weekday: patch });
-      if (ok) { state.draft = null; state.draftDirty = false; setStatus(`Plan für ${GROUPS[scope].long} gespeichert.${state.dayPlan && GROUPS[scope].days.includes(Number(wd)) ? " Für den angezeigten Tag gilt weiter die Tagesanpassung." : ""}`, false); }
+      if (ok) { refreshTodaySnap(); state.draft = null; state.draftDirty = false; setStatus(`Plan für ${GROUPS[scope].long} gespeichert.${state.dayPlan && GROUPS[scope].days.includes(Number(wd)) ? " Für den angezeigten Tag gilt weiter die Tagesanpassung." : ""}`, false); }
       return render();
     }
     if (scope === "day") {
@@ -2825,6 +2915,7 @@ export function mount(container, opts = {}) {
       ok = await persistCfg({ base: plan });
     }
     if (ok) {
+      if (scope !== "day") refreshTodaySnap();
       state.draft = null; state.draftDirty = false;
       const { source } = resolvePlan(state.date, state.dayPlan);
       const shadow = scope !== "day" && source === "day" ? " Für diesen Tag gilt weiter die Tagesanpassung." : (scope === "base" && source === "weekday" ? ` Für ${WD_PL[Number(wd)]} gilt weiter die Wochentag-Vorlage.` : "");
@@ -2841,6 +2932,7 @@ export function mount(container, opts = {}) {
       state.cfg = { ...state.cfg, weekday: w }; await persistCfg({ weekday: patch });
     } else if (scope === "day") { state.dayPlan = null; await persistDay(state.date, { plan: null }); }
     else { const w = { ...state.cfg.weekday }; delete w[wd]; state.cfg = { ...state.cfg, weekday: w }; await persistCfg({ weekday: { [wd]: null } }); }
+    if (scope !== "day") refreshTodaySnap();
     state.draft = null; state.draftDirty = false;
     render();
   }
@@ -2848,14 +2940,15 @@ export function mount(container, opts = {}) {
   // ---------- Rendering ----------
   function renderHeader() {
     const d = parseIso(state.date), plan = P(), ctx = timeCtx();
-    const { source } = resolvePlan(state.date, state.dayPlan);
+    const { source } = resolvePlan(state.date, state.dayPlan, false, state.daySnap);
     $("weekday").textContent = WD[d.getDay()] + (state.date === isoDate(new Date()) ? " · heute" : "");
     $("datelabel").textContent = `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
-    $("datesrc").textContent = source === "day" ? "angepasst" : source === "weekday" ? WD[d.getDay()].slice(0, 2) + "-Plan" : "";
+    $("datesrc").textContent = source === "day" ? "angepasst" : source === "snap" ? "Stand vom Tag" : source === "weekday" ? WD[d.getDay()].slice(0, 2) + "-Plan" : "";
     $("datepick").value = state.date;
     const act = activeShift(plan, ctx);
     $("clock").innerHTML = `${fmtMin(nowMin())}${act ? `<small>${SHIFT_META[act].label} bis ${plan[act].end}</small>` : ""}`;
     { const k = state.shiftSel || focusShift(plan, ctx), pr = progress(plan, k, state.checks); $("meta-shift").textContent = `${SHIFT_META[k].short} ${pr.done}/${pr.total}`; }
+    root.querySelector('[data-view="erstattung"]').hidden = !checkinsOn();
     const tabView = ["plan", "pin", "monat"].includes(state.view) ? "admin" : state.view;
     root.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", String(t.dataset.view === tabView)));
     const p = currentPerson(), pres = presentPeople(), bar = $("presence");
@@ -2878,6 +2971,7 @@ export function mount(container, opts = {}) {
     const typing = active && $("main").contains(active) && (active.tagName === "TEXTAREA" || (active.tagName === "INPUT" && !["checkbox", "radio", "file", "button", "submit"].includes(active.type)));
     if (typing || drag) { renderPending = true; renderHeader(); return; }
     renderPending = false;
+    if (state.view === "erstattung" && !checkinsOn()) state.view = "schicht";
     renderHeader();
     const v = state.view, main = $("main");
     main.hidden = v === "erstattung"; $("ciwrap").hidden = v !== "erstattung";
@@ -3031,6 +3125,13 @@ export function mount(container, opts = {}) {
       if (a === "t-pdf") { if (isUnlocked()) saveExport(buildPdf()); return; }
       if (a === "pin-cancel") { state.pinStage = null; state.view = "schicht"; render(); return; }
       if (a === "open-plan") return setView("plan");
+      if (a === "feat-checkins") {
+        if (!isUnlocked()) return;
+        const features = { ...(state.cfg.features || {}), checkins: !checkinsOn() };
+        state.cfg = { ...state.cfg, features };
+        persistCfg({ features });
+        render(); return;
+      }
       if (a === "open-month") return setView("monat");
       if (a === "open-roster") { state.view = "dienst"; state.rosterMonth = state.date.slice(0, 7); state.rosterEdit = true; render(); return; }
       if (a === "export") return downloadBackup();
@@ -3090,6 +3191,7 @@ export function mount(container, opts = {}) {
       state.edScope = t.dataset.edscope; state.draft = null; render(); return;
     }
     if (t.dataset.hread) { markHandRead(t.dataset.hread); render(); return; }
+    if (t.dataset.hopen) { state.handPop = t.dataset.hopen; renderRemind(); return; }
     if (t.dataset.log) return logAlways(t.dataset.shift, t.dataset.log);
     if (t.dataset.unlog) return unlogAlways(t.dataset.shift, t.dataset.unlog);
     if (t.dataset.toggle) { const id = t.dataset.toggle; state.expanded.has(id) ? state.expanded.delete(id) : state.expanded.add(id); render(); return; }
@@ -3233,6 +3335,7 @@ export function mount(container, opts = {}) {
     setStatus(statusLine(), state.readOnly || !!backupHint());
     if (disposed) return;
     subscribeCfg();
+    migrateSnaps();
     subscribeMonth();
     subscribeDay();
   })();

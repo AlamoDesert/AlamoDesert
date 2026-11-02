@@ -2,6 +2,13 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.11.0 – 02.11.2026
+- Vergangene Tage behalten ihren Stand: Jeder Tag hält beim ersten Eintrag seinen Plan fest (`snap`). Spätere Änderungen am Aufgaben-Plan verändern Aufgaben und Prozente vergangener Tage nicht mehr. Bestehende Tage mit Einträgen werden beim ersten Start einmalig mit dem dann gültigen Plan festgehalten.
+- Auschecken als Früh- oder Spätschicht erst, wenn die Schicht bei 100 % ist (Aufgaben und Pflicht-Bestätigungen, egal wer sie erledigt hat). Das Fenster listet die offenen Punkte zum direkten Abhaken; „Zurück zur Schicht“ markiert sie rot im Fahrplan. Keine Ausnahme.
+- Übergabe: erscheint nach jedem Einchecken als Fenster – auch ohne Übergabe (Hinweis „Keine Übergabe hinterlassen“) – mit optionaler Rückmeldung. Bis „Gelesen“ steht sie als Leiste über dem Fahrplan. Die Namensauswahl zeigt keine Übergabe-Hinweise mehr.
+- Kopfzeile größer (Name, Uhr, Reiter, Anwesende, Auschecken).
+- Check-ins sind standardmäßig ausgeschaltet; Verwaltung › Funktionen schaltet sie wieder ein (Daten bleiben erhalten).
+
 ## 1.10.0 – 02.11.2026
 - Zeiten: Ist eine Leitungs-PIN festgelegt, sieht jede Person nur ihre eigenen Zeiten (die gerade eingecheckte Person); die Zeiten anderer nur die Leitung. Ohne PIN bleibt die Namenswahl.
 - Datenschutz: Schriften (Barlow, Barlow Condensed) lokal eingebettet statt von Google Fonts geladen. SheetJS nur noch lokal (kein cdnjs), pdf.js nur noch im SharePoint-Betrieb von jsDelivr. Mac-App und Webversion rufen damit keine fremden Server mehr ab.
