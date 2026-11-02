@@ -2,6 +2,9 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.14.0 – 02.11.2026
+- Verwaltung übersichtlich: eine Liste in drei Gruppen (Planung, Auswertung, System), jede Zeile mit Status (z. B. Aufgaben pro Schicht, eingeteilte Tage, letzte Sicherung, PIN aktiv). Team, Datensicherung und Leitungs-PIN öffnen ein Fenster; „Arbeitszeiten aller“ führt direkt zu Korrektur und Export.
+
 ## 1.13.0 – 02.11.2026
 - Auschecken mit offenen Punkten geht jetzt für alle – aber nur mit Grund. Der Grund steht in den Zeiten (Notiz-Spalte und Export) als „Offen gelassen (n): …“.
 - Wer als Früh- oder Spätschicht eingecheckt ist, sieht nur die eigene Schicht; der Umschalter Früh/Spät entfällt dann.

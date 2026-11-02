@@ -792,6 +792,7 @@ export function mount(container, opts = {}) {
     edNew: null,         // zuletzt hinzugefügte Aufgabe (grün markiert)
     edPop: null,         // Bearbeiten-Fenster: { type: "item" | "phase" | "shift" | "always", id }
     edConfirmDel: false,
+    adminPop: null,      // Fenster in der Verwaltung: "team" | "backup" | "pin"
     taskRem: null,       // gerade angezeigte Aufgaben-Erinnerung { id, key, item }
     rosterHi: "",        // Dienstplan: Name, dessen Tage hervorgehoben werden
     importPreview: null, // eingelesener Arbeitsplan vor dem Übernehmen
@@ -1949,26 +1950,53 @@ export function mount(container, opts = {}) {
     if (days === null) return "Noch keine Sicherung (Verwaltung)";
     return days >= 7 ? `Sicherung ${days} Tage alt (Verwaltung)` : "";
   }
+  // Verwaltung: eine Liste mit Status in drei Gruppen; Team, Datensicherung und PIN öffnen ein Fenster (state.adminPop).
+  function backupStatus() {
+    const last = LS.get("rz2meta", {}).lastBackup, when = last ? new Date(last).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) : null;
+    if (state.mode === "shared") return { text: opts.mode === "sharepoint" ? "Gespeichert in SharePoint (Versionsverlauf)" : "Online gespeichert · Sicherung der Mac-App übernehmen", cls: "" };
+    if (NATIVE) return when ? { text: `Gesichert ${when} · automatisch`, cls: "ok" } : { text: "Noch keine Sicherung", cls: "bad" };
+    if (!backupDir) return { text: "Kein Sicherungsordner gewählt" + (when ? ` · zuletzt ${when}` : ""), cls: "bad" };
+    return when ? { text: `Gesichert ${when} · automatisch nach „${backupDir.name}“`, cls: "ok" } : { text: `Automatisch nach „${backupDir.name}“ · noch keine Sicherung`, cls: "" };
+  }
   function renderAdmin() {
-    const people = state.cfg.people.map((p, i) => `<li>
+    const m = getMaster(), ym = state.date.slice(0, 7), [yy, mm] = ym.split("-").map(Number), days = new Date(yy, mm, 0).getDate();
+    const items = (k) => m.plan[k].phases.reduce((n, p) => n + p.items.length, 0);
+    const rems = KEYS.reduce((n, k) => n + m.plan[k].phases.reduce((x, p) => x + p.items.filter(i => i.remind).length, 0), 0);
+    let planned = 0;
+    for (let d = 1; d <= days; d++) { const r = state.cfg.roster[`${ym}-${pad(d)}`]; if (r && ((r.frueh || []).length || (r.spaet || []).length)) planned++; }
+    const bs = backupStatus(), n = state.cfg.people.length;
+    const pinTxt = pinOff() ? { text: "Ausgeschaltet – Verwaltung und alle Zeiten sind für alle offen", cls: "bad" } : state.cfg.adminPin ? { text: "Aktiv · sperrt 10 Minuten nach der letzten Aktion", cls: "" } : { text: "Noch keine PIN festgelegt", cls: "bad" };
+    const row = (attr, title, st, cls = "") => `<button class="arow" ${attr}><span><b>${title}</b><small class="${cls}">${esc(st)}</small></span><span class="chev" aria-hidden="true">›</span></button>`;
+    const group = (title, rows) => `<section class="agroup" aria-label="${title}"><h3>${title}</h3><div class="alist">${rows}</div></section>`;
+    return `<div class="admin2"><h2>Verwaltung</h2>
+      ${group("Planung",
+        row('data-act2="open-plan"', "Aufgaben-Plan", `Früh ${items("frueh")} Aufgaben · Spät ${items("spaet")} Aufgaben${rems ? ` · ${rems} ${rems === 1 ? "Erinnerung" : "Erinnerungen"}` : ""}`) +
+        row('data-act2="open-roster"', "Dienstplan", `${MONTHS[mm - 1]}: ${planned} von ${days} Tagen eingeteilt`) +
+        row('data-adminpop="team"', "Team", `${n} ${n === 1 ? "Person" : "Personen"}`))}
+      ${group("Auswertung",
+        row('data-act2="open-month"', "Monatsstatistik", "Erledigt pro Tag und Schicht") +
+        row('data-act2="open-times"', "Arbeitszeiten aller", "Korrigieren, Excel- und PDF-Export"))}
+      ${group("System",
+        (state.mode === "loading" ? "" : row('data-adminpop="backup"', state.mode === "shared" ? "Datenspeicher" : "Datensicherung", bs.text, bs.cls)) +
+        (CHECKIN_URL ? `<div class="arow"><span><b>Check-ins</b><small>${checkinsOn() ? "Eingeschaltet" : "Ausgeschaltet"}</small></span><button class="switch${checkinsOn() ? " on" : ""}" role="switch" aria-checked="${checkinsOn()}" aria-label="Check-ins ${checkinsOn() ? "ausschalten" : "einschalten"}" data-act2="feat-checkins"><span></span></button></div>` : "") +
+        row('data-adminpop="pin"', "Leitungs-PIN", pinTxt.text, pinTxt.cls))}
+    </div>${state.adminPop ? renderAdminPop() : ""}`;
+  }
+  function renderAdminPop() {
+    const pop = state.adminPop, last = LS.get("rz2meta", {}).lastBackup;
+    const frame = (title, body) => `<div class="overlay inmain" role="dialog" aria-modal="true" aria-labelledby="ap-title"><div class="dialog adminpop">
+      <h2 id="ap-title">${title}</h2>${body}<div class="row"><button class="btn primary" data-adminpop-close="1">Fertig</button></div></div></div>`;
+    if (pop === "team") {
+      const people = state.cfg.people.map(p => `<li><span class="av" aria-hidden="true">${esc(initials(p.name))}</span>
         <input class="in" id="pp-${esc(p.id)}" data-person="${esc(p.id)}" value="${esc(p.name)}" maxlength="40" aria-label="Name">
-        ${state.confirm === "p:" + p.id ? `<button class="mini del confirm" data-act2="person-del" data-pid="${esc(p.id)}">Löschen?</button>` : `<button class="mini del" data-act2="person-del" data-pid="${esc(p.id)}" aria-label="Entfernen">✕</button>`}
-      </li>`).join("");
-    const last = LS.get("rz2meta", {}).lastBackup;
-    return `<div class="admin">
-      <section class="card"><div class="chead"><h2>Team</h2><span class="hint">${state.cfg.people.length} Personen</span></div>
-        <div class="cbody">
-          <ul class="people">${people || "<p>Noch niemand angelegt.</p>"}</ul>
-          <form id="addperson" class="people"><li><input class="in" id="newperson" maxlength="40" placeholder="Vor- und Nachname" aria-label="Neuer Name"><button class="btn" type="submit">Hinzufügen</button></li></form>
-          <p>Namen erscheinen bei der Auswahl zu Schichtbeginn und im Dienstplan. Entfernte Personen bleiben in alten Einträgen als Kürzel unsichtbar.</p>
-        </div></section>
-      <section class="card"><div class="chead"><h2>Aufgaben &amp; Zeiten</h2></div>
-        <div class="cbody"><p>Abschnitte, Aufgaben, Erinnerungen und Daueraufgaben – ein Plan für jeden Tag, Uhrzeiten getrennt für Mo–Fr und Sa+So. Änderungen gelten sofort.</p>
-          <button class="btn primary" data-act2="open-plan">Aufgaben-Plan bearbeiten</button>
-          <button class="btn" data-act2="open-roster">Dienstplan bearbeiten</button>
-          <button class="btn" data-act2="open-month">Monatsstatistik</button></div></section>
-      ${state.mode === "local" ? `<section class="card"><div class="chead"><h2>Datensicherung</h2></div>
-        <div class="cbody">${NATIVE ? `<p>Die Daten liegen in der App auf diesem Mac. Bei jedem Schichtbeginn und zum Tagesabschluss legt die App automatisch eine Sicherung ab – „rezeption-sicherung-aktuell.json“ und eine Datei pro Tag.</p>
+        ${state.confirm === "p:" + p.id ? `<button class="btn sm danger" data-act2="person-del" data-pid="${esc(p.id)}">Wirklich entfernen?</button>` : `<button class="btn ghost sm danger" data-act2="person-del" data-pid="${esc(p.id)}">Entfernen</button>`}</li>`).join("");
+      return frame(`Team · ${state.cfg.people.length} ${state.cfg.people.length === 1 ? "Person" : "Personen"}`, `
+        ${people ? `<ul class="teamlist">${people}</ul>` : "<p>Noch niemand angelegt.</p>"}
+        <form id="addperson" class="pkadd"><input class="in" id="newperson" maxlength="40" placeholder="Vor- und Nachname" aria-label="Neue Person"><button class="btn primary" type="submit">Hinzufügen</button></form>
+        <p class="hint">Namen erscheinen bei der Anmeldung und im Dienstplan. Entfernte Personen bleiben in alten Einträgen erhalten.</p>`);
+    }
+    if (pop === "backup") return frame(state.mode === "shared" ? "Datenspeicher" : "Datensicherung", `<div class="apbody">
+      ${state.mode === "local" ? `${NATIVE ? `<p>Die Daten liegen in der App auf diesem Mac. Bei jedem Schichtbeginn und zum Tagesabschluss legt die App automatisch eine Sicherung ab – „rezeption-sicherung-aktuell.json“ und eine Datei pro Tag.</p>
           <p>Ordner: <b>${esc((nativeInfo && nativeInfo.backupDir) || "Dokumente/Rezeption Sicherungen")}</b></p>
           <button class="btn primary" data-act2="backup-now">Jetzt sichern</button>
           <button class="btn" data-act2="backup-open">Ordner im Finder zeigen</button>
@@ -1985,23 +2013,18 @@ export function mount(container, opts = {}) {
              <button class="btn" data-act2="export">Einmalig herunterladen</button>`}`}
           <p>Letzte Sicherung: <b>${last ? new Date(last).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) : "noch nie"}</b></p>
           <label class="btn" for="rzfile" data-filepick="backup">Sicherung einspielen</label>
-          <p id="import-msg"></p></div></section>` : state.mode === "shared" ? `<section class="card"><div class="chead"><h2>Datenspeicher</h2></div>
-        <div class="cbody">${opts.mode === "sharepoint" ? `<p>Alle Daten liegen in der SharePoint-Bibliothek <b>${esc(opts.library || "RezeptionDaten")}</b> dieser Website. SharePoint speichert jede Änderung im Versionsverlauf – ein früherer Stand lässt sich dort wiederherstellen.</p>` : `<p>Die Webversion speichert online und ist für alle mit dem Link gleich. Die Mac-App hat ihre eigenen Daten – beide gleichen sich nicht ab.</p>`}
+          <p id="import-msg"></p>` : state.mode === "shared" ? `${opts.mode === "sharepoint" ? `<p>Alle Daten liegen in der SharePoint-Bibliothek <b>${esc(opts.library || "RezeptionDaten")}</b> dieser Website. SharePoint speichert jede Änderung im Versionsverlauf – ein früherer Stand lässt sich dort wiederherstellen.</p>` : `<p>Die Webversion speichert online und ist für alle mit dem Link gleich. Die Mac-App hat ihre eigenen Daten – beide gleichen sich nicht ab.</p>`}
           <p>Daten aus der bisherigen Mac-Version übernehmen: dort unter Verwaltung › Datensicherung eine Sicherung herunterladen und hier einspielen.</p>
           <label class="btn" for="rzfile" data-filepick="backup">Sicherung übernehmen</label>
-          <p id="import-msg"></p></div></section>` : ""}
-      ${CHECKIN_URL ? `<section class="card"><div class="chead"><h2>Funktionen</h2></div>
-        <div class="cbody"><div class="featrow"><span><b>Check-ins</b><small>Reiter „Check-ins“ und die Knöpfe im Fahrplan. Ausgeschaltet bleiben die gespeicherten Daten erhalten.</small></span>
-          <button class="switch${checkinsOn() ? " on" : ""}" role="switch" aria-checked="${checkinsOn()}" aria-label="Check-ins ${checkinsOn() ? "ausschalten" : "einschalten"}" data-act2="feat-checkins"><span></span></button></div></div></section>` : ""}
-      <section class="card"><div class="chead"><h2>Leitungs-PIN</h2></div>
-        <div class="cbody">${pinOff()
+          <p id="import-msg"></p>` : ""}</div>`);
+    if (pop === "pin") return frame("Leitungs-PIN", `<div class="apbody">${pinOff()
           ? `<p><b>PIN ist deaktiviert.</b> Verwaltung, Aufgaben-Plan, Dienstplan-Bearbeitung und alle Zeiten sind für alle offen.</p>
           <button class="btn primary" data-act2="pin-change">PIN festlegen</button>`
           : `<p>Entsperrt für 10 Minuten nach der letzten Aktion.</p>
           <button class="btn" data-act2="pin-change">PIN ändern</button>
           <button class="btn ghost" data-act2="lock">Jetzt sperren</button>
-          ${state.confirm === "pin-off" ? `<button class="btn danger" data-act2="pin-off">Wirklich deaktivieren?</button>` : `<button class="btn ghost danger" data-act2="pin-off-ask">PIN deaktivieren</button>`}`}</div></section>
-    </div>`;
+          ${state.confirm === "pin-off" ? `<button class="btn danger" data-act2="pin-off">Wirklich deaktivieren?</button>` : `<button class="btn ghost danger" data-act2="pin-off-ask">PIN deaktivieren</button>`}`}</div>`);
+    return "";
   }
   function addPerson(name) {
     name = name.trim().slice(0, 40);
@@ -3215,6 +3238,7 @@ export function mount(container, opts = {}) {
   }
   function setView(v) {
     if (v !== "plan") { state.edPop = null; state.edAdd = null; state.edNew = null; }
+    if (v !== "admin") state.adminPop = null;
     else if (state.view !== "plan") openFirstPhase();
     if (v === "admin" || v === "plan" || v === "monat") { if (!requireAdmin(v)) return; }
     if (v === "schicht") state.shiftSel = null; // Tab „Schicht“ zeigt immer die laufende Schicht
@@ -3237,6 +3261,8 @@ export function mount(container, opts = {}) {
   main.addEventListener("click", (e) => {
     const t = e.target.closest("button");
     if (!t || t.disabled) return;
+    if (t.dataset.adminpop) { blurActive(); state.adminPop = t.dataset.adminpop; state.confirm = null; render(); return; }
+    if (t.dataset.adminpopClose) { blurActive(); state.adminPop = null; state.confirm = null; render(); return; }
     // Aufgaben-Plan
     if (t.dataset.edshift) { state.edShift = t.dataset.edshift; state.edAdd = null; state.edNew = null; openFirstPhase(); render(); return; }
     if (t.dataset.edopen) { const id = t.dataset.edopen; state.edOpen.has(id) ? state.edOpen.delete(id) : state.edOpen.add(id); if (state.edAdd === id) state.edAdd = null; render(); return; }
@@ -3277,7 +3303,9 @@ export function mount(container, opts = {}) {
         persistCfg({ features });
         render(); return;
       }
+      if (["open-plan", "open-roster", "open-month", "open-times", "pin-change", "lock"].includes(a)) state.adminPop = null;
       if (a === "open-month") return setView("monat");
+      if (a === "open-times") { setView("zeiten"); if (isUnlocked()) { state.timesAll = true; state.timesPerson = ""; render(); } return; }
       if (a === "open-roster") { state.view = "dienst"; state.rosterMonth = state.date.slice(0, 7); state.rosterEdit = true; render(); return; }
       if (a === "export") return downloadBackup();
       if (a === "import-cancel") { state.importPreview = null; render(); return; }

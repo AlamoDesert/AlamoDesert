@@ -429,12 +429,6 @@ label.btn[for="rzfile"] { cursor: pointer; display: inline-block; text-align: ce
 
 /* Verwaltung */
 .check-inline { display: flex; gap: 8px; align-items: center; font-size: 14px }
-.admin { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-top: 12px; align-items: start }
-.admin .card .cbody { padding: 12px; display: grid; gap: 10px }
-.admin p { margin: 0; font-size: 13px; color: var(--muted) }
-.people { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px }
-.people li { display: flex; gap: 6px; align-items: center }
-.people .in { flex: 1 }
 .pinform { max-width: 360px; margin: 40px auto 0; display: grid; gap: 10px; text-align: center }
 .pinform h2 { margin: 0; font-family: var(--f-display); font-size: 24px; text-transform: uppercase }
 .pinform .in { font-size: 22px; text-align: center; letter-spacing: .3em; padding: 10px }
@@ -575,3 +569,29 @@ ul.edlist li.dragging { box-shadow: 0 6px 20px rgba(0, 0, 0, .18); position: rel
 .taskrem h2 { font-size: 32px; line-height: 1.1 }
 .btn.done { background: var(--done); border-color: var(--done) }
 .ttab td.tnotecell.gap { color: var(--warn) }
+/* Verwaltung: Liste mit Status in Gruppen, Details im Fenster */
+.admin2 { max-width: 760px; margin: 14px auto 0; display: grid; gap: 16px }
+.admin2 > h2 { margin: 0; font-family: var(--f-display); font-size: 28px; text-transform: uppercase; letter-spacing: .03em }
+.agroup { display: grid; gap: 6px }
+.agroup h3 { margin: 0 0 0 4px; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted) }
+.alist { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden }
+.arow { width: 100%; display: flex; align-items: center; gap: 14px; padding: 13px 16px; border: 0; background: var(--surface); text-align: left; min-height: 60px }
+.alist > .arow + .arow { border-top: 1px solid var(--line) }
+button.arow:hover { background: var(--surface-2) }
+.arow > span:first-child { flex: 1; min-width: 0 }
+.arow b { font-size: 17px; font-weight: 600 }
+.arow small { display: block; font-size: 14px; color: var(--muted); margin-top: 1px }
+.arow small.ok { color: var(--done); font-weight: 600 }
+.arow small.bad { color: var(--warn); font-weight: 600 }
+.arow .chev { color: var(--na); font-size: 24px; line-height: 1 }
+.dialog.adminpop { width: min(600px, 100%) }
+.apbody { display: grid; gap: 10px; justify-items: start }
+.apbody p { margin: 0 }
+.apbody .btn { min-width: 220px }
+.teamlist { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; max-height: 46vh; overflow-y: auto }
+.teamlist li { display: flex; align-items: center; gap: 10px; padding: 6px 10px }
+.teamlist li + li { border-top: 1px solid var(--line) }
+.teamlist .av { flex: none; width: 32px; height: 32px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font-size: 12px; font-weight: 700 }
+.teamlist .in { flex: 1; border-color: transparent; background: none; font-size: 16px }
+.teamlist .in:focus { border-color: var(--line); background: var(--surface-2) }
+.btn.danger:not(.ghost) { background: var(--warn); border-color: var(--warn); color: #fff }
