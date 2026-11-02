@@ -4,7 +4,7 @@
 //   pdfjs/, vendor/                              – pdf.js und SheetJS als lokale Kopie für die Webversion (nicht committet)
 //   sharepoint/src/webparts/rezeption/app.gen.ts – Modul für das SharePoint-Webpart (falls das Projekt existiert)
 // Aufruf: node tools/build.mjs
-import { readFileSync, writeFileSync, existsSync, copyFileSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -69,6 +69,8 @@ mount(container, { root, mode: "auto", fitViewport: true, standalone: true, chec
 writeFileSync(join(repo, "index.html"), html);
 console.log("index.html geschrieben (" + html.length + " Zeichen)");
 // Check-in-Erstattung: eigene Seite neben index.html (Reiter „Check-ins“ lädt sie im iframe), Schriften eingesetzt.
+// Rohe Steuerzeichen (nur in String-/Regex-Literalen) werden zu \uXXXX – gleiche Bedeutung, aber auf claude.ai veröffentlichbar.
+const escapeControls = (txt) => txt.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\ufffd]/g, c => "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0"));
 const FONT_MARK = /^<!-- RZ-FONTS:.*-->$/m;
 const checkinSrc = readFileSync(join(repo, "app/checkin.html"), "utf8");
 if (!FONT_MARK.test(checkinSrc)) throw new Error("app/checkin.html: Markierung <!-- RZ-FONTS: … --> fehlt");
@@ -78,18 +80,16 @@ console.log("checkin.html geschrieben (Schriften eingebettet)");
 const xlsxSrc = join(repo, "mac/node_modules/xlsx/dist/xlsx.full.min.js");
 if (existsSync(xlsxSrc)) {
   mkdirSync(join(repo, "vendor"), { recursive: true });
-  copyFileSync(xlsxSrc, join(repo, "vendor/xlsx.full.min.js"));
+  writeFileSync(join(repo, "vendor/xlsx.full.min.js"), escapeControls(readFileSync(xlsxSrc, "utf8")));
   console.log("vendor/xlsx.full.min.js geschrieben");
 } else console.log("xlsx fehlt (cd mac && npm install) – vendor/ übersprungen");
 // pdf.js für die Webversion (claude.ai lädt fremde Skripte nicht zuverlässig): Kopie in pdfjs/ neben index.html.
-// Rohe Steuerzeichen (nur in String-/Regex-Literalen) werden zu \uXXXX – gleiche Bedeutung, aber veröffentlichbar.
 // Legacy-Fassung: läuft auch in älterem Safari (iPad < iPadOS 17.4 kennt z. B. Promise.withResolvers nicht).
 const pdfSrc = join(repo, "mac/node_modules/pdfjs-dist/legacy/build");
 if (existsSync(pdfSrc)) {
   mkdirSync(join(repo, "pdfjs"), { recursive: true });
   for (const f of ["pdf.min.mjs", "pdf.worker.min.mjs"]) {
-    const txt = readFileSync(join(pdfSrc, f), "utf8").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\ufffd]/g, c => "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0"));
-    writeFileSync(join(repo, "pdfjs", f), txt);
+    writeFileSync(join(repo, "pdfjs", f), escapeControls(readFileSync(join(pdfSrc, f), "utf8")));
   }
   console.log("pdfjs/ geschrieben");
 } else console.log("pdfjs-dist fehlt (cd mac && npm install) – pdfjs/ übersprungen");
