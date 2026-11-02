@@ -34,7 +34,7 @@ Live unter https://courtside-turniere.netlify.app (Netlify-Site-ID `5bae8eb4-f74
 
 ## Live Karten (`atlas/`)
 
-Eigene Web-App (PWA, kein Build): freie Live-Daten ohne Registrierung/API-Key auf einer Karte (eigener Nachbau einer OSINT-Lagekarte, ohne Paywall). Netlify-Basisverzeichnis `atlas/`. Noch nicht veröffentlicht.
+Eigene Web-App (PWA, kein Build): freie Live-Daten ohne Registrierung/API-Key auf einer Karte (eigener Nachbau einer OSINT-Lagekarte, ohne Paywall). Netlify-Basisverzeichnis `atlas/`. Netlify-Site `live-karten` (ID `d0f5a4b1-bbdc-4bc9-b83e-1d5aaea5f44e`, künftig https://live-karten.netlify.app; nur Produktion öffentlich), noch ohne Deploy. Veröffentlichen wie bei Courtside: `deploy-site` mit dieser `siteId`, Befehl im Ordner `atlas/` auf dem Pi ausführen.
 
 - `public/` – MapLibre GL 5.24.0 lokal in `vendor/maplibre/` (BSD-3), Grundkarte OpenFreeMap (`liberty`/`dark` nach Systemthema). Ist die Grundkarte nicht erreichbar, lädt `fetchStyle` einen leeren Ersatzstil, die Live-Ebenen laufen weiter. Ausschnitt steht in der Adresse (`#karte=z/lat/lon`), aktive Ebenen in `localStorage` `livekarten.v1`.
 - `public/layers.js` – Ebenen-Register: `requests(map)` (Abfragen für den Ausschnitt oder `hint`), `refresh` (ms), `install` (MapLibre-Ebenen), `detail` (Detailkarte), `attribution` (hängt an der GeoJSON-Quelle). Neue Ebene = Eintrag hier + Quelle in `sources.mts`.
