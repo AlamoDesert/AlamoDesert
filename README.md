@@ -1,11 +1,12 @@
 # AlamoDesert
 
-Zwei unabhängige Anwendungen für den Club:
+Drei unabhängige Anwendungen:
 
 | Ordner | Anwendung | Kurzbeschreibung |
 | --- | --- | --- |
 | `app/`, `mac/`, `sharepoint/`, `tools/` | **Rezeption Schichtcheck** | Digitale Checkliste für Früh- und Spätschicht mit Dienstplan, Zeiterfassung, Schichtübergabe und Check-in-Erstattung (USC, Wellpass, Wellhub, Hansefit gegen Playtomic). |
 | `courtside/` | **Courtside** | Turnier-App (PWA) für Padel, Pickleball und Tennis mit Online-Anmeldung, live unter https://courtside-turniere.netlify.app. |
+| `atlas/` | **Live Karten** | Karte mit freien Live-Daten (Flugzeuge, Erdbeben, Verkehrskameras), PWA mit Netlify-Proxy. Details in CLAUDE.md. |
 
 ## Rezeption Schichtcheck – wo läuft was
 
