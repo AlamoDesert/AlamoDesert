@@ -2,6 +2,9 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.15.0 – 03.11.2026
+- Check-ins neu gegliedert: Ablauf in drei Schritten (Dateien laden · Prüfen · Wallet buchen), jeder Schritt zeigt seinen Stand. Nach „Prüfen“ geht es automatisch weiter. „Wird erstattet“ und „Keine Erstattung“ sind eingeklappt, solange noch etwas zu entscheiden ist. Regeln & Preise und Hansefit-Liste liegen hinter „Einstellungen“.
+
 ## 1.14.0 – 02.11.2026
 - Verwaltung übersichtlich: eine Liste in drei Gruppen (Planung, Auswertung, System), jede Zeile mit Status (z. B. Aufgaben pro Schicht, eingeteilte Tage, letzte Sicherung, PIN aktiv). Team, Datensicherung und Leitungs-PIN öffnen ein Fenster; „Arbeitszeiten aller“ führt direkt zu Korrektur und Export.
 
