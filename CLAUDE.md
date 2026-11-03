@@ -36,8 +36,23 @@ Live unter https://courtside-turniere.netlify.app (Netlify-Site-ID `5bae8eb4-f74
 - `public/sw.js` – Offline-Cache, `/api/*` geht immer ans Netz. Bei Änderungen an Dateien `CACHE` hochzählen.
 - `public/vendor/qrcode.js` – QR-Code-Generator (Kazuhiko Arase, MIT), unverändert.
 
+## Live Karten (`atlas/`)
+
+Eigene Web-App (PWA, kein Build): freie Live-Daten ohne Registrierung/API-Key auf einer Karte (eigener Nachbau einer OSINT-Lagekarte, ohne Paywall). Netlify-Basisverzeichnis `atlas/`. Netlify-Site `live-karten` (ID `d0f5a4b1-bbdc-4bc9-b83e-1d5aaea5f44e`, künftig https://live-karten.netlify.app; nur Produktion öffentlich), noch ohne Deploy. Veröffentlichen wie bei Courtside: `deploy-site` mit dieser `siteId`, Befehl im Ordner `atlas/` auf dem Pi ausführen.
+
+- `public/` – MapLibre GL 5.24.0 lokal in `vendor/maplibre/` (BSD-3), Grundkarte OpenFreeMap (`liberty`/`dark` nach Systemthema). Ist die Grundkarte nicht erreichbar, lädt `fetchStyle` einen leeren Ersatzstil, die Live-Ebenen laufen weiter. Ausschnitt steht in der Adresse (`#karte=z/lat/lon`), aktive Ebenen in `localStorage` `livekarten.v1`.
+- `public/layers.js` – Ebenen-Register: `requests(map)` (Abfragen für den Ausschnitt oder `hint`), `refresh` (ms), `install` (MapLibre-Ebenen), `detail` (Detailkarte), `attribution` (hängt an der GeoJSON-Quelle). Neue Ebene = Eintrag hier + Quelle in `sources.mts`.
+- `netlify/functions/feed/` – Proxy `/api/feed/<quelle>`: `sources.mts` (URLs, Parameterprüfung, Normalisierung auf `{id, lon, lat, heading, label, props}`), `core.mts` (Cache pro Instanz, gemeinsame Upstream-Abfrage, Ausweichquelle, alte Daten als `stale` bis 30 × TTL, `Netlify-CDN-Cache-Control` durable), `feed.mts` (Netlify-Anbindung). Alle Abrufe laufen über den Proxy, damit Limits wie 1 Anfrage/s bei airplanes.live auch bei vielen Besuchern halten.
+- Flugzeuge: adsb.lol, Ausweich airplanes.live (readsb-Format), feste 4°-Zellen mit 250-NM-Umkreis (`CELL` in `sources.mts` und `layers.js` gleich halten), ab Zoom 5, max. 16 Zellen. Erdbeben: USGS `all_day`.
+- Verkehrskameras (`cams`, Abfrage `?p=<anbieter>`, TTL 600 s): TfL JamCams, NYC DOT, Caltrans (`caltrans-1`…`-12`, eine Datei pro Bezirk), Digitraffic-Wetterkameras. `CAM_PROVIDERS` in `sources.mts` (URL + Parser) und in `layers.js` (Abdeckung als bbox, Bildtakt) gleich halten; der Client fragt nur Anbieter im Ausschnitt ab. Bilder lädt der Browser direkt beim Anbieter (nur https, `img[data-refresh]` lädt sich neu, solange die Detailkarte offen ist). Darstellung mit MapLibre-Clustern, Gruppe antippen zoomt hinein. Formate nach Doku, gegen echte Antworten erst per `probe.mjs` geprüft.
+- `tools/probe.mjs` – prüft alle geplanten Quellen (Status, CORS, Format; `--tcp` für Kystverket-AIS). In der Cloud-Umgebung sind die Quellen gesperrt → auf dem Pi ausführen.
+- Geplant: Lage (GDACS, EONET, GDELT), Wetter (RainViewer), Weltraum (CelesTrak), Schiffe (Digitraffic, Kystverket über den Pi), Züge (Digitraffic). Kein weltweites AIS und keine kuratierten Konfliktdaten ohne Registrierung.
+- `public/sw.js` – bei Änderungen an Dateien `CACHE` hochzählen.
+
 ## Testen
 
 Checkliste: kein automatisiertes Test-Setup. Lokal: `index.html` im Browser öffnen. SharePoint ohne Tenant: `node tools/sp-mock.mjs 8899` startet einen Nachbau der genutzten REST-Endpunkte und liefert `http://localhost:8899/sites/rez/test.html` (App im SharePoint-Modus, Abgleich jede Sekunde). `/__dump` zeigt die gespeicherten Dateien, `/__fail?n=3` lässt die nächsten Schreibzugriffe scheitern. Mit `PDFJS_DIR=<pdfjs-dist>/build` liefert der Nachbau pdf.js lokal aus (für PDF-Import-Tests ohne Internet).
 
 Courtside (im Ordner `courtside/`): `npm test` prüft Engine und API. `npm run dev` startet `dev/server.mjs` auf Port 8888: liefert `public/` aus und beantwortet `/api/*` mit einem Speicher im Arbeitsspeicher, so lässt sich die Online-Anmeldung lokal mit mehreren Browserfenstern durchspielen.
+
+Live Karten (im Ordner `atlas/`): `npm test` prüft Normalisierung und Proxy. `npm run dev` startet `dev/server.mjs` auf Port 8890 mit echten Quellen, `npm run dev:mock` mit erfundenen Daten (`dev/mock.mjs`, ohne Internet). `npm run probe` prüft die Erreichbarkeit aller Quellen.
