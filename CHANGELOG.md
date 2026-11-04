@@ -2,6 +2,11 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.17.0 – 04.11.2026
+- Sicherungen verschlüsseln (einschaltbar unter Verwaltung › Datensicherung): Passwort der Leitung plus einmal angezeigter Wiederherstellungscode. Die automatische Sicherung läuft weiter ohne Eingabe; beim Einspielen fragt die App nach Passwort oder Code. Unverschlüsselte Sicherungen lassen sich weiter einspielen.
+- Alte Daten löschen nach dem Löschkonzept (Verwaltung › System): Protokoll und Übergaben nach 3 Monaten, Dienstplan nach 1 Jahr, Arbeitszeiten 2 Jahre nach Jahresende – mit Anzeige, was fällig ist, Bestätigung und Nachweis. Check-in-Fortschritt wird nach 3 Monaten automatisch entfernt.
+- Leitungs-PIN sicherer gespeichert (gesalzen, langsamer Hash; Umstellung beim nächsten Entsperren) und nach 5 Fehlversuchen kurz gesperrt.
+
 ## 1.16.0 – 04.11.2026
 - Erinnerungen „zur Sicherheit“: Pro Aufgabe wählbar, ob die Erinnerung nur bei offener Aufgabe kommt oder immer – dann auch, wenn sie schon erledigt ist („Schon erledigt … – bitte kurz kontrollieren“, Knopf „Kontrolliert“). Im Aufgaben-Plan steht dann „· immer“ an der Glocke.
 

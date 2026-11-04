@@ -74,4 +74,4 @@ Kein automatisiertes Test-Setup für die Rezeption. Mindestens prüfen:
 - Zum Nachstellen von Fehlern nur erfundene Daten oder eine vom Betreiber geschwärzte Sicherung verwenden.
 - Die **Webversion** enthält nur Testdaten. Keine Mac-Sicherung dort einspielen.
 - **Keine externen Abrufe** (Schriften, CDNs, APIs): Sie übertragen die IP-Adresse an Dritte. Schriften liegen in `app/fonts/`, Fremdbibliotheken werden lokal gebündelt. Einzige Ausnahme: pdf.js von jsDelivr im SharePoint-Betrieb.
-- Sicherungen enthalten die gesamte Historie inkl. Check-in-Kundendaten (`cir.*`) und den PIN-Hash. Änderungen an `backupPayload()` / `rz:saveBackup` mit dem Betreiber abstimmen.
+- Sicherungen enthalten die gesamte Historie inkl. Check-in-Kundendaten (`cir.*`) und den PIN-Hash. Die Leitung kann sie verschlüsseln (`version: 2`, siehe CLAUDE.md). Das Einspielen muss für `version: 1` (Klartext) und `version: 2` funktionieren. Änderungen an `backupPayload()` / `rz:saveBackup` mit dem Betreiber abstimmen.

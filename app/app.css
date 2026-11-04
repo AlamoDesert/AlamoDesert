@@ -597,3 +597,9 @@ button.arow:hover { background: var(--surface-2) }
 .btn.danger:not(.ghost) { background: var(--warn); border-color: var(--warn); color: #fff }
 .remwhen { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 8px 18px }
 .taskrem .trdone { color: var(--done); font-weight: 600 }
+/* Datensicherung: Verschlüsselung, Wiederherstellungscode, Löschen alter Daten */
+.encbox { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 4px; display: grid; gap: 8px; justify-items: start; width: 100% }
+.enccode { font: 700 24px/1.3 ui-monospace, Menlo, Consolas, monospace; letter-spacing: .06em; background: var(--surface-2); border: 2px dashed var(--accent); border-radius: 10px; padding: 14px 16px; text-align: center; user-select: all; -webkit-user-select: all }
+.cltab { border-collapse: collapse; width: 100%; font-size: 14px }
+.cltab th, .cltab td { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top }
+.cltab th { color: var(--muted); font-size: 12.5px }

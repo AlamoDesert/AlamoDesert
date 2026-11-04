@@ -769,7 +769,7 @@ export function mount(container, opts = {}) {
     logs: {},            // Daueraufgaben: { frueh|spaet: { <id>: { <key>: {at, by} | null } } }
     dayPlan: null,       // Tagesanpassung (normalisiert) oder null
     daySnap: null,       // festgehaltener Plan-Stand des Tages (gilt nur für vergangene Tage)
-    cfg: { base: null, weekday: {}, people: [], roster: {}, adminPin: null, features: { checkins: false }, master: null }, // Pläne, Team, Dienstplan, Leitungs-PIN, Funktionen
+    cfg: { base: null, weekday: {}, people: [], roster: {}, adminPin: null, features: { checkins: false }, master: null, backupKey: null }, // Pläne, Team, Dienstplan, Leitungs-PIN, Funktionen
     docExists: false, cfgExists: false,
     month: {},           // date -> { checks, plan }
     names: {},
@@ -792,7 +792,9 @@ export function mount(container, opts = {}) {
     edNew: null,         // zuletzt hinzugefügte Aufgabe (grün markiert)
     edPop: null,         // Bearbeiten-Fenster: { type: "item" | "phase" | "shift" | "always", id }
     edConfirmDel: false,
-    adminPop: null,      // Fenster in der Verwaltung: "team" | "backup" | "pin"
+    adminPop: null,      // Fenster in der Verwaltung: "team" | "backup" | "pin" | "encsetup" | "enccode" | "decrypt" | "cleanup"
+    pendingImport: null, // verschlüsselte Sicherung, die auf Passwort/Code wartet
+    encCode: null,       // frisch erzeugter Wiederherstellungscode (nur bis „Fertig“ im Speicher)
     taskRem: null,       // gerade angezeigte Aufgaben-Erinnerung { id, key, item }
     rosterHi: "",        // Dienstplan: Name, dessen Tage hervorgehoben werden
     importPreview: null, // eingelesener Arbeitsplan vor dem Übernehmen
@@ -901,11 +903,17 @@ export function mount(container, opts = {}) {
         roster[d] = e;
       }
     }
-    state.cfg = { base: data ? normalizePlan(data.base) : null, weekday, people, roster, adminPin: data && typeof data.adminPin === "string" ? data.adminPin.slice(0, 64) : null,
+    state.cfg = { base: data ? normalizePlan(data.base) : null, weekday, people, roster, adminPin: data && typeof data.adminPin === "string" ? data.adminPin.slice(0, 200) : null,
       features: { checkins: !!(data && data.features && data.features.checkins === true) },
-      master: data ? normalizeMaster(data.master) : null };
+      master: data ? normalizeMaster(data.master) : null,
+      backupKey: data ? normalizeBackupKey(data.backupKey) : null };
   }
 
+  // Schlüssel für verschlüsselte Sicherungen: nur Form prüfen (Inhalte sind base64).
+  function normalizeBackupKey(k) {
+    const w = (x) => x && typeof x === "object" && ["salt", "iv", "ct"].every(f => typeof x[f] === "string" && x[f].length < 20000) && Number.isInteger(x.iter) && x.iter >= 100000;
+    return k && typeof k === "object" && k.v === 1 && typeof k.pub === "string" && k.pub.length < 4000 && w(k.pw) && w(k.code) ? { v: 1, created: String(k.created || ""), pub: k.pub, pw: k.pw, code: k.code } : null;
+  }
   function currentDayDoc() {
     return { month: state.date.slice(0, 7), checks: state.checks, notes: state.notes, read: state.read, logs: state.logs, time: state.time, plan: state.dayPlan, snap: state.daySnap };
   }
@@ -1054,7 +1062,7 @@ export function mount(container, opts = {}) {
   function cfgPayload() {
     const weekday = {};
     for (const k of Object.keys(state.cfg.weekday)) weekday[k] = state.cfg.weekday[k];
-    return { base: state.cfg.base, weekday, people: state.cfg.people, roster: state.cfg.roster, adminPin: state.cfg.adminPin, features: state.cfg.features, master: state.cfg.master || null };
+    return { base: state.cfg.base, weekday, people: state.cfg.people, roster: state.cfg.roster, adminPin: state.cfg.adminPin, features: state.cfg.features, master: state.cfg.master || null, backupKey: state.cfg.backupKey || null };
   }
   const persistCfg = (patch) => persistDoc("config/plan", patch, cfgPayload(), "rz2cfg", cfgPayload());
 
@@ -1883,6 +1891,26 @@ export function mount(container, opts = {}) {
 
   // ---------- Leitungsbereich (PIN) ----------
   // Einfacher Schutz gegen versehentliche Änderungen auf dem Gemeinschaftsrechner – keine echte Zugriffskontrolle.
+  // Ab 1.17: gesalzener, langsamer Hash (PBKDF2-SHA256) „p2:<salz>:<runden>:<hash>“. Alte „f1:“-Hashes gelten weiter
+  // und werden beim nächsten richtigen Entsperren umgestellt. Nach 5 Fehlversuchen sperrt die Eingabe (gerätebezogen, rz2pinlock).
+  const PIN_ITER = 150000;
+  const hex = (buf) => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
+  const unhex = (h) => new Uint8Array((h.match(/../g) || []).map(x => parseInt(x, 16)));
+  async function pbkdf2Hex(pin, saltHex, iter) {
+    const key = await crypto.subtle.importKey("raw", new TextEncoder().encode("rezeption:" + pin), "PBKDF2", false, ["deriveBits"]);
+    return hex(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: unhex(saltHex), iterations: iter }, key, 256));
+  }
+  async function pinHashSecure(pin) {
+    const salt = hex(crypto.getRandomValues(new Uint8Array(16)));
+    return `p2:${salt}:${PIN_ITER}:${await pbkdf2Hex(pin, salt, PIN_ITER)}`;
+  }
+  async function pinMatches(pin, stored) {
+    if (typeof stored !== "string") return false;
+    if (stored.startsWith("f1:")) return pinHash(pin) === stored;
+    const m = stored.match(/^p2:([0-9a-f]{32}):(\d{4,7}):([0-9a-f]{64})$/);
+    return !!m && (await pbkdf2Hex(pin, m[1], Number(m[2]))) === m[3];
+  }
+  const pinLock = () => { const l = LS.get("rz2pinlock", null); return l && typeof l === "object" ? l : { fails: 0, until: 0 }; };
   function pinHash(pin) {
     let h = 0x811c9dc5;
     for (const ch of "rezeption:" + pin) { h ^= ch.charCodeAt(0); h = Math.imul(h, 0x01000193) >>> 0; }
@@ -1925,12 +1953,23 @@ export function mount(container, opts = {}) {
     if (st.mode === "set") {
       if (!st.first) { state.pinStage = { ...st, first: val }; render(); setTimeout(() => { const el = $("pin-in"); if (el) el.focus(); }, 0); return; }
       if (st.first !== val) { state.pinStage = { ...st, first: null }; render(); setTimeout(() => { const m2 = $("pin-msg"); if (m2) m2.textContent = "Die PINs stimmen nicht überein. Bitte neu festlegen."; }, 0); return; }
-      state.cfg = { ...state.cfg, adminPin: pinHash(val) };
+      state.cfg = { ...state.cfg, adminPin: await pinHashSecure(val) };
       await persistCfg({ adminPin: state.cfg.adminPin });
-    } else if (pinHash(val) !== state.cfg.adminPin) {
-      if (msg) msg.textContent = "PIN falsch.";
-      const el = $("pin-in"); if (el) { el.value = ""; el.focus(); }
-      return;
+    } else {
+      const lock = pinLock();
+      if (lock.until > Date.now()) { if (msg) msg.textContent = `Zu viele Fehlversuche – bitte in ${Math.ceil((lock.until - Date.now()) / 60000)} Min. erneut versuchen.`; return; }
+      if (!(await pinMatches(val, state.cfg.adminPin))) {
+        const fails = lock.fails + 1;
+        // ab dem 5. Fehlversuch: 1 Min. Sperre, danach jeweils doppelt so lang (höchstens 30 Min.)
+        const until = fails >= 5 ? Date.now() + Math.min(30, 2 ** (fails - 5)) * 60000 : 0;
+        LS.set("rz2pinlock", { fails, until });
+        if (msg) msg.textContent = until ? "PIN falsch. Eingabe für kurze Zeit gesperrt." : "PIN falsch.";
+        const el = $("pin-in"); if (el) { el.value = ""; el.focus(); }
+        return;
+      }
+      LS.set("rz2pinlock", { fails: 0, until: 0 });
+      // Alter, ungesalzener Hash → beim richtigen Entsperren auf den sicheren umstellen.
+      if (state.cfg.adminPin.startsWith("f1:")) { state.cfg = { ...state.cfg, adminPin: await pinHashSecure(val) }; persistCfg({ adminPin: state.cfg.adminPin }); }
     }
     state.unlockedUntil = Date.now() + 10 * 60000;
     const next = st.next || "admin";
@@ -1954,9 +1993,59 @@ export function mount(container, opts = {}) {
   function backupStatus() {
     const last = LS.get("rz2meta", {}).lastBackup, when = last ? new Date(last).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) : null;
     if (state.mode === "shared") return { text: opts.mode === "sharepoint" ? "Gespeichert in SharePoint (Versionsverlauf)" : "Online gespeichert · Sicherung der Mac-App übernehmen", cls: "" };
-    if (NATIVE) return when ? { text: `Gesichert ${when} · automatisch`, cls: "ok" } : { text: "Noch keine Sicherung", cls: "bad" };
+    const enc = state.cfg.backupKey ? " · verschlüsselt" : "";
+    if (NATIVE) return when ? { text: `Gesichert ${when} · automatisch${enc}`, cls: "ok" } : { text: "Noch keine Sicherung", cls: "bad" };
     if (!backupDir) return { text: "Kein Sicherungsordner gewählt" + (when ? ` · zuletzt ${when}` : ""), cls: "bad" };
-    return when ? { text: `Gesichert ${when} · automatisch nach „${backupDir.name}“`, cls: "ok" } : { text: `Automatisch nach „${backupDir.name}“ · noch keine Sicherung`, cls: "" };
+    return when ? { text: `Gesichert ${when} · automatisch nach „${backupDir.name}“${enc}`, cls: "ok" } : { text: `Automatisch nach „${backupDir.name}“ · noch keine Sicherung`, cls: "" };
+  }
+  // ---------- Alte Daten löschen (Löschkonzept) ----------
+  // Fristen: Protokoll/Übergaben 3 Monate, Dienstplan 1 Jahr, Arbeitszeiten 2 Jahre nach Ende des Kalenderjahres.
+  // Nur im lokalen Speicher (Mac-App); gelöscht wird erst nach Bestätigung, jede Löschung wird ohne Inhalte vermerkt.
+  const hasLog = (doc) => ["checks", "logs", "notes", "read"].some(f => doc[f] && typeof doc[f] === "object" && Object.keys(doc[f]).length);
+  function cleanupScan() {
+    if (state.mode !== "local") return null;
+    const d = new Date();
+    const res = {
+      cutLog: isoDate(new Date(d.getFullYear(), d.getMonth() - 3, d.getDate())),
+      cutRoster: isoDate(new Date(d.getFullYear() - 1, d.getMonth(), d.getDate())),
+      cutTime: `${d.getFullYear() - 2}-01-01`, logDays: [], timeDays: [], rosterDays: [],
+    };
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || !/^rz2:\d{4}-\d{2}-\d{2}$/.test(k)) continue;
+        const date = k.slice(4), doc = LS.get(k, null);
+        if (!doc || typeof doc !== "object") continue;
+        if (date < res.cutLog && hasLog(doc)) res.logDays.push(date);
+        if (date < res.cutTime && doc.time && Object.keys(doc.time).length) res.timeDays.push(date);
+      }
+    } catch { return null; }
+    res.rosterDays = Object.keys(state.cfg.roster).filter(k => k < res.cutRoster);
+    res.total = res.logDays.length + res.timeDays.length + res.rosterDays.length;
+    return res;
+  }
+  async function runCleanup() {
+    const sc = cleanupScan(); if (!sc || !sc.total) return;
+    for (const date of new Set([...sc.logDays, ...sc.timeDays])) {
+      const k = "rz2:" + date, doc = { ...LS.get(k, {}) };
+      if (sc.logDays.includes(date)) { doc.checks = {}; doc.logs = {}; doc.notes = {}; doc.read = {}; }
+      if (sc.timeDays.includes(date)) delete doc.time;
+      // Ohne Einträge bleibt nichts Personenbezogenes übrig → Tag ganz entfernen.
+      if (!hasLog(doc) && !(doc.time && Object.keys(doc.time).length)) localStorage.removeItem(k); else LS.set(k, doc);
+    }
+    if (sc.rosterDays.length) {
+      const roster = { ...state.cfg.roster };
+      for (const k of sc.rosterDays) delete roster[k];
+      state.cfg = { ...state.cfg, roster };
+      await persistCfg({ roster });
+    }
+    const meta = LS.get("rz2meta", {});
+    const entry = { at: new Date().toISOString(), log: sc.logDays.length, time: sc.timeDays.length, roster: sc.rosterDays.length };
+    LS.set("rz2meta", { ...meta, cleanups: [entry, ...(Array.isArray(meta.cleanups) ? meta.cleanups : [])].slice(0, 20) });
+    state.confirm = null;
+    subscribeMonth(true); subscribeDay();
+    setStatus(`Alte Daten gelöscht: ${entry.log} Tage Protokoll, ${entry.time} Tage Arbeitszeiten, ${entry.roster} Dienstplan-Tage`);
+    render();
   }
   function renderAdmin() {
     const m = getMaster(), ym = state.date.slice(0, 7), [yy, mm] = ym.split("-").map(Number), days = new Date(yy, mm, 0).getDate();
@@ -1964,7 +2053,9 @@ export function mount(container, opts = {}) {
     const rems = KEYS.reduce((n, k) => n + m.plan[k].phases.reduce((x, p) => x + p.items.filter(i => i.remind).length, 0), 0);
     let planned = 0;
     for (let d = 1; d <= days; d++) { const r = state.cfg.roster[`${ym}-${pad(d)}`]; if (r && ((r.frueh || []).length || (r.spaet || []).length)) planned++; }
-    const bs = backupStatus(), n = state.cfg.people.length;
+    const bs = backupStatus(), n = state.cfg.people.length, sc = cleanupScan();
+    const lastClean = (LS.get("rz2meta", {}).cleanups || [])[0];
+    const clTxt = !sc ? null : sc.total ? { text: `${sc.total} ${sc.total === 1 ? "Eintrag" : "Einträge"} über der Frist – bitte löschen`, cls: "bad" } : { text: `Nichts fällig${lastClean ? ` · zuletzt gelöscht ${new Date(lastClean.at).toLocaleDateString("de-DE")}` : ""}`, cls: "" };
     const pinTxt = pinOff() ? { text: "Ausgeschaltet – Verwaltung und alle Zeiten sind für alle offen", cls: "bad" } : state.cfg.adminPin ? { text: "Aktiv · sperrt 10 Minuten nach der letzten Aktion", cls: "" } : { text: "Noch keine PIN festgelegt", cls: "bad" };
     const row = (attr, title, st, cls = "") => `<button class="arow" ${attr}><span><b>${title}</b><small class="${cls}">${esc(st)}</small></span><span class="chev" aria-hidden="true">›</span></button>`;
     const group = (title, rows) => `<section class="agroup" aria-label="${title}"><h3>${title}</h3><div class="alist">${rows}</div></section>`;
@@ -1979,6 +2070,7 @@ export function mount(container, opts = {}) {
       ${group("System",
         (state.mode === "loading" ? "" : row('data-adminpop="backup"', state.mode === "shared" ? "Datenspeicher" : "Datensicherung", bs.text, bs.cls)) +
         (CHECKIN_URL ? `<div class="arow"><span><b>Check-ins</b><small>${checkinsOn() ? "Eingeschaltet" : "Ausgeschaltet"}</small></span><button class="switch${checkinsOn() ? " on" : ""}" role="switch" aria-checked="${checkinsOn()}" aria-label="Check-ins ${checkinsOn() ? "ausschalten" : "einschalten"}" data-act2="feat-checkins"><span></span></button></div>` : "") +
+        (clTxt ? row('data-adminpop="cleanup"', "Alte Daten löschen", clTxt.text, clTxt.cls) : "") +
         row('data-adminpop="pin"', "Leitungs-PIN", pinTxt.text, pinTxt.cls))}
     </div>${state.adminPop ? renderAdminPop() : ""}`;
   }
@@ -1995,6 +2087,41 @@ export function mount(container, opts = {}) {
         <form id="addperson" class="pkadd"><input class="in" id="newperson" maxlength="40" placeholder="Vor- und Nachname" aria-label="Neue Person"><button class="btn primary" type="submit">Hinzufügen</button></form>
         <p class="hint">Namen erscheinen bei der Anmeldung und im Dienstplan. Entfernte Personen bleiben in alten Einträgen erhalten.</p>`);
     }
+    if (pop === "cleanup") {
+      const sc = cleanupScan(); if (!sc) return "";
+      const fmt = (d) => d.split("-").reverse().join(".");
+      const log = (LS.get("rz2meta", {}).cleanups || []).slice(0, 5);
+      return frame("Alte Daten löschen", `<div class="apbody">
+        <p>Nach dem Löschkonzept werden diese Daten nicht mehr gebraucht:</p>
+        <table class="cltab"><thead><tr><th>Daten</th><th>Frist</th><th>Betroffen</th></tr></thead><tbody>
+          <tr><td>Protokoll, Übergaben, „Gelesen“</td><td>älter als 3 Monate (vor ${fmt(sc.cutLog)})</td><td><b>${sc.logDays.length}</b> ${sc.logDays.length === 1 ? "Tag" : "Tage"}</td></tr>
+          <tr><td>Dienstplan</td><td>älter als 1 Jahr (vor ${fmt(sc.cutRoster)})</td><td><b>${sc.rosterDays.length}</b> ${sc.rosterDays.length === 1 ? "Tag" : "Tage"}</td></tr>
+          <tr><td>Arbeitszeiten</td><td>2 Jahre nach Jahresende (vor ${fmt(sc.cutTime)})</td><td><b>${sc.timeDays.length}</b> ${sc.timeDays.length === 1 ? "Tag" : "Tage"}</td></tr>
+        </tbody></table>
+        <p class="hint">Arbeitszeiten, die als Lohnunterlage länger gebraucht werden, vorher als PDF/Excel an die Lohnbuchhaltung geben. Gelöschtes bleibt noch bis zu 120 Tage in älteren Sicherungsdateien. Der Plan-Stand der Tage (ohne Personen) bleibt erhalten.</p>
+        ${sc.total ? (state.confirm === "cleanup" ? `<button class="btn danger" data-act2="cleanup-run">Wirklich ${sc.total} Einträge löschen?</button>` : `<button class="btn primary" data-act2="cleanup-ask">Jetzt löschen</button>`) : `<p><b>Nichts fällig.</b></p>`}
+        ${log.length ? `<p class="hint">Bisherige Löschungen: ${log.map(e => `${new Date(e.at).toLocaleDateString("de-DE")} (${e.log}/${e.roster}/${e.time})`).join(" · ")} – Protokoll/Dienstplan/Zeiten in Tagen</p>` : ""}</div>`);
+    }
+    if (pop === "encsetup") return `<div class="overlay inmain" role="dialog" aria-modal="true" aria-labelledby="ap-title"><form class="dialog adminpop" id="encform">
+      <h2 id="ap-title">Sicherungen verschlüsseln</h2>
+      <p>Ab jetzt lassen sich neue Sicherungen nur mit diesem Passwort oder dem Wiederherstellungscode öffnen. Die automatische Sicherung läuft weiter ohne Eingabe.</p>
+      <label class="fld"><span>Passwort der Leitung (mind. 8 Zeichen)</span><input class="in" type="password" id="enc-pw1" minlength="8" autocomplete="new-password" required></label>
+      <label class="fld"><span>Passwort wiederholen</span><input class="in" type="password" id="enc-pw2" minlength="8" autocomplete="new-password" required></label>
+      <p class="hint">Ohne Passwort und ohne Wiederherstellungscode ist eine verschlüsselte Sicherung nicht mehr lesbar – auch nicht für den Entwickler.</p>
+      <p class="perr" id="enc-msg" role="alert"></p>
+      <div class="row"><button type="button" class="btn ghost" data-adminpop-close="1">Abbrechen</button><button type="submit" class="btn primary">Einrichten</button></div></form></div>`;
+    if (pop === "enccode") return `<div class="overlay inmain" role="dialog" aria-modal="true" aria-labelledby="ap-title"><div class="dialog adminpop">
+      <h2 id="ap-title">Wiederherstellungscode</h2>
+      <p>Falls das Passwort vergessen wird, öffnet dieser Code die Sicherungen. <b>Jetzt ausdrucken oder abschreiben und sicher verwahren</b> (z. B. im Tresor). Er wird nicht noch einmal angezeigt.</p>
+      <div class="enccode" aria-label="Wiederherstellungscode">${esc(state.encCode || "")}</div>
+      <label class="check-inline"><input type="checkbox" id="enc-noted"> Ich habe den Code sicher notiert.</label>
+      <div class="row"><button class="btn primary" data-enc-done="1" disabled id="enc-done">Fertig</button></div></div></div>`;
+    if (pop === "decrypt") return `<div class="overlay inmain" role="dialog" aria-modal="true" aria-labelledby="ap-title"><form class="dialog adminpop" id="decform">
+      <h2 id="ap-title">Verschlüsselte Sicherung</h2>
+      <p>Diese Sicherung ist verschlüsselt (erstellt ${state.pendingImport && state.pendingImport.exportedAt ? new Date(state.pendingImport.exportedAt).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) : "–"}). Passwort der Leitung oder Wiederherstellungscode eingeben.</p>
+      <label class="fld"><span>Passwort oder Wiederherstellungscode</span><input class="in" type="password" id="dec-secret" autocomplete="off" required></label>
+      <p id="dec-msg" role="status"></p>
+      <div class="row"><button type="button" class="btn ghost" data-dec-cancel="1">Abbrechen</button><button type="submit" class="btn primary">Entschlüsseln und einspielen</button></div></form></div>`;
     if (pop === "backup") return frame(state.mode === "shared" ? "Datenspeicher" : "Datensicherung", `<div class="apbody">
       ${state.mode === "local" ? `${NATIVE ? `<p>Die Daten liegen in der App auf diesem Mac. Bei jedem Schichtbeginn und zum Tagesabschluss legt die App automatisch eine Sicherung ab – „rezeption-sicherung-aktuell.json“ und eine Datei pro Tag.</p>
           <p>Ordner: <b>${esc((nativeInfo && nativeInfo.backupDir) || "Dokumente/Rezeption Sicherungen")}</b></p>
@@ -2013,7 +2140,13 @@ export function mount(container, opts = {}) {
              <button class="btn" data-act2="export">Einmalig herunterladen</button>`}`}
           <p>Letzte Sicherung: <b>${last ? new Date(last).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) : "noch nie"}</b></p>
           <label class="btn" for="rzfile" data-filepick="backup">Sicherung einspielen</label>
-          <p id="import-msg"></p>` : state.mode === "shared" ? `${opts.mode === "sharepoint" ? `<p>Alle Daten liegen in der SharePoint-Bibliothek <b>${esc(opts.library || "RezeptionDaten")}</b> dieser Website. SharePoint speichert jede Änderung im Versionsverlauf – ein früherer Stand lässt sich dort wiederherstellen.</p>` : `<p>Die Webversion speichert online und ist für alle mit dem Link gleich. Die Mac-App hat ihre eigenen Daten – beide gleichen sich nicht ab.</p>`}
+          <p id="import-msg"></p>
+          <div class="encbox"><b>Verschlüsselung</b>${state.cfg.backupKey
+            ? `<p>Eingeschaltet seit ${esc(new Date(state.cfg.backupKey.created).toLocaleDateString("de-DE"))}. Neue Sicherungen lassen sich nur mit dem Passwort der Leitung oder dem Wiederherstellungscode öffnen.</p>
+              <button class="btn" data-adminpop="encsetup">Passwort ändern (neu einrichten)</button>
+              ${state.confirm === "enc-off" ? `<button class="btn danger" data-act2="enc-off">Wirklich ausschalten?</button>` : `<button class="btn ghost danger" data-act2="enc-off-ask">Ausschalten</button>`}
+              <p class="hint">Ältere Sicherungen bleiben mit dem damaligen Passwort bzw. Code lesbar.</p>`
+            : `<p>Aus – wer eine Sicherungsdatei öffnet, kann alles lesen.</p><button class="btn" data-adminpop="encsetup">Verschlüsselung einrichten</button>`}</div>` : state.mode === "shared" ? `${opts.mode === "sharepoint" ? `<p>Alle Daten liegen in der SharePoint-Bibliothek <b>${esc(opts.library || "RezeptionDaten")}</b> dieser Website. SharePoint speichert jede Änderung im Versionsverlauf – ein früherer Stand lässt sich dort wiederherstellen.</p>` : `<p>Die Webversion speichert online und ist für alle mit dem Link gleich. Die Mac-App hat ihre eigenen Daten – beide gleichen sich nicht ab.</p>`}
           <p>Daten aus der bisherigen Mac-Version übernehmen: dort unter Verwaltung › Datensicherung eine Sicherung herunterladen und hier einspielen.</p>
           <label class="btn" for="rzfile" data-filepick="backup">Sicherung übernehmen</label>
           <p id="import-msg"></p>` : ""}</div>`);
@@ -2091,10 +2224,68 @@ export function mount(container, opts = {}) {
     try { await idb.set("backupDir", null); } catch { /* egal */ }
     render();
   }
-  function backupPayload() {
+  // Gerätebezogene Schlüssel gehören nicht in die Sicherung.
+  const DEVICE_KEYS = new Set(["rz2who", "rz2bye", "rz2pinlock", "rz2taskrem"]);
+  // Sicherung: version 1 = Klartext; mit eingerichteter Verschlüsselung (cfg.backupKey) version 2 = { enc } (siehe encryptBackup).
+  async function backupPayload() {
     const data = {};
-    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && ((k.startsWith("rz2") && k !== "rz2who" && k !== "rz2bye") || k.startsWith("cir."))) data[k] = localStorage.getItem(k); }
-    return JSON.stringify({ app: "rezeption-schichtcheck", version: 1, exportedAt: new Date().toISOString(), data }, null, 1);
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && ((k.startsWith("rz2") && !DEVICE_KEYS.has(k)) || k.startsWith("cir."))) data[k] = localStorage.getItem(k); }
+    const exportedAt = new Date().toISOString();
+    const plain = JSON.stringify({ app: "rezeption-schichtcheck", version: 1, exportedAt, data }, null, 1);
+    if (!state.cfg.backupKey) return plain;
+    return JSON.stringify({ app: "rezeption-schichtcheck", version: 2, exportedAt, enc: await encryptBackup(plain, state.cfg.backupKey) });
+  }
+
+  // ---------- Verschlüsselte Sicherungen ----------
+  // Öffentlicher Schlüssel (RSA-OAEP 3072) verschlüsselt pro Sicherung einen zufälligen AES-256-GCM-Schlüssel – dafür braucht die
+  // automatische Sicherung kein Passwort. Der private Schlüssel liegt zweimal verschlüsselt vor: mit dem Passwort der Leitung und
+  // mit einem Wiederherstellungscode (PBKDF2-SHA256). Beides steht in jeder Sicherungsdatei, sie lässt sich also auf jedem Gerät
+  // mit der App und Passwort oder Code öffnen. Ohne beides ist sie nicht lesbar.
+  const KDF_ITER = 310000;
+  const b64 = (buf) => { const u = new Uint8Array(buf); let s2 = ""; for (let i = 0; i < u.length; i += 0x8000) s2 += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s2); };
+  const unb64 = (t) => { const s2 = atob(t); const u = new Uint8Array(s2.length); for (let i = 0; i < s2.length; i++) u[i] = s2.charCodeAt(i); return u; };
+  const CODE_ABC = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const normCode = (c) => String(c || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  async function secretKey(secret, salt, iter) {
+    const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), "PBKDF2", false, ["deriveKey"]);
+    return crypto.subtle.deriveKey({ name: "PBKDF2", hash: "SHA-256", salt, iterations: iter }, base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+  }
+  async function wrapWith(secret, data) {
+    const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, await secretKey(secret, salt, KDF_ITER), data);
+    return { salt: b64(salt), iv: b64(iv), iter: KDF_ITER, ct: b64(ct) };
+  }
+  async function unwrapWith(secret, w) {
+    return crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(w.iv) }, await secretKey(secret, unb64(w.salt), w.iter), unb64(w.ct));
+  }
+  // Neu einrichten: Schlüsselpaar erzeugen, privaten Schlüssel mit Passwort und Code verpacken. Liefert { key, code }.
+  async function createBackupKey(password) {
+    const pair = await crypto.subtle.generateKey({ name: "RSA-OAEP", modulusLength: 3072, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" }, true, ["encrypt", "decrypt"]);
+    const pub = await crypto.subtle.exportKey("spki", pair.publicKey), priv = await crypto.subtle.exportKey("pkcs8", pair.privateKey);
+    const rnd = crypto.getRandomValues(new Uint8Array(24));
+    const code = [...rnd].map(b => CODE_ABC[b % 32]).join("").match(/.{6}/g).join("-");
+    return { code, key: { v: 1, created: new Date().toISOString(), pub: b64(pub), pw: await wrapWith(password, priv), code: await wrapWith(normCode(code), priv) } };
+  }
+  async function encryptBackup(plain, k) {
+    const pub = await crypto.subtle.importKey("spki", unb64(k.pub), { name: "RSA-OAEP", hash: "SHA-256" }, false, ["encrypt"]);
+    const aes = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt"]);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, aes, new TextEncoder().encode(plain));
+    const wrapped = await crypto.subtle.encrypt({ name: "RSA-OAEP" }, pub, await crypto.subtle.exportKey("raw", aes));
+    return { alg: "RSA-OAEP-256+A256GCM", key: b64(wrapped), iv: b64(iv), ct: b64(ct), keys: { pw: k.pw, code: k.code } };
+  }
+  // Entschlüsseln mit Passwort oder Wiederherstellungscode (beides wird probiert). Wirft bei falscher Eingabe.
+  async function decryptBackup(enc, secret) {
+    let priv = null;
+    for (const [w, sec] of [[enc.keys.pw, secret], [enc.keys.code, normCode(secret)]]) {
+      if (!w || !sec) continue;
+      try { priv = await unwrapWith(sec, w); break; } catch { /* nächster Versuch */ }
+    }
+    if (!priv) throw new Error("secret");
+    const pk = await crypto.subtle.importKey("pkcs8", priv, { name: "RSA-OAEP", hash: "SHA-256" }, false, ["decrypt"]);
+    const raw = await crypto.subtle.decrypt({ name: "RSA-OAEP" }, pk, unb64(enc.key));
+    const aes = await crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["decrypt"]);
+    return new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(enc.iv) }, aes, unb64(enc.ct)));
   }
   async function writeFile(dir, name, text) {
     const fh = await dir.getFileHandle(name, { create: true });
@@ -2107,7 +2298,7 @@ export function mount(container, opts = {}) {
   async function writeBackup(reason) {
     if (state.mode !== "local" || (!backupDir && !NATIVE)) return false;
     let text;
-    try { text = backupPayload(); } catch { setStatus("Browser-Speicher blockiert", true); return false; }
+    try { text = await backupPayload(); } catch { setStatus("Browser-Speicher blockiert oder Verschlüsselung fehlgeschlagen", true); return false; }
     if (NATIVE) {
       // Mac-App: schreibt ohne Rückfrage nach ~/Dokumente/Rezeption Sicherungen.
       const now = new Date();
@@ -2140,7 +2331,7 @@ export function mount(container, opts = {}) {
   // Manuell ohne Ordner: einmaliger Download in den normalen Download-Ordner.
   async function downloadBackup() {
     let text;
-    try { text = backupPayload(); } catch { setStatus("Browser-Speicher blockiert", true); return; }
+    try { text = await backupPayload(); } catch { setStatus("Browser-Speicher blockiert oder Verschlüsselung fehlgeschlagen", true); return; }
     const now = new Date();
     try { if (!(await offerFile(`rezeption-sicherung-${isoDate(now)}.json`, text, "application/json"))) return; }
     catch (e) { setStatus("Sicherung fehlgeschlagen: " + ((e && e.message) || "Fehler"), true); return; }
@@ -2185,20 +2376,54 @@ export function mount(container, opts = {}) {
     reader.onload = () => {
       try {
         const obj = JSON.parse(String(reader.result));
-        if (!obj || obj.app !== "rezeption-schichtcheck" || !obj.data || typeof obj.data !== "object") throw new Error("format");
-        // cir.* = Daten der Erstattung (Regeln, Hansefit-Liste, Buchungsfortschritt) – nur lokal, nicht im geteilten Speicher.
-        const entries = Object.entries(obj.data).filter(([k, v]) => (k.startsWith("rz2") || (k.startsWith("cir.") && state.mode !== "shared")) && typeof v === "string");
-        if (!entries.length) throw new Error("leer");
-        if (state.mode === "shared") { migrateToShared(entries, msg); return; }
-        for (const [k, v] of entries) localStorage.setItem(k, v);
-        if (msg) msg.textContent = `${entries.length} Einträge eingespielt. Seite lädt neu…`;
-        setTimeout(() => location.reload(), 800);
+        if (obj && obj.app === "rezeption-schichtcheck" && obj.version === 2 && obj.enc && obj.enc.keys) {
+          state.pendingImport = obj; state.adminPop = "decrypt"; state.view = "admin"; render();
+          setTimeout(() => { const i = $("dec-secret"); if (i) i.focus(); }, 0);
+          return;
+        }
+        applyImport(obj, msg);
       } catch {
         if (msg) msg.textContent = "Diese Datei ist keine gültige Sicherung dieser App.";
       }
     };
     reader.onerror = () => { if (msg) msg.textContent = "Datei konnte nicht gelesen werden."; };
     reader.readAsText(file);
+  }
+  // Verschlüsselung einrichten: Schlüssel erzeugen, speichern, Code einmal anzeigen, gleich eine verschlüsselte Sicherung schreiben.
+  async function setupEncryption() {
+    const p1 = ($("enc-pw1") || {}).value || "", p2 = ($("enc-pw2") || {}).value || "", m = $("enc-msg");
+    if (p1.length < 8) { if (m) m.textContent = "Das Passwort braucht mindestens 8 Zeichen."; return; }
+    if (p1 !== p2) { if (m) m.textContent = "Die Passwörter stimmen nicht überein."; return; }
+    if (!isUnlocked()) { requireAdmin("admin"); return; }
+    if (m) m.textContent = "Richte ein …";
+    let res;
+    try { res = await createBackupKey(p1); } catch { if (m) m.textContent = "Verschlüsselung wird von diesem Browser nicht unterstützt."; return; }
+    blurActive();
+    state.cfg = { ...state.cfg, backupKey: res.key };
+    await persistCfg({ backupKey: res.key });
+    state.encCode = res.code; state.adminPop = "enccode"; render();
+    writeBackup("manual");
+  }
+  async function decryptPendingImport(secret) {
+    const m = $("dec-msg"), obj = state.pendingImport;
+    if (!obj) return;
+    if (m) m.textContent = "Entschlüssele …";
+    let plain;
+    try { plain = await decryptBackup(obj.enc, String(secret || "").trim()); }
+    catch { if (m) m.textContent = "Passwort bzw. Wiederherstellungscode passt nicht zu dieser Sicherung."; return; }
+    state.pendingImport = null;
+    try { applyImport(JSON.parse(plain), m); } catch { if (m) m.textContent = "Die entschlüsselte Datei ist keine gültige Sicherung."; }
+  }
+  // Klartext-Sicherung (version 1) übernehmen – auch Sicherungen älterer Versionen.
+  function applyImport(obj, msg) {
+    if (!obj || obj.app !== "rezeption-schichtcheck" || !obj.data || typeof obj.data !== "object") throw new Error("format");
+    // cir.* = Daten der Erstattung (Regeln, Hansefit-Liste, Buchungsfortschritt) – nur lokal, nicht im geteilten Speicher.
+    const entries = Object.entries(obj.data).filter(([k, v]) => (k.startsWith("rz2") || (k.startsWith("cir.") && state.mode !== "shared")) && typeof v === "string" && !DEVICE_KEYS.has(k));
+    if (!entries.length) throw new Error("leer");
+    if (state.mode === "shared") { migrateToShared(entries, msg); return; }
+    for (const [k, v] of entries) localStorage.setItem(k, v);
+    if (msg) msg.textContent = `${entries.length} Einträge eingespielt. Seite lädt neu…`;
+    setTimeout(() => location.reload(), 800);
   }
 
   // ---------- Namensauswahl ----------
@@ -3273,6 +3498,8 @@ export function mount(container, opts = {}) {
     const t = e.target.closest("button");
     if (!t || t.disabled) return;
     if (t.dataset.adminpop) { blurActive(); state.adminPop = t.dataset.adminpop; state.confirm = null; render(); return; }
+    if (t.dataset.encDone) { blurActive(); state.encCode = null; state.adminPop = "backup"; render(); return; }
+    if (t.dataset.decCancel) { blurActive(); state.pendingImport = null; state.adminPop = null; render(); return; }
     if (t.dataset.adminpopClose) { blurActive(); state.adminPop = null; state.confirm = null; render(); return; }
     // Aufgaben-Plan
     if (t.dataset.edshift) { state.edShift = t.dataset.edshift; state.edAdd = null; state.edNew = null; openFirstPhase(); render(); return; }
@@ -3307,6 +3534,10 @@ export function mount(container, opts = {}) {
       if (a === "t-pdf") { if (isUnlocked()) saveExport(buildPdf()); return; }
       if (a === "pin-cancel") { state.pinStage = null; state.view = "schicht"; render(); return; }
       if (a === "open-plan") return setView("plan");
+      if (a === "cleanup-ask") { state.confirm = "cleanup"; render(); return; }
+      if (a === "cleanup-run") { if (isUnlocked()) runCleanup(); return; }
+      if (a === "enc-off-ask") { state.confirm = "enc-off"; render(); return; }
+      if (a === "enc-off") { if (!isUnlocked()) return; state.confirm = null; state.cfg = { ...state.cfg, backupKey: null }; persistCfg({ backupKey: null }); setStatus("Verschlüsselung der Sicherungen ausgeschaltet"); render(); return; }
       if (a === "feat-checkins") {
         if (!isUnlocked()) return;
         const features = { ...(state.cfg.features || {}), checkins: !checkinsOn() };
@@ -3408,6 +3639,7 @@ export function mount(container, opts = {}) {
   });
   main.addEventListener("change", (e) => {
     if (e.target.dataset && e.target.dataset.rnote) return setRosterNote(e.target.dataset.rnote, e.target.dataset.shift, e.target.value);
+    if (e.target.id === "enc-noted") { const b = $("enc-done"); if (b) b.disabled = !e.target.checked; }
     if (e.target.id === "ep-kind") { const f = $("ep-everyf"); if (f) f.hidden = e.target.value !== "rhythm"; }
   });
   main.addEventListener("submit", (e) => {
@@ -3415,6 +3647,8 @@ export function mount(container, opts = {}) {
     if (e.target.id === "pinform") return submitPin($("pin-in").value);
     if (e.target.id === "addperson") return addPerson($("newperson").value);
     if (e.target.id === "edpop") return submitEdPop();
+    if (e.target.id === "decform") { const i = $("dec-secret"); decryptPendingImport(i ? i.value : ""); return; }
+    if (e.target.id === "encform") return setupEncryption();
     if (e.target.dataset && e.target.dataset.addto) { const i = $("ed-new"); addTask(e.target.dataset.addto, i ? i.value : ""); return; }
   });
   main.addEventListener("change", (e) => {
