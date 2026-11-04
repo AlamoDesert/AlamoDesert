@@ -57,7 +57,65 @@ function intersects(bounds, [w, s, e, n]) {
   return bounds.getWest() <= e && bounds.getEast() >= w && bounds.getSouth() <= n && bounds.getNorth() >= s;
 }
 
+/** YouTube-Kennung (11 Zeichen); alles andere landet nie in einer Adresse. */
+const ytId = (v) => (typeof v === 'string' && /^[\w-]{11}$/.test(v) ? v : null);
+
 export const LAYERS = [
+  {
+    id: 'live',
+    name: 'Livestreams',
+    desc: 'Live-Videos aus Deutschland (YouTube)',
+    attribution: 'Livestreams: <a href="https://www.youtube.com" target="_blank" rel="noopener">YouTube</a> · Rechte bei den jeweiligen Betreibern',
+    // Feste, auf dem Pi geprüfte Liste (tools/livestreams.mjs); kein Proxy nötig.
+    url: 'data/livestreams.json',
+    fixed: true,
+    refresh: 3_600_000,
+    minzoom: 0,
+    viewport: false,
+    sourceOptions: { cluster: true, clusterRadius: 36, clusterMaxZoom: 9 },
+    requests() { return { queries: [''] }; },
+    install(map, src) {
+      map.addLayer({
+        id: `${src}-cluster`, type: 'circle', source: src, filter: ['has', 'point_count'],
+        paint: {
+          'circle-color': '#c92a2a',
+          'circle-opacity': 0.85,
+          'circle-radius': ['step', ['get', 'point_count'], 12, 10, 16, 30, 20],
+          'circle-stroke-color': 'rgba(255,255,255,.8)',
+          'circle-stroke-width': 2
+        }
+      });
+      if (map.getStyle()?.glyphs) {
+        map.addLayer({
+          id: `${src}-count`, type: 'symbol', source: src, filter: ['has', 'point_count'],
+          layout: { 'text-field': ['get', 'point_count_abbreviated'], 'text-size': 12, 'text-allow-overlap': true },
+          paint: { 'text-color': '#fff' }
+        });
+      }
+      map.addLayer({
+        id: `${src}-pt`, type: 'circle', source: src, filter: ['!', ['has', 'point_count']],
+        paint: {
+          'circle-color': '#e03131',
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 5, 14, 8],
+          'circle-stroke-color': '#fff',
+          'circle-stroke-width': 2
+        }
+      });
+    },
+    detail(p) {
+      const id = ytId(p.video);
+      const watch = id ? `https://www.youtube.com/watch?v=${id}` : null;
+      return {
+        title: esc(p.name),
+        // Erst beim Antippen lädt der Player – vorher erfährt YouTube nichts vom Besuch.
+        body: (id
+          ? `<button class="player" data-yt="${id}" aria-label="Livestream abspielen"><span class="play" aria-hidden="true">▶</span><span>Abspielen<small>lädt den Player von YouTube</small></span></button>`
+          : '<p class="noimg">Kein Video verfügbar</p>')
+          + `<dl>${row('Betreiber', esc(p.channel))}${row('Quelle', 'YouTube-Livestream')}</dl>`
+          + (watch ? `<div class="links"><a class="ext" href="${watch}" target="_blank" rel="noopener">Auf YouTube öffnen ›</a></div>` : '')
+      };
+    }
+  },
   {
     id: 'cams',
     name: 'Verkehrskameras',

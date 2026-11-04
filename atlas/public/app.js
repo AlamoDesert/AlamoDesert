@@ -17,7 +17,7 @@ function save(prefs) {
 }
 
 const prefs = load();
-const active = new Set(Array.isArray(prefs.layers) ? prefs.layers.filter((id) => LAYERS.some((l) => l.id === id)) : ['flights', 'quakes', 'cams']);
+const active = new Set(Array.isArray(prefs.layers) ? prefs.layers.filter((id) => LAYERS.some((l) => l.id === id)) : ['flights', 'quakes', 'cams', 'live']);
 const runtime = new Map(LAYERS.map((l) => [l.id, { features: [], at: null, error: null, hint: null, stale: false, timer: 0, ctrl: null }]));
 
 const dark = matchMedia('(prefers-color-scheme: dark)');
@@ -169,7 +169,8 @@ async function refresh(l) {
 
   const ctrl = new AbortController();
   rt.ctrl = ctrl;
-  const results = await pool(plan.queries.map((q) => () => getJSON(`/api/feed/${l.id}${q ? `?${q}` : ''}`, ctrl.signal)), CONCURRENCY);
+  const base = l.url || `/api/feed/${l.id}`;
+  const results = await pool(plan.queries.map((q) => () => getJSON(`${base}${q ? `?${q}` : ''}`, ctrl.signal)), CONCURRENCY);
   if (ctrl.signal.aborted) return; // neuere Abfrage läuft schon
 
   const ok = results.filter((r) => r.ok).map((r) => r.value);
@@ -208,6 +209,8 @@ function status(l) {
   if (rt.hint) return { text: rt.hint, cls: 'hint' };
   if (rt.error && !rt.at) return { text: rt.error, cls: 'err' };
   if (!rt.at) return { text: 'Lädt …', cls: '' };
+  // Feste Listen: Stand der letzten Prüfung statt „vor n h“.
+  if (l.fixed) return { text: `${rt.features.length.toLocaleString('de-DE')} · geprüft am ${new Date(rt.at).toLocaleDateString('de-DE')}`, cls: '' };
   const base = `${rt.features.length.toLocaleString('de-DE')} · ${ago(rt.at)}`;
   if (rt.error) return { text: `${base} · ${rt.error}`, cls: 'err' };
   return { text: rt.stale ? `${base} · Quelle hängt, ältere Daten` : base, cls: rt.stale ? 'hint' : '' };
@@ -259,6 +262,21 @@ function startImageRefresh() {
 function closeDetail() {
   clearInterval(imgTimer);
   $('#detail').hidden = true;
+  $('#detail').innerHTML = ''; // laufendes Video beenden
+}
+
+/** Livestream erst nach dem Antippen einbetten (youtube-nocookie: keine Cookies, bevor abgespielt wird). */
+function playVideo(btn) {
+  const id = btn.dataset.yt;
+  if (!/^[\w-]{11}$/.test(id)) return;
+  const f = document.createElement('iframe');
+  f.className = 'player';
+  f.src = `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&mute=1&playsinline=1&rel=0`;
+  f.title = 'Livestream';
+  f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+  f.allowFullscreen = true;
+  f.referrerPolicy = 'strict-origin-when-cross-origin';
+  btn.replaceWith(f);
 }
 
 function showDetail(l, props) {
@@ -270,7 +288,11 @@ function showDetail(l, props) {
   $('#detail').hidden = false;
   startImageRefresh();
 }
-$('#detail').addEventListener('click', (e) => { if (e.target.closest('.close')) closeDetail(); });
+$('#detail').addEventListener('click', (e) => {
+  if (e.target.closest('.close')) closeDetail();
+  const yt = e.target.closest('button[data-yt]');
+  if (yt) playVideo(yt);
+});
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeDetail(); $('#panel').hidden = true; } });
 
 /* ---------- Ablauf ---------- */

@@ -162,3 +162,20 @@ test('Kameras: nur bekannte Anbieter, Parser bekommt den Anbieter', async () => 
   assert.equal(calls[0], 'https://cwwp2.dot.ca.gov/data/d4/cctv/cctvStatusD04.json');
   assert.match(r.headers.get('netlify-cdn-cache-control'), /s-maxage=600/);
 });
+
+test('Livestream-Liste: gültige YouTube-IDs, eindeutig, alle in Deutschland', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const data = JSON.parse(await readFile(new URL('../public/data/livestreams.json', import.meta.url), 'utf8'));
+  assert.equal(data.source, 'live');
+  assert.ok(!Number.isNaN(Date.parse(data.at)));
+  assert.ok(data.features.length >= 20);
+  const ids = new Set();
+  for (const f of data.features) {
+    assert.match(f.props.video, /^[\w-]{11}$/, f.label);
+    assert.equal(f.id, `yt:${f.props.video}`);
+    assert.ok(!ids.has(f.id), `doppelt: ${f.label}`);
+    ids.add(f.id);
+    assert.ok(f.lon > 5.8 && f.lon < 15.1 && f.lat > 47.2 && f.lat < 55.1, `außerhalb Deutschlands: ${f.label}`);
+    assert.ok(f.label && f.props.name === f.label && f.props.channel, f.label);
+  }
+});

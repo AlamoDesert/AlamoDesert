@@ -67,6 +67,11 @@
   #detail dt { color: var(--muted); } #detail dd { margin: 0; font-variant-numeric: tabular-nums; }
   #detail .cam { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 10px; background: var(--line); margin: 0 0 10px; }
   #detail .noimg { margin: 0 0 10px; padding: 24px 12px; text-align: center; border-radius: 10px; background: var(--line); color: var(--muted); font-size: 14px; }
+  #detail .player { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; aspect-ratio: 16 / 9;
+    border: 0; border-radius: 10px; background: #11151c; color: #fff; margin: 0 0 10px; font: inherit; cursor: pointer; text-align: left; }
+  #detail button.player > span:last-child { display: flex; flex-direction: column; font-weight: 600; }
+  #detail button.player small { font-weight: 400; font-size: 12px; opacity: .7; }
+  #detail .play { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; background: #e03131; font-size: 20px; padding-left: 4px; }
   #detail .links { display: flex; gap: 16px; flex-wrap: wrap; }
   #detail .ext { color: var(--accent); text-decoration: none; font-weight: 600; font-size: 14px; }
 
