@@ -73,10 +73,51 @@ function playButton(attr, value, via) {
     + `<span>Abspielen<small>${esc(via)}</small></span></button>`;
 }
 
+/** Farben wie Argos: Video magenta, Standbild blau, Akzent türkis. */
+export const COLORS = { live: '#ff3b6b', image: '#3d8bff', accent: '#19d6e8' };
+
+/** Gruppen und Punkte im HUD-Stil: dunkle Gruppe mit farbigem Ring, Punkt mit Leuchthof. */
+function pointLayers(map, src, color, { radius = [5, 5, 14, 8] } = {}) {
+  map.addLayer({
+    id: `${src}-cluster`, type: 'circle', source: src, filter: ['has', 'point_count'],
+    paint: {
+      'circle-color': color,
+      'circle-opacity': 0.22,
+      'circle-radius': ['step', ['get', 'point_count'], 13, 10, 16, 50, 20, 500, 26],
+      'circle-stroke-color': color,
+      'circle-stroke-width': 2
+    }
+  });
+  // Zahl in der Gruppe braucht Schriften aus dem Kartenstil; der Ersatzstil hat keine.
+  if (map.getStyle()?.glyphs) {
+    map.addLayer({
+      id: `${src}-count`, type: 'symbol', source: src, filter: ['has', 'point_count'],
+      layout: { 'text-field': ['get', 'point_count_abbreviated'], 'text-size': 11.5, 'text-allow-overlap': true, 'text-font': ['Noto Sans Bold'] },
+      paint: { 'text-color': '#fff', 'text-halo-color': 'rgba(0,0,0,.6)', 'text-halo-width': 1 }
+    });
+  }
+  map.addLayer({
+    id: `${src}-glow`, type: 'circle', source: src, filter: ['!', ['has', 'point_count']],
+    paint: { 'circle-color': color, 'circle-radius': ['interpolate', ['linear'], ['zoom'], radius[0], radius[1] * 2.4, radius[2], radius[3] * 2.4], 'circle-blur': 1, 'circle-opacity': 0.55 }
+  });
+  map.addLayer({
+    id: `${src}-pt`, type: 'circle', source: src, filter: ['!', ['has', 'point_count']],
+    paint: {
+      'circle-color': color,
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], ...radius],
+      'circle-stroke-color': 'rgba(255,255,255,.9)',
+      'circle-stroke-width': 1.2
+    }
+  });
+}
+
 export const LAYERS = [
   {
     id: 'live',
     name: 'Livestreams',
+    short: 'Live',
+    color: COLORS.live,
+    icon: '<path d="M3.5 7.5h11v9h-11z"/><path d="M14.5 10.5 20.5 7v10l-6-3.5"/>',
     desc: 'Live-Videos aus Deutschland (YouTube, Webcams)',
     attribution: 'Livestreams: <a href="https://www.youtube.com" target="_blank" rel="noopener">YouTube</a> · <a href="https://www.ipcamlive.com" target="_blank" rel="noopener">IPCamLive</a> · <a href="https://www.angelcam.com" target="_blank" rel="noopener">Angelcam</a> · Verzeichnis <a href="https://worldcam.eu" target="_blank" rel="noopener">worldcam.eu</a> · Rechte bei den jeweiligen Betreibern',
     // Feste, auf dem Pi geprüfte Liste (tools/livestreams.mjs); kein Proxy nötig.
@@ -87,34 +128,7 @@ export const LAYERS = [
     viewport: false,
     sourceOptions: { cluster: true, clusterRadius: 36, clusterMaxZoom: 9 },
     requests() { return { queries: [''] }; },
-    install(map, src) {
-      map.addLayer({
-        id: `${src}-cluster`, type: 'circle', source: src, filter: ['has', 'point_count'],
-        paint: {
-          'circle-color': '#c92a2a',
-          'circle-opacity': 0.85,
-          'circle-radius': ['step', ['get', 'point_count'], 12, 10, 16, 30, 20],
-          'circle-stroke-color': 'rgba(255,255,255,.8)',
-          'circle-stroke-width': 2
-        }
-      });
-      if (map.getStyle()?.glyphs) {
-        map.addLayer({
-          id: `${src}-count`, type: 'symbol', source: src, filter: ['has', 'point_count'],
-          layout: { 'text-field': ['get', 'point_count_abbreviated'], 'text-size': 12, 'text-allow-overlap': true },
-          paint: { 'text-color': '#fff' }
-        });
-      }
-      map.addLayer({
-        id: `${src}-pt`, type: 'circle', source: src, filter: ['!', ['has', 'point_count']],
-        paint: {
-          'circle-color': '#e03131',
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 5, 14, 8],
-          'circle-stroke-color': '#fff',
-          'circle-stroke-width': 2
-        }
-      });
-    },
+    install(map, src) { pointLayers(map, src, COLORS.live); },
     detail(p) {
       const yt = p.kind === 'yt' ? ytId(p.video) : null;
       const embed = p.kind === 'embed' ? embedUrl(p.embed) : null;
@@ -131,6 +145,9 @@ export const LAYERS = [
       ].join('');
       return {
         title: esc(p.name),
+        kicker: `Livestream · ${esc(p.channel || '')}`,
+        chip: { text: 'Live', cls: 'live' },
+        fav: true,
         body: player
           + `<dl>${row('Betreiber', esc(p.channel))}${row('Quelle', esc({ yt: 'YouTube-Livestream', embed: 'Webcam-Player des Betreibers', hls: 'Direkter Videostream' }[p.kind] || null))}</dl>`
           + (links ? `<div class="links">${links}</div>` : '')
@@ -140,6 +157,9 @@ export const LAYERS = [
   {
     id: 'cams',
     name: 'Verkehrskameras',
+    short: 'Kameras',
+    color: COLORS.image,
+    icon: '<path d="M4 8.5h3.2l1.8-2.5h6l1.8 2.5H20v10H4z"/><circle cx="12" cy="13.3" r="3.2"/>',
     desc: 'London, New York, Kalifornien, Finnland',
     attribution: 'Kameras: <a href="https://tfl.gov.uk" target="_blank" rel="noopener">TfL</a> · <a href="https://webcams.nyctmc.org" target="_blank" rel="noopener">NYC DOT</a> · <a href="https://cwwp2.dot.ca.gov" target="_blank" rel="noopener">Caltrans</a> · <a href="https://www.digitraffic.fi" target="_blank" rel="noopener">Fintraffic / Digitraffic</a> (CC BY 4.0)',
     refresh: 600_000,
@@ -153,41 +173,16 @@ export const LAYERS = [
       if (!hits.length) return { hint: 'Hier keine freien Kameras – London, New York, Kalifornien oder Finnland' };
       return { queries: hits.map((c) => `p=${c.p}`) };
     },
-    install(map, src) {
-      map.addLayer({
-        id: `${src}-cluster`, type: 'circle', source: src, filter: ['has', 'point_count'],
-        paint: {
-          'circle-color': '#0c8599',
-          'circle-opacity': 0.85,
-          'circle-radius': ['step', ['get', 'point_count'], 12, 20, 16, 100, 21, 500, 27],
-          'circle-stroke-color': 'rgba(255,255,255,.8)',
-          'circle-stroke-width': 2
-        }
-      });
-      // Zahl in der Gruppe braucht Schriften aus dem Kartenstil; der Ersatzstil hat keine.
-      if (map.getStyle()?.glyphs) {
-        map.addLayer({
-          id: `${src}-count`, type: 'symbol', source: src, filter: ['has', 'point_count'],
-          layout: { 'text-field': ['get', 'point_count_abbreviated'], 'text-size': 12, 'text-allow-overlap': true },
-          paint: { 'text-color': '#fff' }
-        });
-      }
-      map.addLayer({
-        id: `${src}-cam`, type: 'circle', source: src, filter: ['!', ['has', 'point_count']],
-        paint: {
-          'circle-color': '#15aabf',
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, 4, 14, 7],
-          'circle-stroke-color': '#fff',
-          'circle-stroke-width': 1.5
-        }
-      });
-    },
+    install(map, src) { pointLayers(map, src, COLORS.image, { radius: [6, 4, 14, 7] }); },
     detail(p) {
       const image = safeUrl(p.image);
       const video = safeUrl(p.video);
       const info = CAM_INFO[p.provider] || { name: p.provider, refresh: 30 };
       return {
         title: esc(p.name),
+        kicker: `Verkehrskamera · ${esc(info.name)}`,
+        chip: { text: `Bild · ${info.refresh} s`, cls: 'img' },
+        fav: true,
         body: (image
           ? `<img class="cam" alt="Kamerabild ${esc(p.name)}" data-src="${esc(image)}" data-refresh="${info.refresh}" referrerpolicy="no-referrer">`
           : '<p class="noimg">Kein Bild verfügbar</p>')
@@ -200,6 +195,9 @@ export const LAYERS = [
   {
     id: 'flights',
     name: 'Flugzeuge',
+    short: 'Flüge',
+    color: COLORS.accent,
+    icon: '<path d="M12 2.5c.8 0 1.3.9 1.3 2v5.2l7.2 4.2v2l-7.2-2.2v4.1l2.2 1.6v1.6L12 20.2l-3.5.8v-1.6l2.2-1.6v-4.1l-7.2 2.2v-2l7.2-4.2V4.5c0-1.1.5-2 1.3-2z"/>',
     attribution: 'Flugdaten: <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a> (ODbL) / <a href="https://airplanes.live" target="_blank" rel="noopener">airplanes.live</a>',
     desc: 'ADS-B-Positionen, alle 10 s',
     refresh: 10_000,
@@ -224,10 +222,10 @@ export const LAYERS = [
           'icon-ignore-placement': true
         },
         paint: {
-          // Farbe nach Höhe: Boden grau, tief orange, Reiseflughöhe blau.
-          'icon-color': ['case', ['==', ['get', 'ground'], 1], '#8a8f98',
-            ['interpolate', ['linear'], ['coalesce', ['get', 'alt_ft'], 0], 0, '#f08c00', 10000, '#e03131', 25000, '#7048e8', 40000, '#1971c2']],
-          'icon-halo-color': 'rgba(0,0,0,.55)',
+          // Farbe nach Höhe: Boden grau, tief gelb, Reiseflughöhe türkis.
+          'icon-color': ['case', ['==', ['get', 'ground'], 1], '#6b7884',
+            ['interpolate', ['linear'], ['coalesce', ['get', 'alt_ft'], 0], 0, '#ffd23b', 10000, '#7fe3c4', 25000, '#19d6e8', 40000, '#7fb4ff']],
+          'icon-halo-color': 'rgba(0,0,0,.7)',
           'icon-halo-width': 1
         }
       });
@@ -237,6 +235,8 @@ export const LAYERS = [
       const kmh = typeof p.speed_kt === 'number' ? Math.round(p.speed_kt * 1.852) : null;
       return {
         title: esc(p.callsign || p.reg || p.id.toUpperCase()),
+        kicker: `Flugzeug${p.type ? ` · ${esc(p.type)}` : ''}`,
+        chip: { text: p.squawk && /^7[5-7]00$/.test(p.squawk) ? `Notfall ${esc(p.squawk)}` : 'ADS-B', cls: p.squawk && /^7[5-7]00$/.test(p.squawk) ? 'live' : 'acc' },
         body: `<dl>${row('Kennzeichen', esc(p.reg))}${row('Typ', esc(p.type))}`
           + row('Höhe', p.ground ? 'am Boden' : p.alt_ft === null ? null : `${fmt(p.alt_ft)} ft · ${fmt(m)} m`)
           + row('Geschwindigkeit', p.speed_kt === null ? null : `${fmt(p.speed_kt)} kn · ${fmt(kmh)} km/h`)
@@ -249,6 +249,9 @@ export const LAYERS = [
   {
     id: 'quakes',
     name: 'Erdbeben',
+    short: 'Beben',
+    color: '#ffb02e',
+    icon: '<path d="M2.5 12.5h4l2.5-6 4 12 3-8 1.5 2h4"/>',
     attribution: 'Erdbeben: <a href="https://earthquake.usgs.gov" target="_blank" rel="noopener">USGS</a>',
     desc: 'Letzte 24 Stunden, weltweit',
     refresh: 60_000,
@@ -261,9 +264,10 @@ export const LAYERS = [
         paint: {
           'circle-radius': ['interpolate', ['linear'], ['coalesce', ['get', 'mag'], 0], 0, 2.5, 3, 5, 5, 10, 7, 20],
           'circle-color': ['interpolate', ['linear'], ['coalesce', ['get', 'mag'], 0], 1, '#fab005', 3, '#fd7e14', 5, '#e03131', 7, '#862e9c'],
-          'circle-opacity': 0.75,
-          'circle-stroke-color': 'rgba(0,0,0,.45)',
-          'circle-stroke-width': 1
+          'circle-opacity': 0.6,
+          'circle-blur': 0.15,
+          'circle-stroke-color': ['interpolate', ['linear'], ['coalesce', ['get', 'mag'], 0], 1, '#fab005', 3, '#fd7e14', 5, '#ff3b6b', 7, '#c084fc'],
+          'circle-stroke-width': 1.2
         }
       });
     },
@@ -272,6 +276,8 @@ export const LAYERS = [
       const when = typeof p.time === 'number' ? new Date(p.time).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : null;
       return {
         title: `Magnitude ${p.mag === null ? '?' : fmt(p.mag, 1)}`,
+        kicker: `Erdbeben · ${esc(when || '')}`,
+        chip: { text: 'USGS', cls: p.mag >= 5 ? 'live' : 'warn' },
         body: `<dl>${row('Ort', esc(p.place))}${row('Zeit', esc(when))}${row('Tiefe', p.depth_km === null ? null : `${fmt(p.depth_km, 1)} km`)}`
           + row('Tsunami-Hinweis', p.tsunami ? 'ja' : null) + '</dl>'
           + (url ? `<a class="ext" href="${esc(url)}" target="_blank" rel="noopener">Details bei USGS ›</a>` : '')
