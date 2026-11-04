@@ -30,14 +30,14 @@ h2, h3 { text-wrap: balance }
 
 /* Kopfzeile */
 header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 10px 8px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap }
-.brand { font-family: var(--f-display); font-weight: 700; font-size: 20px; letter-spacing: .02em; text-transform: uppercase; margin: 0; line-height: 1.05 }
-.brand small { display: block; font-family: var(--f-body); font-weight: 500; font-size: 12px; letter-spacing: .02em; color: var(--muted); text-transform: none }
-.clock { font-family: var(--f-display); font-weight: 700; font-size: 34px; line-height: 1; font-variant-numeric: tabular-nums }
-.clock small { font-family: var(--f-body); font-size: 13px; font-weight: 500; color: var(--muted); margin-left: 6px }
+.brand { font-family: var(--f-display); font-weight: 700; font-size: 26px; letter-spacing: .02em; text-transform: uppercase; margin: 0; line-height: 1.05 }
+.brand small { display: block; font-family: var(--f-body); font-weight: 500; font-size: 14px; letter-spacing: .02em; color: var(--muted); text-transform: none }
+.clock { font-family: var(--f-display); font-weight: 700; font-size: 42px; line-height: 1; font-variant-numeric: tabular-nums }
+.clock small { font-family: var(--f-body); font-size: 15px; font-weight: 500; color: var(--muted); margin-left: 6px }
 .tabs { display: flex; gap: 4px; overflow-x: auto; max-width: 100% }
-.tab { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 11px; display: inline-flex; gap: 7px; align-items: baseline; white-space: nowrap }
-.tab b { font-family: var(--f-display); font-size: 16px; letter-spacing: .03em; text-transform: uppercase }
-.tab .meta { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums }
+.tab { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 8px 14px; display: inline-flex; gap: 7px; align-items: baseline; white-space: nowrap }
+.tab b { font-family: var(--f-display); font-size: 19px; letter-spacing: .03em; text-transform: uppercase }
+.tab .meta { font-size: 13.5px; color: var(--muted); font-variant-numeric: tabular-nums }
 .tab[aria-selected="true"] { border-color: var(--accent); background: var(--accent-soft) }
 .tab[aria-selected="true"] b { color: var(--accent) }
 .datenav { display: flex; align-items: center; gap: 4px; margin-left: auto }
@@ -212,31 +212,14 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
 .legend .lg-part { background: var(--now-soft); box-shadow: inset 0 0 0 1px var(--now) }
 
 /* Plan-Editor */
-.edbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 12px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r) }
-.edbar .info { flex: 1; min-width: 220px; font-size: 13px; color: var(--muted) }
-.edbar .info b { color: var(--ink) }
 .btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 7px 12px; font-weight: 600; font-size: 14px; white-space: nowrap }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff }
 .btn.ghost { border-color: transparent; background: none; color: var(--accent) }
 .btn.danger { color: var(--warn) }
 .btn:disabled { opacity: .5; cursor: default }
-.editor { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px }
-.edshift { display: grid; gap: 10px; align-content: start; min-width: 0 }
-.edshift > h2 { margin: 0; font-family: var(--f-display); font-size: 20px; text-transform: uppercase; letter-spacing: .03em; display: flex; gap: 10px; align-items: center; flex-wrap: wrap }
-.edshift > h2 label { font-family: var(--f-body); font-size: 13px; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--muted); display: inline-flex; gap: 6px; align-items: center }
-.ed-phase .chead { gap: 6px; align-items: center }
 .in { border: 1px solid var(--line); background: var(--surface-2); border-radius: 6px; padding: 5px 8px; min-width: 0 }
 .in.title { font-weight: 600; flex: 1 1 140px }
 .in.time { width: 64px; text-align: center; font-variant-numeric: tabular-nums }
-.ed-items { list-style: none; margin: 0; padding: 0 }
-.ed-items li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px 8px; padding: 7px 10px; border-top: 1px solid var(--line); align-items: start }
-.ed-items li:first-child { border-top: 0 }
-.ed-items .fields { display: grid; gap: 4px; min-width: 0 }
-.ed-items .fields .in.sub { font-size: 13px }
-.ed-items .opts { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--muted); align-items: center }
-.ed-items .opts label { display: inline-flex; gap: 4px; align-items: center }
-.ed-items .opts select { font-size: 12px; padding: 2px 4px }
-.order { display: grid; gap: 2px }
 .mini { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; width: 28px; height: 24px; font-size: 12px; line-height: 1; padding: 0 }
 .mini:disabled { opacity: .35; cursor: default }
 .mini.del { color: var(--warn) }
@@ -246,14 +229,16 @@ table.mgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; fon
 /* Person / Dienst */
 /* Anwesend-Leiste: alle Eingecheckten, aktive Person farbig */
 .presence { display: flex; gap: 6px; flex-wrap: wrap; align-items: center }
-.pchip { border: 1px solid var(--line); background: var(--surface); border-radius: 99px; height: 34px; padding: 0 10px 0 4px; display: inline-flex; align-items: center; gap: 7px; font-weight: 600; white-space: nowrap; line-height: 1.05; text-align: left }
-.pchip .av { width: 26px; height: 26px; border-radius: 50%; background: var(--surface-2); color: var(--muted); display: grid; place-items: center; font-size: 11px; font-weight: 700; box-shadow: inset 0 0 0 1px var(--line) }
-.pchip small { display: block; font-size: 10.5px; font-weight: 500; color: var(--muted) }
+.pchip { border: 1px solid var(--line); background: var(--surface); border-radius: 99px; height: 42px; padding: 0 12px 0 5px; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 16px; white-space: nowrap; line-height: 1.05; text-align: left }
+.pchip .av { width: 32px; height: 32px; border-radius: 50%; background: var(--surface-2); color: var(--muted); display: grid; place-items: center; font-size: 11px; font-weight: 700; box-shadow: inset 0 0 0 1px var(--line) }
+.pchip small { display: block; font-size: 12px; font-weight: 500; color: var(--muted) }
 .pchip.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent) }
 .pchip.on .av { background: var(--accent); color: #fff; box-shadow: none }
-.pchip.add { border-style: dashed; color: var(--accent); padding: 0 12px; font-size: 15px }
+.pchip.add { border-style: dashed; color: var(--accent); padding: 0 14px; font-size: 17px }
 /* Ab zwei Eingecheckten wird es im Kopf eng: Schichtzusatz an der Uhr ausblenden */
 @media (max-width: 1500px) { header.top:has(.pchip + .pchip:not(.add)) .clock small { display: none } }
+/* Größerer Kopf: unter 1600 px Breite den Schichtzusatz an der Uhr weglassen (steht auch im Reiter „Schicht“), damit alles in eine Zeile passt */
+@media (max-width: 1600px) { .clock small { display: none } }
 /* Nur ansehen */
 .vobar { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 8px 12px; border-radius: var(--r); background: var(--now-soft); color: var(--now); border: 1px solid var(--now) }
 .vobar b { font-family: var(--f-display); font-size: 17px; letter-spacing: .04em; text-transform: uppercase }
@@ -380,7 +365,7 @@ ul.hints .sub { font-size: 12px; color: var(--muted) }
 .dialog p.pwarn { color: var(--warn) }
 
 /* Ein-/Auschecken + Zeiten */
-.outbtn { height: 34px; padding: 0 12px; border-color: var(--warn); color: var(--warn); background: var(--surface) }
+.outbtn { height: 42px; padding: 0 16px; font-size: 16px; border-color: var(--warn); color: var(--warn); background: var(--surface) }
 .namebtn.inn { border-color: var(--done); background: var(--done-soft) }
 .namebtn.inn { border-width: 2px }
 .dialog .grp.in { color: var(--done) }
@@ -444,12 +429,6 @@ label.btn[for="rzfile"] { cursor: pointer; display: inline-block; text-align: ce
 
 /* Verwaltung */
 .check-inline { display: flex; gap: 8px; align-items: center; font-size: 14px }
-.admin { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-top: 12px; align-items: start }
-.admin .card .cbody { padding: 12px; display: grid; gap: 10px }
-.admin p { margin: 0; font-size: 13px; color: var(--muted) }
-.people { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px }
-.people li { display: flex; gap: 6px; align-items: center }
-.people .in { flex: 1 }
 .pinform { max-width: 360px; margin: 40px auto 0; display: grid; gap: 10px; text-align: center }
 .pinform h2 { margin: 0; font-family: var(--f-display); font-size: 24px; text-transform: uppercase }
 .pinform .in { font-size: 22px; text-align: center; letter-spacing: .3em; padding: 10px }
@@ -494,5 +473,133 @@ label.btn[for="rzfile"] { cursor: pointer; display: inline-block; text-align: ce
   .rcal { gap: 2px } .rcal .rc { min-height: 64px; padding: 3px 4px; font-size: 11px }
   .clock { font-size: 28px }
 }
-@media (max-width: 760px) { .editor { grid-template-columns: minmax(0, 1fr) } .datenav { margin-left: 0 } }
+@media (max-width: 760px) { .edgrid { grid-template-columns: minmax(0, 1fr) } .datenav { margin-left: 0 } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important } }
+
+/* Übergabe: Leiste über dem Fahrplan (bis „Gelesen“) und Fenster nach dem Einchecken */
+.handbar { display: flex; align-items: center; gap: 12px; margin-top: 12px; padding: 10px 14px; border-radius: var(--r); background: var(--now-soft); border: 1px solid var(--now); flex: none }
+.handbar.imp { background: var(--warn-soft); border-color: var(--warn) }
+.handbar .imptag { background: var(--now); font-size: 12px; padding: 3px 8px }
+.handbar.imp .imptag { background: var(--warn) }
+.handbar .htxt { flex: 1; min-width: 0; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.handpop.plain { background: var(--now-soft); border-color: var(--now) }
+.handpop.none { background: var(--surface-2); border-color: var(--line); color: var(--muted) }
+.reply { font-size: 13px; color: var(--ink); background: var(--surface-2); border-radius: 8px; padding: 6px 9px; margin-top: 4px; overflow-wrap: anywhere }
+.tnote textarea.in { font: inherit; font-size: 15px; resize: vertical }
+/* Auschecken erst bei 100 %: offene Punkte im Fenster und im Fahrplan */
+.coopen { list-style: none; margin: 0; padding: 0; border: 1px solid var(--warn); border-radius: 10px; overflow: hidden; max-height: 46vh; overflow-y: auto }
+.coopen li { display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: var(--warn-soft) }
+.coopen li + li { border-top: 1px solid var(--line) }
+.coopen li > span { flex: 1; min-width: 0 }
+.coopen small { display: block; font-size: 12.5px; color: var(--muted) }
+.cobox { flex: none; width: 30px; height: 30px; border-radius: 7px; border: 2px solid var(--warn); background: var(--surface); padding: 0 }
+.cobox:hover { background: var(--done-soft); border-color: var(--done) }
+.btn.sm { padding: 5px 10px; font-size: 13px }
+ul.items li.flag, .always li.confirm.flag { background: var(--warn-soft); box-shadow: inset 0 0 0 2px var(--warn) }
+ul.items li.flag .box { border-color: var(--warn) }
+/* Verwaltung › Funktionen */
+.featrow { display: flex; align-items: center; gap: 14px }
+.featrow > span { flex: 1; min-width: 0 }
+.featrow small { display: block; font-size: 13px; color: var(--muted); margin-top: 2px }
+.switch { flex: none; width: 54px; height: 30px; border-radius: 99px; border: 0; background: var(--line); position: relative; padding: 0 }
+.switch span { position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .25); transition: left .15s }
+.switch.on { background: var(--done) }
+.switch.on span { left: 27px }
+/* Übersicht: eingeklappte Gruppen rechts, eigene Übergabe als Vorschau */
+.always li.more { border-top: 1px solid var(--line) }
+.morebtn { width: 100%; border: 0; background: none; text-align: left; padding: 9px 12px; color: var(--muted); font-weight: 600; font-size: 13.5px; display: flex; justify-content: space-between; min-height: 40px }
+.morebtn:hover { color: var(--accent) }
+.note .read.mine { background: var(--surface-2); max-height: 7.5em; overflow: hidden }
+.note .read.mine.imp { background: var(--warn-soft); border: 1px solid var(--warn) }
+.notebtn { border: 1px dashed var(--line); background: none; border-radius: 8px; padding: 12px; text-align: left; color: var(--accent); font-weight: 600 }
+.notebtn:disabled { color: var(--muted); cursor: default }
+textarea.notepop { width: 100%; font-size: 16px; line-height: 1.4; resize: vertical; padding: 10px 12px }
+.stop.is-later .stop-head { padding-block: 7px }
+
+/* Aufgaben-Plan: ein Plan für alle Tage, Bearbeiten im Fenster */
+.edtop { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 14px }
+.edtop h2 { margin: 0; font-family: var(--f-display); font-size: 26px; text-transform: uppercase; letter-spacing: .03em }
+.edtop .seg { margin-left: 0 }
+.edtop .segbtn { padding: 8px 16px; font-size: 15px }
+.edtop > .btn { margin-left: auto }
+.edgrid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; margin-top: 12px; align-items: start }
+.edcol { display: flex; flex-direction: column; gap: 10px; min-width: 0 }
+.edphase .edhead { display: flex; align-items: center; gap: 8px; padding-right: 8px; background: var(--surface-2) }
+.edtoggle { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; border: 0; background: none; text-align: left; padding: 11px 14px }
+.edtoggle .ttl { font-family: var(--f-display); font-weight: 700; font-size: 19px; text-transform: uppercase; letter-spacing: .03em }
+.edtoggle .tm { color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums }
+.edtoggle .cnt { margin-left: auto; color: var(--muted); font-size: 14px }
+ul.edlist { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line) }
+ul.edlist:empty { border-top: 0 }
+ul.edlist li { display: flex; align-items: center; gap: 10px; padding: 4px 12px 4px 6px; border-top: 1px solid var(--line); background: var(--surface) }
+ul.edlist li:first-child { border-top: 0 }
+ul.edlist li.new { background: var(--done-soft) }
+ul.edlist li.dragging { box-shadow: 0 6px 20px rgba(0, 0, 0, .18); position: relative; z-index: 2 }
+.grip { flex: none; width: 30px; height: 40px; display: grid; place-items: center; color: var(--na); cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none }
+.edtxt { flex: 1; min-width: 0; border: 0; background: none; text-align: left; padding: 9px 0; font-size: 16px; min-height: 44px }
+.edtxt.imp { color: var(--warn); font-weight: 600 }
+.edtxt small { display: block; font-size: 12.5px; color: var(--muted); font-weight: 400 }
+.badge { flex: none; font-size: 12px; font-weight: 600; color: var(--muted); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); border-radius: 99px; padding: 3px 9px; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px }
+.badge.rem { color: var(--now); background: var(--now-soft); box-shadow: none }
+.edadd { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 12px; background: var(--accent-soft); border-top: 1px dashed var(--accent) }
+.edadd label { font-weight: 600; color: var(--accent) }
+.edadd .in { flex: 1 1 260px; font-size: 16px; padding: 9px 11px; background: var(--surface) }
+.btn.addphase { border-style: dashed; color: var(--accent); background: none; text-align: left; padding: 12px 14px }
+.edalways .edlist { border-top: 0 }
+.dialog.edpop { gap: 12px }
+.fld { display: grid; gap: 5px }
+.fld > span { font-size: 13px; font-weight: 600; color: var(--muted) }
+.fld .in { font-size: 16px; padding: 9px 11px }
+.edpop .checks { display: flex; gap: 18px; flex-wrap: wrap }
+.edpop .checks label, .remfs label { display: inline-flex; gap: 8px; align-items: center }
+.remfs { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px 12px; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center }
+.remfs legend { font-size: 13px; font-weight: 600; color: var(--muted); padding: 0 4px }
+.in.tin { font-size: 17px; font-weight: 700; padding: 7px 9px; font-variant-numeric: tabular-nums; width: 86px; text-align: center }
+.tgrid { display: grid; grid-template-columns: 80px repeat(2, minmax(0, 1fr)); gap: 8px 12px; align-items: center }
+.tgrid > b:nth-child(-n+3) { font-size: 13px; color: var(--muted) }
+.tgrid .in.tin { width: 100% }
+.edpop .row .left { margin-right: auto }
+.dialog .perr { margin: 0; color: var(--warn); font-weight: 600 }
+.dialog .perr:empty { display: none }
+/* Erinnerungs-Popup im Schichtbetrieb */
+.remtag { display: inline-flex; align-items: center; gap: 3px; margin-left: 8px; font-size: 12px; font-weight: 700; color: var(--now); vertical-align: 1px }
+.dialog.taskrem { width: min(560px, 100%) }
+.taskrem .trhead { display: flex; align-items: center; gap: 8px; color: var(--now); font-weight: 700; text-transform: uppercase; letter-spacing: .05em; font-size: 14px }
+.taskrem .trhead svg { width: 24px; height: 24px }
+.taskrem h2 { font-size: 32px; line-height: 1.1 }
+.btn.done { background: var(--done); border-color: var(--done) }
+.ttab td.tnotecell.gap { color: var(--warn) }
+/* Verwaltung: Liste mit Status in Gruppen, Details im Fenster */
+.admin2 { max-width: 760px; margin: 14px auto 0; display: grid; gap: 16px }
+.admin2 > h2 { margin: 0; font-family: var(--f-display); font-size: 28px; text-transform: uppercase; letter-spacing: .03em }
+.agroup { display: grid; gap: 6px }
+.agroup h3 { margin: 0 0 0 4px; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted) }
+.alist { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden }
+.arow { width: 100%; display: flex; align-items: center; gap: 14px; padding: 13px 16px; border: 0; background: var(--surface); text-align: left; min-height: 60px }
+.alist > .arow + .arow { border-top: 1px solid var(--line) }
+button.arow:hover { background: var(--surface-2) }
+.arow > span:first-child { flex: 1; min-width: 0 }
+.arow b { font-size: 17px; font-weight: 600 }
+.arow small { display: block; font-size: 14px; color: var(--muted); margin-top: 1px }
+.arow small.ok { color: var(--done); font-weight: 600 }
+.arow small.bad { color: var(--warn); font-weight: 600 }
+.arow .chev { color: var(--na); font-size: 24px; line-height: 1 }
+.dialog.adminpop { width: min(600px, 100%) }
+.apbody { display: grid; gap: 10px; justify-items: start }
+.apbody p { margin: 0 }
+.apbody .btn { min-width: 220px }
+.teamlist { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; max-height: 46vh; overflow-y: auto }
+.teamlist li { display: flex; align-items: center; gap: 10px; padding: 6px 10px }
+.teamlist li + li { border-top: 1px solid var(--line) }
+.teamlist .av { flex: none; width: 32px; height: 32px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font-size: 12px; font-weight: 700 }
+.teamlist .in { flex: 1; border-color: transparent; background: none; font-size: 16px }
+.teamlist .in:focus { border-color: var(--line); background: var(--surface-2) }
+.btn.danger:not(.ghost) { background: var(--warn); border-color: var(--warn); color: #fff }
+.remwhen { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 8px 18px }
+.taskrem .trdone { color: var(--done); font-weight: 600 }
+/* Datensicherung: Verschlüsselung, Wiederherstellungscode, Löschen alter Daten */
+.encbox { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 4px; display: grid; gap: 8px; justify-items: start; width: 100% }
+.enccode { font: 700 24px/1.3 ui-monospace, Menlo, Consolas, monospace; letter-spacing: .06em; background: var(--surface-2); border: 2px dashed var(--accent); border-radius: 10px; padding: 14px 16px; text-align: center; user-select: all; -webkit-user-select: all }
+.cltab { border-collapse: collapse; width: 100%; font-size: 14px }
+.cltab th, .cltab td { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top }
+.cltab th { color: var(--muted); font-size: 12.5px }

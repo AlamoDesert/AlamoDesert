@@ -1,0 +1,117 @@
+# Änderungen – Rezeption Schichtcheck
+
+Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
+
+## 1.17.0 – 04.11.2026
+- Sicherungen verschlüsseln (einschaltbar unter Verwaltung › Datensicherung): Passwort der Leitung plus einmal angezeigter Wiederherstellungscode. Die automatische Sicherung läuft weiter ohne Eingabe; beim Einspielen fragt die App nach Passwort oder Code. Unverschlüsselte Sicherungen lassen sich weiter einspielen.
+- Alte Daten löschen nach dem Löschkonzept (Verwaltung › System): Protokoll und Übergaben nach 3 Monaten, Dienstplan nach 1 Jahr, Arbeitszeiten 2 Jahre nach Jahresende – mit Anzeige, was fällig ist, Bestätigung und Nachweis. Check-in-Fortschritt wird nach 3 Monaten automatisch entfernt.
+- Leitungs-PIN sicherer gespeichert (gesalzen, langsamer Hash; Umstellung beim nächsten Entsperren) und nach 5 Fehlversuchen kurz gesperrt.
+
+## 1.16.0 – 04.11.2026
+- Erinnerungen „zur Sicherheit“: Pro Aufgabe wählbar, ob die Erinnerung nur bei offener Aufgabe kommt oder immer – dann auch, wenn sie schon erledigt ist („Schon erledigt … – bitte kurz kontrollieren“, Knopf „Kontrolliert“). Im Aufgaben-Plan steht dann „· immer“ an der Glocke.
+
+## 1.15.0 – 03.11.2026
+- Check-ins neu gegliedert: Ablauf in drei Schritten (Dateien laden · Prüfen · Wallet buchen), jeder Schritt zeigt seinen Stand. Nach „Prüfen“ geht es automatisch weiter. „Wird erstattet“ und „Keine Erstattung“ sind eingeklappt, solange noch etwas zu entscheiden ist. Regeln & Preise und Hansefit-Liste liegen hinter „Einstellungen“.
+
+## 1.14.0 – 02.11.2026
+- Verwaltung übersichtlich: eine Liste in drei Gruppen (Planung, Auswertung, System), jede Zeile mit Status (z. B. Aufgaben pro Schicht, eingeteilte Tage, letzte Sicherung, PIN aktiv). Team, Datensicherung und Leitungs-PIN öffnen ein Fenster; „Arbeitszeiten aller“ führt direkt zu Korrektur und Export.
+
+## 1.13.0 – 02.11.2026
+- Auschecken mit offenen Punkten geht jetzt für alle – aber nur mit Grund. Der Grund steht in den Zeiten (Notiz-Spalte und Export) als „Offen gelassen (n): …“.
+- Wer als Früh- oder Spätschicht eingecheckt ist, sieht nur die eigene Schicht; der Umschalter Früh/Spät entfällt dann.
+- Aufgaben-Plan: Beim Öffnen ist der erste Abschnitt aufgeklappt.
+- Beispieltexte in Eingabefeldern allgemein gehalten (keine Namen oder Einzelfälle); „Check-ins“ ohne Zusatz.
+
+## 1.12.0 – 02.11.2026
+- Übersicht: Der Fahrplan ist einspaltig; aufgeklappt sind nur der laufende und überfällige Abschnitte, erledigte und spätere stehen als eine Zeile zum Aufklappen. Rechts sind nur fällige Rundgänge und offene Pflicht-Punkte sichtbar, der Rest steckt in aufklappbaren Zeilen. Die Spalten-Umschaltung (Auto/1/2) entfällt.
+- Eigene Übergabe wird im Fenster geschrieben (mit „Wichtig“), in der Karte steht nur noch die Vorschau.
+- Aufgaben-Plan neu: ein Plan für alle Tage mit getrennten Uhrzeiten für Mo–Fr und Sa+So. Neue Aufgaben in einer Zeile (Enter), Bearbeiten und Löschen im Fenster, Sortieren per Ziehen, Änderungen gelten sofort (kein Speichern-Knopf). Bisherige Vorlagen werden beim ersten Bearbeiten zusammengeführt.
+- Erinnerungs-Popups: Jede Aufgabe kann zu einer Uhrzeit (Mo–Fr und Sa+So getrennt) ein Fenster öffnen, solange sie offen ist – mit „Erledigt“ und „In 10 Minuten erinnern“.
+
+## 1.11.0 – 02.11.2026
+- Vergangene Tage behalten ihren Stand: Jeder Tag hält beim ersten Eintrag seinen Plan fest (`snap`). Spätere Änderungen am Aufgaben-Plan verändern Aufgaben und Prozente vergangener Tage nicht mehr. Bestehende Tage mit Einträgen werden beim ersten Start einmalig mit dem dann gültigen Plan festgehalten.
+- Auschecken als Früh- oder Spätschicht erst, wenn die Schicht bei 100 % ist (Aufgaben und Pflicht-Bestätigungen, egal wer sie erledigt hat). Das Fenster listet die offenen Punkte zum direkten Abhaken; „Zurück zur Schicht“ markiert sie rot im Fahrplan. Keine Ausnahme.
+- Übergabe: erscheint nach jedem Einchecken als Fenster – auch ohne Übergabe (Hinweis „Keine Übergabe hinterlassen“) – mit optionaler Rückmeldung. Bis „Gelesen“ steht sie als Leiste über dem Fahrplan. Die Namensauswahl zeigt keine Übergabe-Hinweise mehr.
+- Kopfzeile größer (Name, Uhr, Reiter, Anwesende, Auschecken).
+- Check-ins sind standardmäßig ausgeschaltet; Verwaltung › Funktionen schaltet sie wieder ein (Daten bleiben erhalten).
+
+## 1.10.0 – 02.11.2026
+- Zeiten: Ist eine Leitungs-PIN festgelegt, sieht jede Person nur ihre eigenen Zeiten (die gerade eingecheckte Person); die Zeiten anderer nur die Leitung. Ohne PIN bleibt die Namenswahl.
+- Datenschutz: Schriften (Barlow, Barlow Condensed) lokal eingebettet statt von Google Fonts geladen. SheetJS nur noch lokal (kein cdnjs), pdf.js nur noch im SharePoint-Betrieb von jsDelivr. Mac-App und Webversion rufen damit keine fremden Server mehr ab.
+- Entwickler-Unterlagen: `README.md`, `ENTWICKLUNG.md`, `CHANGELOG.md`, `.nvmrc` (Node 22), `sharepoint/README.md` neu; `.gitignore` schließt Sicherungen und Exporte aus.
+
+## 1.9.3 – 25.10.2026
+- Import-Protokoll entfernt, Monatspfeile direkt am Monat.
+
+## 1.9.2 – 25.10.2026
+- Reiter „Check-ins“ direkt nach „Schicht“.
+
+## 1.9.1 – 25.10.2026
+- Import-Vorschau wurde in niedrigen Fenstern auf 2 px zusammengedrückt.
+
+## 1.9.0 – 25.10.2026
+- Datei-Auswahl über festes Feld außerhalb von `<main>` (iPad-Safari verlor die Datei beim Neuzeichnen).
+- Webversion: pdf.js-Legacy-Fassung für älteres Safari.
+
+## 1.8.9 – 24.10.2026
+- PDF-Import auf dem iPad; Eingecheckte in der Anmeldemaske hervorgehoben.
+
+## 1.8.8 – 24.10.2026
+- PDF-Leser in der Webversion mitgeliefert statt von jsDelivr geladen.
+
+## 1.8.7 – 24.10.2026
+- Monatsplan-Import robuster (Web ohne pdf.js-Worker, keine Anmeldemaske beim Bearbeiten).
+
+## 1.8.6 – 24.10.2026
+- Check-ins: Benefit deutlich anzeigen und vor dem Buchen prüfen.
+
+## 1.8.5 – 24.10.2026
+- Check-ins: Prüfung in Gruppen, Wallet in Schritten mit Notiz und Ablehnen; Testdaten für alle Prüffälle.
+
+## 1.8.3 – 24.10.2026
+- „Leitung“ statt „Schichtleitung“.
+
+## 1.8.2 – 24.10.2026
+- Reiter „Erstattung“ heißt jetzt „Check-ins“.
+
+## 1.8.1 – 24.10.2026
+- Leitungs-PIN lässt sich deaktivieren.
+
+## 1.8.0 – 24.10.2026
+- Anmeldemaske, Anwesend-Leiste, Nur-ansehen-Modus, Feierabend-Bildschirm.
+
+## 1.7.1 – 24.10.2026
+- Erstattung im Design der App, Anbindung an Fahrplan, Person und Farbschema.
+
+## 1.7.0 – 24.10.2026
+- Reiter „Erstattung“ (Check-in-Erstattung) in Mac-App und Webversion.
+
+## 1.6.1 – 18.10.2026
+- Nach dem Auschecken nicht sofort neu einchecken lassen.
+- Webversion (20.10.): Downloads über claude.ai, Mac-Sicherung im Web übernehmen.
+
+## 1.6.0 – 18.10.2026
+- Plan-Zeiten wieder editierbar, Vorlagen für Mo–Fr und Sa+So.
+
+## 1.5.1 – 18.10.2026
+- „entfällt“ streicht durch und sperrt den Haken.
+
+## 1.5.0 – 18.10.2026
+- Dienstplan-Notizen bearbeiten, Tage einer Person hervorheben.
+
+## 1.4.0 – 18.10.2026
+- Übergabe als gelesen bestätigen und als wichtig markieren.
+
+## 1.3.1 – 18.10.2026
+- Höhe von „Dienst & Übergabe“ pro Person einstellbar.
+
+## 1.3.0 – 18.10.2026
+- Notizen beim Ein-/Auschecken, Rolle „Sonstiges“, Spaltenbreite pro Person.
+
+## Vor 1.3.0 – 14.–18.10.2026
+- Mac-App (Electron) mit automatischen Sicherungen, Autostart und PDF-Import ohne Internet.
+- Ein- und Auschecken in 15-Minuten-Schritten, Zeitenübersicht mit Korrekturen, PDF/XLSX-Export.
+- Eine Schicht-Ansicht, Monatskalender für den Dienstplan, drei Arten von Daueraufgaben.
+- Monatsplan-Import aus PDF oder Excel.
+- SharePoint-Webpart (App als Modul, Speicher in einer Dokumentbibliothek).
+- Automatische Sicherung bei Schichtbeginn und Tagesabschluss in einen gewählten Ordner.

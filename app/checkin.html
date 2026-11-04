@@ -4,11 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Check-ins</title>
-<!-- Eingebunden in die Rezeption-App (Reiter „Erstattung“). Mac-App: SheetJS lokal aus vendor/, sonst von cdnjs. -->
-<script src="vendor/xlsx.full.min.js" onerror="this.remove();document.write('<script src=&quot;https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js&quot;><\/script>')"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<!-- Eingebunden in die Rezeption-App (Reiter „Check-ins“). SheetJS liegt lokal in vendor/ (Mac-App: mitgeliefert, Webversion: mitveröffentlicht) – keine Abrufe von fremden Servern. -->
+<script src="vendor/xlsx.full.min.js"></script>
+<!-- RZ-FONTS: tools/build.mjs ersetzt diese Zeile durch die eingebetteten Barlow-Schriften aus app/fonts/. -->
 <style>
 /* Gestaltung wie die Rezeption-App (app/app.css): gleiche Farben, Schriften, Karten, Knöpfe.
    Hell/Dunkel folgt dem System; eingebettet setzt die App data-theme passend zu ihrer Ansicht. */
@@ -39,10 +37,21 @@ code { font-size: 13px; background: var(--surface-2); border: 1px solid var(--li
 /* Kopf: Unterreiter als Umschalter wie in der App */
 header { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; padding: 12px 16px 0; }
 header h1 { margin: 0; font-family: var(--f-display); font-weight: 700; font-size: 22px; letter-spacing: .03em; text-transform: uppercase; }
-nav { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
-nav button { border: 0; background: var(--surface); padding: 6px 14px; font-weight: 600; font-size: 14px; color: var(--muted); white-space: nowrap; }
-nav button + button { border-left: 1px solid var(--line); }
-nav button.active { background: var(--accent); color: #fff; }
+/* Ablauf in drei Schritten (wie die Abschnitte im Fahrplan) */
+nav.steps { display: flex; gap: 6px; flex: 1 1 520px; min-width: 0 }
+nav.steps button { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 8px 12px; text-align: left; color: var(--ink); }
+nav.steps button > span:last-child { min-width: 0; font-family: var(--f-display); font-weight: 700; font-size: 17px; letter-spacing: .03em; text-transform: uppercase; }
+nav.steps small { display: block; font-family: var(--f-body); font-weight: 500; font-size: 12.5px; letter-spacing: 0; text-transform: none; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+nav.steps .sn { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 13px; background: var(--surface-2); color: var(--muted); box-shadow: inset 0 0 0 1px var(--line) }
+nav.steps button.done .sn { background: var(--done); color: #fff; box-shadow: none }
+nav.steps button.done small { color: var(--done) }
+nav.steps button.attn small { color: var(--now); font-weight: 600 }
+nav.steps button.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: var(--accent-soft) }
+nav.steps button.active .sn { background: var(--accent); color: #fff; box-shadow: none }
+#setBtn.active { border-color: var(--accent); color: var(--accent) }
+.sethead { display: flex; align-items: center; gap: 12px; flex-wrap: wrap }
+.sethead h2 { margin: 0; font-family: var(--f-display); font-size: 22px; letter-spacing: .03em; text-transform: uppercase }
+
 .user { margin-left: auto; display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); }
 .user b { color: var(--ink); }
 main { padding: 12px 16px 24px; }
@@ -223,18 +232,18 @@ html.embedded body { background: transparent; }
 <body>
 <header>
   <h1>Check-ins</h1>
-  <nav id="nav">
-    <button data-tab="pruefung" class="active">1 · Tagesprüfung</button>
-    <button data-tab="buchen">2 · Wallet buchen</button>
-    <button data-tab="regeln">Regeln &amp; Preise</button>
-    <button data-tab="hansefit">Hansefit-Liste</button>
+  <nav id="nav" class="steps" aria-label="Ablauf">
+    <button data-tab="laden" class="active"><span class="sn" aria-hidden="true">1</span><span>Dateien laden<small id="st-laden">Export und Check-ins</small></span></button>
+    <button data-tab="pruefung"><span class="sn" aria-hidden="true">2</span><span>Prüfen<small id="st-pruefung">noch nicht geprüft</small></span></button>
+    <button data-tab="buchen"><span class="sn" aria-hidden="true">3</span><span>Wallet buchen<small id="st-buchen">–</small></span></button>
   </nav>
+  <button class="btn" id="setBtn" data-tab="einstellungen">Einstellungen</button>
   <div class="user">Bearbeitet von <b id="userFixed" hidden></b><input id="userInitials" size="10" placeholder="Kürzel"></div>
 </header>
 
 <main>
-<!-- ============ TAB 1: PRÜFUNG ============ -->
-<section class="tab active" id="tab-pruefung">
+<!-- ============ SCHRITT 1: DATEIEN LADEN ============ -->
+<section class="tab active" id="tab-laden">
   <div class="panel">
     <h2>Playtomic-Export (Buchungen des Prüftags)</h2>
     <div class="row">
@@ -255,20 +264,24 @@ html.embedded body { background: transparent; }
     </div>
     <p class="hint">Überschriften dürfen mit eingefügt werden. Zeilen ohne Datum und Uhrzeit ignoriert das Tool.</p>
     <div class="row" style="margin-top:12px">
-      <button class="btn primary" id="runBtn">Prüfen</button>
-      <button class="btn" id="exportBtn" disabled>Dokumentation exportieren (Excel)</button>
+      <button class="btn primary" id="runBtn">Prüfen ›</button>
       <span id="runInfo" class="muted"></span>
     </div>
   </div>
+</section>
 
+<!-- ============ SCHRITT 2: PRÜFEN ============ -->
+<section class="tab" id="tab-pruefung">
+  <div id="resultEmpty" class="panel muted">Noch nicht geprüft. Lade in Schritt 1 den Playtomic-Export, füge die Check-ins ein und tippe „Prüfen“.</div>
   <div class="panel" id="resultPanel" hidden>
     <h2>Ergebnis <span id="resultDate" class="muted"></span></h2>
+    <div class="row" style="margin-bottom:10px"><button class="btn" id="exportBtn" disabled>Dokumentation exportieren (Excel)</button></div>
     <div class="stats" id="stats"></div>
     <div id="resultGroups"></div>
   </div>
 </section>
 
-<!-- ============ TAB 2: BUCHEN ============ -->
+<!-- ============ SCHRITT 3: WALLET BUCHEN ============ -->
 <section class="tab" id="tab-buchen">
   <div id="queueEmpty" class="panel muted">Noch nichts zu buchen. Führe zuerst die Tagesprüfung durch.</div>
   <div id="queueArea" hidden>
@@ -286,8 +299,9 @@ html.embedded body { background: transparent; }
   </div>
 </section>
 
-<!-- ============ TAB 3: REGELN ============ -->
-<section class="tab" id="tab-regeln">
+<!-- ============ EINSTELLUNGEN: REGELN, PREISE, HANSEFIT-LISTE ============ -->
+<section class="tab" id="tab-einstellungen">
+  <div class="sethead"><button class="btn" data-tab="back">‹ Zurück</button><h2>Einstellungen</h2><span class="muted">Regeln, Preise und Hansefit-Liste – selten zu ändern</span></div>
   <div class="panel">
     <h2>Erstattungsregeln</h2>
     <div class="row ruleset-bar">
@@ -341,10 +355,7 @@ html.embedded body { background: transparent; }
     </div>
     <p class="hint">Exportiere die Konfiguration nach jeder Änderung in den Club-Ordner. Andere Rechner an der Rezeption importieren sie von dort.</p>
   </div>
-</section>
 
-<!-- ============ TAB 4: HANSEFIT ============ -->
-<section class="tab" id="tab-hansefit">
   <div class="panel">
     <h2>Zuordnung Hansefit-ID → Name</h2>
     <div class="row">
@@ -675,7 +686,7 @@ function parseCSV(text) {
 async function readTableFile(file) {
   const name = file.name.toLowerCase();
   if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
-    if (typeof XLSX === 'undefined') throw new Error('Excel-Unterstützung nicht geladen (keine Internetverbindung?). Bitte als CSV speichern.');
+    if (typeof XLSX === 'undefined') throw new Error('Excel-Unterstützung fehlt (vendor/xlsx.full.min.js nicht mitgeliefert). Bitte als CSV speichern.');
     const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
     const ws = wb.Sheets[wb.SheetNames[0]];
     return XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' }).filter(r => r.some(v => String(v).trim() !== ''));
@@ -1065,6 +1076,7 @@ function runCheck() {
     + (set ? ` · Regelstand ab ${set.validFrom.split('-').reverse().join('.')}` : ' · kein Regelstand gültig') + '.';
   $('#exportBtn').disabled = !results.length;
   renderResults(); renderQueue();
+  if (results.length) goTab('pruefung');
 }
 
 /* ================= Fortschritt (Freigabe / gebucht) ================= */
@@ -1140,9 +1152,10 @@ function resultRow(r, i, e, g) {
 }
 function renderResults() {
   reportStatus();
-  const panel = $('#resultPanel');
-  panel.hidden = !state.bookings;
-  if (!state.bookings) return;
+  const panel = $('#resultPanel'), done = !!(state.bookings && state.results.length);
+  panel.hidden = !done; $('#resultEmpty').hidden = done;
+  renderSteps();
+  if (!done) return;
   $('#resultDate').textContent = '· ' + dateDe(state.bookings.refDate);
   const groups = { decide: [], refund: [], none: [] };
   let sumQueue = 0, open = 0;
@@ -1161,16 +1174,16 @@ function renderResults() {
   $('#resultGroups').innerHTML = `
     <section class="rgroup decide"><h3><i class="dot review"></i>Zu entscheiden <span class="cnt">${groups.decide.length}</span></h3>
       ${groups.decide.length ? `<p class="hint">Betrag prüfen, dann freigeben oder ablehnen. Freigegebene landen in „Wallet buchen“.</p>${groups.decide.join('')}` : '<p class="okline">Nichts mehr zu entscheiden.</p>'}</section>
-    <section class="rgroup refund"><h3><i class="dot ok"></i>Wird erstattet <span class="cnt">${groups.refund.length}</span>${groups.refund.length ? `<button class="btn small primary" data-act="gowallet">Zu „Wallet buchen“ ›</button>` : ''}</h3>
-      ${groups.refund.join('') || '<p class="hint">Noch keine Erstattungen.</p>'}</section>
-    <details class="rgroup none"${groups.decide.length ? '' : ' open'}><summary><h3><i class="dot reject"></i>Keine Erstattung <span class="cnt">${groups.none.length}</span></h3></summary>
+    <details class="rgroup refund"${groups.decide.length ? '' : ' open'}><summary><h3><i class="dot ok"></i>Wird erstattet <span class="cnt">${groups.refund.length}</span>${groups.refund.length ? `<button class="btn small primary" data-act="gowallet">Weiter zu „Wallet buchen“ ›</button>` : ''}</h3></summary>
+      ${groups.refund.join('') || '<p class="hint">Noch keine Erstattungen.</p>'}</details>
+    <details class="rgroup none"><summary><h3><i class="dot reject"></i>Keine Erstattung <span class="cnt">${groups.none.length}</span></h3></summary>
       ${groups.none.join('') || '<p class="hint">Keine.</p>'}</details>`;
 }
 
 $('#resultGroups').addEventListener('click', async ev => {
   const el = ev.target.closest('[data-act]');
   if (!el) return;
-  if (el.dataset.act === 'gowallet') { $('#nav [data-tab="buchen"]').click(); return; }
+  if (el.dataset.act === 'gowallet') { ev.preventDefault(); goTab('buchen'); return; }
   const r = state.results[+el.dataset.i];
   if (!r) return;
   const by = $('#userInitials').value.trim();
@@ -1389,6 +1402,7 @@ $('#bookingFile').addEventListener('change', async ev => {
     state.bookings = parseBookings(await readTableFile(file));
     const usable = usableBookings(state.bookings.list, state.bookings.refKey);
     $('#bookingInfo').textContent = `${dateDe(state.bookings.refDate)} · ${state.bookings.list.length} Zeilen, ${usable.length} durchgeführte Buchungen/Events`;
+    renderSteps();
     msg.innerHTML = state.bookings.warnings.map(w => `<div class="msg warn">${esc(w)}</div>`).join('');
     updateCounts();
     state.results = []; renderResults(); renderQueue();
@@ -1405,16 +1419,41 @@ function updateCounts() {
     $('#cnt-' + p).textContent = items.length ? `(${items.length} erkannt)` : '';
   }
 }
-for (const p of PROVIDERS) $('#paste-' + p).addEventListener('input', updateCounts);
+for (const p of PROVIDERS) $('#paste-' + p).addEventListener('input', () => { updateCounts(); renderSteps(); });
 $('#runBtn').addEventListener('click', runCheck);
 
 /* ================= Tabs ================= */
-$('#nav').addEventListener('click', ev => {
-  const t = ev.target.dataset.tab; if (!t) return;
+/* ================= Ablauf in drei Schritten + Einstellungen ================= */
+let curTab = 'laden', lastStep = 'laden';
+function goTab(t) {
+  if (t === 'back') t = lastStep;
+  if (t !== 'einstellungen') lastStep = t;
+  curTab = t;
   for (const b of $('#nav').querySelectorAll('button')) b.classList.toggle('active', b.dataset.tab === t);
+  $('#setBtn').classList.toggle('active', t === 'einstellungen');
   for (const s of document.querySelectorAll('section.tab')) s.classList.toggle('active', s.id === 'tab-' + t);
   if (t === 'buchen') renderQueue();
+  window.scrollTo(0, 0);
+}
+document.addEventListener('click', ev => {
+  const b = ev.target.closest('[data-tab]');
+  if (b && (b.closest('#nav') || b.id === 'setBtn' || b.dataset.tab === 'back')) goTab(b.dataset.tab);
 });
+// Status unter den Schritten: was geladen ist, was zu entscheiden ist, was noch zu buchen ist.
+function renderSteps() {
+  const nCheck = PROVIDERS.reduce((n, p) => n + (($('#cnt-' + p).textContent.match(/\d+/) || [0])[0] * 1), 0);
+  const loaded = !!state.bookings;
+  setStep('laden', loaded && nCheck ? `✓ Export · ${nCheck} Check-ins` : loaded ? 'Export geladen · Check-ins fehlen' : 'Export und Check-ins', loaded && nCheck);
+  if (!state.results.length) { setStep('pruefung', 'noch nicht geprüft', false); setStep('buchen', '–', false); return; }
+  const decide = state.results.filter(r => groupOf(r, effective(r)) === 'decide').length;
+  setStep('pruefung', decide ? `${decide} zu entscheiden` : '✓ alles entschieden', !decide, decide > 0);
+  const items = queueItems(), open = items.filter(r => !effective(r).booked).length;
+  setStep('buchen', !items.length ? 'nichts zu buchen' : open ? `${open} offen` : '✓ alles gebucht', items.length && !open, open > 0);
+}
+function setStep(t, text, done, attn) {
+  const el = $('#st-' + t); if (el) el.textContent = text;
+  const b = $(`#nav [data-tab="${t}"]`); if (b) { b.classList.toggle('done', !!done); b.classList.toggle('attn', !!attn); }
+}
 $('#userInitials').value = lsGet(LS.user, '');
 // Die Rezeption-App meldet die eingecheckte Person; ihr Name gilt dann als „Bearbeitet von“.
 // Ohne eingecheckte Person bleibt das Kürzel-Feld zum Eintippen.
@@ -1741,7 +1780,14 @@ $('#clearLocal').addEventListener('click', ev => {
   renderCfg(); renderHf(); renderResults(); renderQueue();
 });
 
-renderCfg(); renderHf();
+// Löschkonzept: Prüf-Fortschritt (Kundennamen, Entscheidungen) nach 3 Monaten automatisch entfernen.
+(() => {
+  const d = new Date(); d.setMonth(d.getMonth() - 3);
+  const cut = dateKey(d);
+  const old = Object.keys(state.progress).filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k) && k < cut);
+  if (old.length) { for (const k of old) delete state.progress[k]; lsSet(LS.progress, state.progress); }
+})();
+renderCfg(); renderHf(); renderSteps();
 if (typeof XLSX === 'undefined') {
   $('#bookingMsg').innerHTML = '<div class="msg warn">Excel-Unterstützung konnte nicht geladen werden. CSV-Dateien funktionieren weiterhin, der Export erfolgt als CSV.</div>';
 }

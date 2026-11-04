@@ -208,9 +208,9 @@ export function mount(container, opts = {}) {
   const NATIVE = opts.native || (typeof window !== "undefined" && window.rezeptionNative) || null;
   let disposed = false;
   container.innerHTML = MARKUP;
-  // Reiter „Erstattung“ (Check-in-Erstattung, eigene Seite im iframe) nur, wenn die Seite mitgeliefert wird (Mac-App, Webversion).
+  // Reiter „Check-ins“ (Check-in-Erstattung, eigene Seite im iframe) nur, wenn die Seite mitgeliefert wird (Mac-App, Webversion)
+  // und die Leitung ihn unter Verwaltung › Funktionen eingeschaltet hat (Standard: aus).
   const CHECKIN_URL = opts.checkinUrl || null;
-  if (CHECKIN_URL) container.querySelector('[data-view="erstattung"]').hidden = false;
   // Farbschema: in SharePoint immer hell, sonst wie die einbettende Seite (claude.ai setzt data-theme).
   if (opts.mode === "sharepoint") host.setAttribute("data-theme", "light");
   else if (root.host) {
@@ -678,7 +678,6 @@ export function mount(container, opts = {}) {
   const clone = (o) => JSON.parse(JSON.stringify(o));
   const newId = (prefix) => `${prefix}_x${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   const WD = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
-  const WD_PL = ["Sonntage", "Montage", "Dienstage", "Mittwoche", "Donnerstage", "Freitage", "Samstage"];
   const MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
   const CHECK_SVG = '<svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3L13 4.5"/></svg>';
   const LOOP_SVG = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 5.5A5.5 5.5 0 0 0 3.2 4.6M3 10.5a5.5 5.5 0 0 0 9.8.9"/><path d="M3 1.8v3h3M13 14.2v-3h-3"/></svg>';
@@ -710,7 +709,7 @@ export function mount(container, opts = {}) {
           const t = str(i.t, 200).trim();
           if (!t) return null;
           seen.add(i.id);
-          return { id: i.id, t, s: str(i.s, 300), important: i.important === true, optional: i.optional === true };
+          return { id: i.id, t, s: str(i.s, 300), important: i.important === true, optional: i.optional === true, ...(TIME_RE.test(i.remind) ? { remind: i.remind, ...(i.remindAlways === true ? { remindAlways: true } : {}) } : {}) };
         }).filter(Boolean);
         return { id: ID_RE.test(p.id) ? p.id : newId("p"), title: str(p.title, 60).trim() || "Abschnitt", from: p.from, to: p.to, hint: str(p.hint, 80), items };
       }).filter(Boolean);
@@ -763,16 +762,18 @@ export function mount(container, opts = {}) {
     timesMonth: null, timesPerson: null, timesData: null, timesEdit: null, timesAll: false,
     checks: {}, notes: {}, prevNotes: {},
     read: {},            // Übergabe gelesen: { <Empfänger-Schicht>: { by, at, noteAt } } – noteAt = Stand der gelesenen Notiz
-    handPop: null,       // Schicht, deren wichtige Übergabe gerade als Fenster angezeigt wird
+    handPop: null,       // Schicht, deren Übergabe gerade als Fenster angezeigt wird
+    sideOpen: new Set(), // aufgeklappte Gruppen rechts („rhythm“, „confirm“, „hint“)
+    notePop: null,       // Schicht, deren eigene Übergabe gerade im Fenster bearbeitet wird
+    coFlag: null,        // Schicht, deren offene Punkte nach einem gescheiterten Auschecken im Fahrplan markiert sind
     logs: {},            // Daueraufgaben: { frueh|spaet: { <id>: { <key>: {at, by} | null } } }
     dayPlan: null,       // Tagesanpassung (normalisiert) oder null
-    cfg: { base: null, weekday: {}, people: [], roster: {}, adminPin: null }, // Pläne, Team, Dienstplan, Leitungs-PIN
+    daySnap: null,       // festgehaltener Plan-Stand des Tages (gilt nur für vergangene Tage)
+    cfg: { base: null, weekday: {}, people: [], roster: {}, adminPin: null, features: { checkins: false }, master: null, backupKey: null }, // Pläne, Team, Dienstplan, Leitungs-PIN, Funktionen
     docExists: false, cfgExists: false,
     month: {},           // date -> { checks, plan }
     names: {},
     expanded: new Set(),
-    draft: null,         // Plan-Editor: Arbeitskopie
-    draftDirty: false,
     confirm: null,       // zweistufiges Löschen
     mode: "loading",
     readOnly: false,
@@ -785,7 +786,16 @@ export function mount(container, opts = {}) {
     unlockedUntil: 0,    // Leitungsbereich entsperrt bis (ms)
     pinStage: null,      // { mode: "unlock"|"set", first?: string, next: view }
     rosterEdit: false,
-    edScope: "day",      // Aufgaben-Plan bearbeiten für: "day" | "wk" (Mo–Fr) | "we" (Sa+So)
+    edShift: "frueh",    // Aufgaben-Plan: angezeigte Schicht
+    edOpen: new Set(),   // aufgeklappte Abschnitte im Aufgaben-Plan
+    edAdd: null,         // Abschnitt mit offener Eingabezeile „Neue Aufgabe“
+    edNew: null,         // zuletzt hinzugefügte Aufgabe (grün markiert)
+    edPop: null,         // Bearbeiten-Fenster: { type: "item" | "phase" | "shift" | "always", id }
+    edConfirmDel: false,
+    adminPop: null,      // Fenster in der Verwaltung: "team" | "backup" | "pin" | "encsetup" | "enccode" | "decrypt" | "cleanup"
+    pendingImport: null, // verschlüsselte Sicherung, die auf Passwort/Code wartet
+    encCode: null,       // frisch erzeugter Wiederherstellungscode (nur bis „Fertig“ im Speicher)
+    taskRem: null,       // gerade angezeigte Aufgaben-Erinnerung { id, key, item }
     rosterHi: "",        // Dienstplan: Name, dessen Tage hervorgehoben werden
     importPreview: null, // eingelesener Arbeitsplan vor dem Übernehmen
   };
@@ -795,9 +805,11 @@ export function mount(container, opts = {}) {
   let scrolledOnce = false;
 
   // raw = ohne Schichtzeiten aus dem Dienstplan (für den Plan-Editor).
-  function resolvePlan(date, dayPlan, raw) {
+  // snap = festgehaltener Plan-Stand eines Tages: vergangene Tage behalten so Aufgaben und Prozente, auch wenn die Vorlagen später geändert werden.
+  function resolvePlan(date, dayPlan, raw, snap) {
     let r;
     if (dayPlan) r = { plan: dayPlan, source: "day" };
+    else if (snap && date < isoDate(new Date())) r = { plan: snap, source: "snap" };
     else {
       const wd = String(parseIso(date).getDay());
       if (state.cfg.weekday[wd]) r = { plan: state.cfg.weekday[wd], source: "weekday" };
@@ -820,7 +832,7 @@ export function mount(container, opts = {}) {
     timesCache.set(key, { src: plan, plan: out });
     return out;
   }
-  const P = () => resolvePlan(state.date, state.dayPlan).plan;
+  const P = () => resolvePlan(state.date, state.dayPlan, false, state.daySnap).plan;
 
   // ---------- Speicher ----------
   const LS = {
@@ -831,7 +843,7 @@ export function mount(container, opts = {}) {
       try {
         for (let i = 0; i < localStorage.length; i++) {
           const k = localStorage.key(i);
-          if (k && k.startsWith("rz2:" + ym)) { const d = JSON.parse(localStorage.getItem(k) || "{}"); out[k.slice(4)] = { checks: d.checks || {}, plan: normalizePlan(d.plan), time: normTimes(d.time) }; }
+          if (k && k.startsWith("rz2:" + ym)) { const d = JSON.parse(localStorage.getItem(k) || "{}"); out[k.slice(4)] = { checks: d.checks || {}, plan: normalizePlan(d.plan), snap: normalizePlan(d.snap), time: normTimes(d.time) }; }
         }
       } catch { /* blockiert */ }
       return out;
@@ -853,6 +865,7 @@ export function mount(container, opts = {}) {
     state.logs = (data && data.logs && typeof data.logs === "object") ? data.logs : {};
     state.time = normTimes(data && data.time);
     state.dayPlan = data ? normalizePlan(data.plan) : null;
+    state.daySnap = data ? normalizePlan(data.snap) : null;
   }
   function applyCfg(data) {
     const weekday = {};
@@ -881,7 +894,7 @@ export function mount(container, opts = {}) {
           for (const [pid, txt] of Object.entries(v.info)) if (ID_RE.test(pid) && typeof txt === "string" && txt.trim()) inf[pid] = txt.trim().slice(0, 60);
           if (Object.keys(inf).length) e.info = inf;
         }
-        // Anmerkung pro Schicht aus dem Monatsplan (nur Anzeige, z. B. „+Nia“).
+        // Anmerkung pro Schicht aus dem Monatsplan (nur Anzeige, z. B. Zusatzhinweise zur Besetzung).
         if (v.notes && typeof v.notes === "object") {
           const n = {};
           for (const k of KEYS) if (typeof v.notes[k] === "string" && v.notes[k].trim()) n[k] = v.notes[k].trim().slice(0, 80);
@@ -890,11 +903,19 @@ export function mount(container, opts = {}) {
         roster[d] = e;
       }
     }
-    state.cfg = { base: data ? normalizePlan(data.base) : null, weekday, people, roster, adminPin: data && typeof data.adminPin === "string" ? data.adminPin.slice(0, 64) : null };
+    state.cfg = { base: data ? normalizePlan(data.base) : null, weekday, people, roster, adminPin: data && typeof data.adminPin === "string" ? data.adminPin.slice(0, 200) : null,
+      features: { checkins: !!(data && data.features && data.features.checkins === true) },
+      master: data ? normalizeMaster(data.master) : null,
+      backupKey: data ? normalizeBackupKey(data.backupKey) : null };
   }
 
+  // Schlüssel für verschlüsselte Sicherungen: nur Form prüfen (Inhalte sind base64).
+  function normalizeBackupKey(k) {
+    const w = (x) => x && typeof x === "object" && ["salt", "iv", "ct"].every(f => typeof x[f] === "string" && x[f].length < 20000) && Number.isInteger(x.iter) && x.iter >= 100000;
+    return k && typeof k === "object" && k.v === 1 && typeof k.pub === "string" && k.pub.length < 4000 && w(k.pw) && w(k.code) ? { v: 1, created: String(k.created || ""), pub: k.pub, pw: k.pw, code: k.code } : null;
+  }
   function currentDayDoc() {
-    return { month: state.date.slice(0, 7), checks: state.checks, notes: state.notes, read: state.read, logs: state.logs, time: state.time, plan: state.dayPlan };
+    return { month: state.date.slice(0, 7), checks: state.checks, notes: state.notes, read: state.read, logs: state.logs, time: state.time, plan: state.dayPlan, snap: state.daySnap };
   }
 
   async function loadPrevNotes() {
@@ -919,7 +940,7 @@ export function mount(container, opts = {}) {
       return;
     }
     const m = state.month[state.date];
-    applyDoc(m ? { checks: m.checks, plan: m.plan } : null);
+    applyDoc(m ? { checks: m.checks, plan: m.plan, snap: m.snap } : null);
     state.docExists = !!m;
     render(); loadPrevNotes();
     unsubDay = db.doc("days/" + state.date).onSnapshot(
@@ -938,7 +959,7 @@ export function mount(container, opts = {}) {
     unsubMonth = db.collection("days").where("month", "==", ym).onSnapshot(
       (snap) => {
         const m = {};
-        snap.docs.forEach(d => { if (d.exists) { const x = d.data(); m[d.id] = { checks: x.checks || {}, plan: normalizePlan(x.plan), time: normTimes(x.time) }; } });
+        snap.docs.forEach(d => { if (d.exists) { const x = d.data(); m[d.id] = { checks: x.checks || {}, plan: normalizePlan(x.plan), snap: normalizePlan(x.snap), time: normTimes(x.time) }; } });
         state.month = m;
         if (state.view === "monat") render();
       },
@@ -995,11 +1016,53 @@ export function mount(container, opts = {}) {
     writeChain = job;
     return job;
   }
-  const persistDay = (date, patch) => persistDoc("days/" + date, patch, currentDayDoc(), "rz2:" + date, currentDayDoc());
+  // Plan-Stand festhalten: Jeder Schreibvorgang am angezeigten Tag speichert den gültigen Plan mit (heute immer der aktuelle,
+  // an vergangenen Tagen nur, falls noch keiner festgehalten ist). Tage mit Tagesanpassung brauchen das nicht.
+  function snapFor(date) {
+    if (date !== state.date || state.dayPlan) return null;
+    if (date < isoDate(new Date()) && state.daySnap) return null;
+    const snap = resolvePlan(date, null, true).plan;
+    return state.daySnap && JSON.stringify(state.daySnap) === JSON.stringify(snap) ? null : snap;
+  }
+  const persistDay = (date, patch) => {
+    const snap = snapFor(date);
+    if (snap) { state.daySnap = snap; patch = { ...patch, snap }; }
+    return persistDoc("days/" + date, patch, currentDayDoc(), "rz2:" + date, currentDayDoc());
+  };
+  // Nach einer Änderung der Vorlagen: heutigen Stand nachziehen (sonst hielte der Tag den Stand vom letzten Haken fest).
+  async function refreshTodaySnap() {
+    const today = isoDate(new Date());
+    if (state.date === today) { if (state.daySnap && snapFor(today)) await persistDay(today, {}); return; }
+    const snap = resolvePlan(today, null, true).plan;
+    if (state.mode !== "shared") {
+      const doc = LS.get("rz2:" + today, null);
+      if (doc && doc.snap && !doc.plan) LS.set("rz2:" + today, { ...doc, snap });
+      return;
+    }
+    try { const ref = db.doc("days/" + today), cur = await ref.get(); if (cur.exists && cur.data().snap && !cur.data().plan) await ref.update({ snap }); } catch { /* beim nächsten Haken */ }
+  }
+  // Einmalig (lokaler Speicher): vergangene Tage mit Einträgen, die noch keinen festgehaltenen Stand haben, mit dem jetzt gültigen Plan festhalten.
+  function migrateSnaps() {
+    if (state.mode !== "local") return;
+    const meta = LS.get("rz2meta", {});
+    if (meta.snapV1) return;
+    const today = isoDate(new Date());
+    try {
+      const keys = [];
+      for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && /^rz2:\d{4}-\d{2}-\d{2}$/.test(k) && k.slice(4) < today) keys.push(k); }
+      for (const k of keys) {
+        const doc = LS.get(k, null);
+        if (!doc || doc.plan || doc.snap) continue;
+        const touched = (doc.checks && Object.keys(doc.checks).length) || (doc.logs && Object.keys(doc.logs).length);
+        if (touched) LS.set(k, { ...doc, snap: resolvePlan(k.slice(4), null, true).plan });
+      }
+    } catch { return; }
+    LS.set("rz2meta", { ...LS.get("rz2meta", {}), snapV1: true });
+  }
   function cfgPayload() {
     const weekday = {};
     for (const k of Object.keys(state.cfg.weekday)) weekday[k] = state.cfg.weekday[k];
-    return { base: state.cfg.base, weekday, people: state.cfg.people, roster: state.cfg.roster, adminPin: state.cfg.adminPin };
+    return { base: state.cfg.base, weekday, people: state.cfg.people, roster: state.cfg.roster, adminPin: state.cfg.adminPin, features: state.cfg.features, master: state.cfg.master || null, backupKey: state.cfg.backupKey || null };
   }
   const persistCfg = (patch) => persistDoc("config/plan", patch, cfgPayload(), "rz2cfg", cfgPayload());
 
@@ -1009,7 +1072,7 @@ export function mount(container, opts = {}) {
     const next = { ...state.checks, [id]: value };
     if (!value) delete next[id];
     state.checks = next;
-    state.month = { ...state.month, [state.date]: { checks: next, plan: state.dayPlan } };
+    state.month = { ...state.month, [state.date]: { checks: next, plan: state.dayPlan, snap: state.daySnap } };
     render();
     persistDay(state.date, { checks: { [id]: value } });
     // Letzter Punkt der Spätschicht heute erledigt → Tagesabschluss sichern.
@@ -1019,27 +1082,12 @@ export function mount(container, opts = {}) {
     }
   }
 
-  const noteTimers = {};
-  function queueNote(shift, text) {
-    clearTimeout(noteTimers[shift]);
-    const date = state.date;
-    const el = $("saved-" + shift);
-    if (el) el.textContent = "Speichert…";
-    noteTimers[shift] = setTimeout(async () => {
-      if (date !== state.date) return;
-      const prev = state.notes[shift];
-      const val = { text: text.slice(0, 4000), by: actorId(), at: new Date().toISOString(), important: !!(prev && prev.important) };
-      state.notes = { ...state.notes, [shift]: val };
-      const ok = await persistDay(date, { notes: { [shift]: val } });
-      const el2 = $("saved-" + shift);
-      if (el2) el2.textContent = ok ? "Gespeichert " + fmtTime(val.at) : "Nicht gespeichert";
-    }, 700);
-  }
-
-  // „Wichtig“ umschalten, ohne den Zeitstempel zu ändern (eine schon gelesene Notiz bleibt gelesen).
-  function setNoteImportant(shift, on) {
-    const prev = state.notes[shift] || { text: "", by: actorId(), at: new Date().toISOString() };
-    const val = { ...prev, important: !!on };
+  // Übergabe aus dem Fenster speichern. Nur „Wichtig“ geändert → Zeitstempel bleibt (eine gelesene Übergabe bleibt gelesen).
+  function saveNote(shift, text, important) {
+    if (state.readOnly) { setStatus("Nur Lesezugriff – Änderungen werden nicht gespeichert", true); return; }
+    const prev = state.notes[shift], t = String(text || "").slice(0, 4000);
+    const same = prev && (prev.text || "") === t;
+    const val = same ? { ...prev, important: !!important } : { text: t, by: actorId(), at: new Date().toISOString(), important: !!important };
     state.notes = { ...state.notes, [shift]: val };
     persistDay(state.date, { notes: { [shift]: val } });
     render();
@@ -1054,18 +1102,18 @@ export function mount(container, opts = {}) {
     const r = state.read && state.read[key];
     return n && r && r.noteAt === n.at ? r : null;
   }
-  function markHandRead(key) {
+  function markHandRead(key, reply) {
     const n = handIn(key); if (!n) return;
-    const val = { by: actorId(), at: new Date().toISOString(), noteAt: n.at };
+    const txt = String(reply || "").trim().slice(0, 300);
+    const val = { by: actorId(), at: new Date().toISOString(), noteAt: n.at, ...(txt ? { reply: txt } : {}) };
     state.read = { ...state.read, [key]: val };
     persistDay(state.date, { read: { [key]: val } });
   }
-  // Nach dem Einchecken: wichtige, ungelesene Übergabe der eigenen Schicht als Fenster zeigen.
+  // Nach jedem Einchecken: Übergabe der eigenen Schicht als Fenster – auch wenn keine hinterlassen wurde (dann ein kurzer Hinweis).
   function maybeShowHandover(role) {
     if (state.date !== isoDate(new Date())) return;
-    const key = KEYS.includes(role) ? role : activeShift(P(), timeCtx());
-    const n = key && handIn(key);
-    if (n && n.important && !handRead(key, n)) { state.handPop = key; renderRemind(); }
+    const key = KEYS.includes(role) ? role : (activeShift(P(), timeCtx()) || focusShift(P(), nowMin()));
+    if (key) { state.handPop = key; renderRemind(); }
   }
 
   // ---------- Personen ----------
@@ -1084,6 +1132,8 @@ export function mount(container, opts = {}) {
     if (!openEntry(today, w.id)) return null;
     return state.cfg.people.find(p => p.id === w.id) || null;
   }
+  // Schicht der eingecheckten Person (Früh/Spät, heute) – dann zeigt die Schicht-Ansicht nur diese.
+  const lockedShift = () => currentPerson() && state.who && KEYS.includes(state.who.shift) && state.date === isoDate(new Date()) ? state.who.shift : null;
   const actorId = () => { const p = currentPerson(); return p ? p.id : (myId || null); };
   function rosterFor(date) { return state.cfg.roster[date] || { frueh: [], spaet: [] }; }
   // Abhaken braucht eine gewählte Person, sobald ein Team angelegt ist.
@@ -1121,12 +1171,15 @@ export function mount(container, opts = {}) {
         pid: e.pid, role: ["frueh", "spaet", "aushilfe"].includes(e.role) ? e.role : "aushilfe", in: e.in,
         out: TIME_RE.test(e.out || "") ? e.out : null, pause: Number.isInteger(e.pause) && e.pause >= 0 && e.pause <= 600 ? e.pause : null,
         note: str(e.note, 200).trim(),
+        ...(e.open && typeof e.open === "object" && str(e.open.reason, 300).trim() ? { open: { n: Number.isInteger(e.open.n) ? e.open.n : 0, reason: str(e.open.reason, 300).trim() } } : {}),
         at: typeof e.at === "string" ? e.at : null, editedAt: typeof e.editedAt === "string" ? e.editedAt : null,
         orig: e.orig && typeof e.orig === "object" ? { in: e.orig.in || null, out: e.orig.out || null, pause: Number.isInteger(e.orig.pause) ? e.orig.pause : null } : null,
       };
     }
     return out;
   }
+  // Notiz der Zeiterfassung inkl. Grund, falls beim Auschecken Punkte offen blieben.
+  const timeNote = (e) => [e.note, e.open ? `Offen gelassen (${e.open.n}): ${e.open.reason}` : ""].filter(Boolean).join(" · ");
   const timeOf = (date) => date === state.date ? state.time : ((state.month[date] && state.month[date].time) || (state.mode === "local" ? normTimes(LS.get("rz2:" + date, {}).time) : {}));
   function openEntry(date, pid) {
     const t = timeOf(date);
@@ -1179,7 +1232,8 @@ export function mount(container, opts = {}) {
   }
   function plannedFor(date, pid, role) {
     if (!["frueh", "spaet"].includes(role) || !rosterFor(date)[role].includes(pid)) return null;
-    const pl = resolvePlan(date, date === state.date ? state.dayPlan : null).plan[role];
+    const m = date === state.date ? { plan: state.dayPlan, snap: state.daySnap } : (state.month[date] || {});
+    const pl = resolvePlan(date, m.plan || null, false, m.snap).plan[role];
     return `${pl.start}–${pl.end}`;
   }
   function timeSelect(id, value, opts2 = {}) {
@@ -1256,8 +1310,9 @@ export function mount(container, opts = {}) {
 
   function itemHtml(item, opts = {}) {
     const c = state.checks[item.id];
-    const cls = [item.important ? "important" : "", c ? (c.s === "na" ? "na" : "done") : "", opts.upcoming ? "upcoming" : ""].join(" ");
-    const tag = opts.showPhase ? `<span class="tag">${esc(item.phase.title)} · bis ${item.phase.to}</span>` : "";
+    const flag = !c && state.coFlag === item.shift && state.date === isoDate(new Date());
+    const cls = [item.important ? "important" : "", c ? (c.s === "na" ? "na" : "done") : "", opts.upcoming ? "upcoming" : "", flag ? "flag" : ""].join(" ");
+    const tag = (opts.showPhase ? `<span class="tag">${esc(item.phase.title)} · bis ${item.phase.to}</span>` : "") + (item.remind && (!c || item.remindAlways) ? `<span class="remtag" title="${item.remindAlways ? "Erinnerung als Popup, auch wenn schon erledigt" : "Erinnerung als Popup"}">${BELL_SVG}${esc(item.remind)}</span>` : "");
     // „entfällt“ sperrt den Haken für diesen Tag; nur „rückgängig“ gibt ihn wieder frei.
     const na = !!c && c.s === "na";
     return `<li class="${cls}">
@@ -1265,7 +1320,7 @@ export function mount(container, opts = {}) {
         <span class="box">${na ? "" : CHECK_SVG}</span>
         <span class="txt"><span class="label">${esc(item.t)}</span>${tag}${item.s ? `<span class="sub">${esc(item.s)}</span>` : ""}${c ? `<span class="who">${whoLine(c)}</span>` : ""}</span>
       </button>
-      ${CHECKIN_URL && /check-?ins?\b/i.test(item.t) ? `<button class="golink" data-goview="erstattung" title="Check-ins öffnen">Check-ins ›</button>` : ""}
+      ${checkinsOn() && /check-?ins?\b/i.test(item.t) ? `<button class="golink" data-goview="erstattung" title="Check-ins öffnen">Check-ins ›</button>` : ""}
       ${item.optional ? `<button class="skip" data-skip="${esc(item.id)}" aria-pressed="${na}" ${na ? 'aria-label="Entfällt rückgängig machen"' : ""}>${na ? "rückgängig" : "entfällt"}</button>` : ""}
     </li>`;
   }
@@ -1276,34 +1331,44 @@ export function mount(container, opts = {}) {
     if (!list.length) return `<div class="empty">Keine Daueraufgaben.</div>`;
     const canLog = typeof ctx === "number";
     const lastLine = (last) => { if (!last) return ""; const n = personName(last.by); return `${fmtTime(last.at)}${n ? " · " + esc(n) : ""}`; };
-    const rhythm = list.filter(a => a.kind === "rhythm").map(a => {
+    // Übersicht: sichtbar ist nur, was jetzt zählt (fällige Rundgänge, offene Pflicht); der Rest steckt in einer aufklappbaren Zeile.
+    const open = state.sideOpen;
+    const rhythmL = list.filter(a => a.kind === "rhythm").map(a => {
       const entries = logEntries(key, a.id), last = entries[entries.length - 1];
       const info = canLog ? dueInfo(plan, key, a, ctx) : null;
       let sub = a.every % 60 === 0 ? (a.every === 60 ? "1× pro Stunde" : `alle ${a.every / 60} Std.`) : `alle ${a.every} Min.`;
       if (info && info.due !== null) sub += info.state === "ok" ? ` · nächster um <b>${fmtMin(info.due)}</b>` : ` · <b>fällig seit ${fmtMin(info.due)}</b>`;
-      return `<li class="${[a.important ? "important" : "", info ? info.state : ""].join(" ")}">
+      return { show: !!(info && info.state !== "ok"), html: `<li class="${[a.important ? "important" : "", info ? info.state : ""].join(" ")}">
         <button class="tap" data-log="${esc(a.id)}" data-shift="${key}" ${canLog ? "" : 'disabled title="Nur am heutigen Tag"'} aria-label="${esc(a.t)} erledigt – eintragen">
           <span class="ic" aria-hidden="true">${LOOP_SVG}</span>
           <span><span class="label">${esc(a.t)}</span><span class="sub">${sub}</span>${last ? `<span class="last">zuletzt ${lastLine(last)}</span>` : ""}</span>
           <span class="cnt${entries.length ? "" : " zero"}" title="heute in dieser Schicht">${entries.length}×</span>
         </button>
         ${last && canLog ? `<button class="undo" data-unlog="${esc(a.id)}" data-shift="${key}" aria-label="Letzten Eintrag zurücknehmen">↶</button>` : ""}
-      </li>`;
-    }).join("");
-    const confirm = list.filter(a => a.kind === "confirm").map(a => {
+      </li>` };
+    });
+    const confirmL = list.filter(a => a.kind === "confirm").map(a => {
       const entries = logEntries(key, a.id), last = entries[entries.length - 1];
-      return `<li class="confirm ${last ? "ok" : "open"}${a.important ? " important" : ""}">
+      return { show: !last, html: `<li class="confirm ${last ? "ok" : "open"}${a.important ? " important" : ""}${!last && state.coFlag === key && state.date === isoDate(new Date()) ? " flag" : ""}">
         <button class="tap" data-log="${esc(a.id)}" data-shift="${key}" ${canLog && !last ? "" : "disabled"} aria-label="${esc(a.t)} bestätigen">
           <span class="box" aria-hidden="true">${CHECK_SVG}</span>
           <span><span class="label">${esc(a.t)}</span>${last ? `<span class="last">bestätigt ${lastLine(last)}</span>` : `<span class="sub">${a.s ? esc(a.s) + " · " : ""}vor Schichtende bestätigen</span>`}</span>
         </button>
         ${last && canLog ? `<button class="undo" data-unlog="${esc(a.id)}" data-shift="${key}" aria-label="Bestätigung zurücknehmen">↶</button>` : ""}
-      </li>`;
-    }).join("");
+      </li>` };
+    });
     const hint = list.filter(a => a.kind === "hint").map(a => `<li class="${a.important ? "important" : ""}"><span class="label">${esc(a.t)}</span>${a.s ? ` <span class="sub">${esc(a.s)}</span>` : ""}</li>`).join("");
+    const more = (kind, n, text) => n ? `<li class="more"><button class="morebtn" data-sideopen="${kind}" aria-expanded="${open.has(kind)}">${open.has(kind) ? "weniger anzeigen" : text} <span aria-hidden="true">${open.has(kind) ? "‹" : "›"}</span></button></li>` : "";
+    const part = (items, kind, text) => {
+      const vis = items.filter(x => x.show || open.has(kind)), hidden = items.length - items.filter(x => x.show).length;
+      return vis.map(x => x.html).join("") + more(kind, hidden, text(hidden));
+    };
+    const rhythm = part(rhythmL, "rhythm", n => `${n} weitere im Takt`);
+    const confirm = part(confirmL, "confirm", n => `✓ ${n} bestätigt`);
+    const hintN = list.filter(a => a.kind === "hint").length;
     return `${rhythm ? `<div class="sublabel">Regelmäßig</div><ul class="always">${rhythm}</ul>` : ""}
       ${confirm ? `<div class="sublabel">Pflicht · einmal pro Schicht bestätigen</div><ul class="always">${confirm}</ul>` : ""}
-      ${hint ? `<div class="sublabel">Im Blick behalten</div><ul class="hints">${hint}</ul>` : ""}`;
+      ${hint ? `<div class="sublabel">Im Blick behalten</div>${open.has("hint") ? `<ul class="hints">${hint}</ul>` : ""}<ul class="always">${more("hint", hintN, `${hintN} ${hintN === 1 ? "Hinweis" : "Hinweise"} anzeigen`)}</ul>` : ""}`;
   }
 
   // Jeder Tipp = neuer Eintrag unter eigenem Schlüssel; gleichzeitige Tipps verschiedener Geräte überschreiben sich nicht.
@@ -1339,19 +1404,20 @@ export function mount(container, opts = {}) {
     const name = personName(r.by);
     return `Gelesen ${fmtTime(r.at)}${name ? " · " + esc(name) : ""}`;
   }
+  // Eigene Übergabe: kompakt als Vorschau, geschrieben wird im Fenster (state.notePop).
   function noteEditor(shift, label) {
-    const n = state.notes[shift], imp = !!(n && n.important);
+    const n = state.notes[shift], has = !!(n && n.text && n.text.trim());
     // Lesebestätigung der Spätschicht sieht die Frühschicht noch am selben Tag; die Spät-Notiz liest erst morgen jemand.
     const r = shift === "frueh" ? handRead("spaet") : null;
-    return `<div class="note"><div class="nhead"><label for="note-${shift}">${esc(label)}</label>
-        <label class="impchk${imp ? " on" : ""}"><input type="checkbox" data-noteimp="${shift}" ${imp ? "checked" : ""} ${state.readOnly ? "disabled" : ""}> Wichtig</label></div>
-      <textarea id="note-${shift}" data-note="${shift}" placeholder="z. B. offene Check-ins, defekte Schläger, Rückrufe…" ${state.readOnly || (state.viewOnly && !currentPerson()) ? "readonly" : ""}>${esc((n && n.text) || "")}</textarea>
-      <span class="saved" id="saved-${shift}">${n && n.at ? "Gespeichert" + noteAuthor(n) : ""}${r ? ` · <b class="okread">✓ ${readLine(r)}</b>` : ""}</span></div>`;
+    const canEdit = !state.readOnly && !(state.viewOnly && !currentPerson());
+    return `<div class="note"><div class="nhead"><label>${n && n.important ? '<span class="imptag">Wichtig</span> ' : ""}${esc(label)}</label>${canEdit && has ? `<button class="btn sm" data-noteedit="${shift}">Bearbeiten</button>` : ""}</div>
+      ${has ? `<div class="read mine${n.important ? " imp" : ""}">${esc(n.text)}</div>` : `<button class="notebtn" data-noteedit="${shift}" ${canEdit ? "" : "disabled"}>+ Übergabe schreiben</button>`}
+      <span class="saved">${has && n.at ? "Gespeichert" + noteAuthor(n) : ""}${r ? ` · <b class="okread">✓ ${readLine(r)}</b>` : ""}</span>${r && r.reply ? `<div class="reply">Rückmeldung: ${esc(r.reply)}</div>` : ""}</div>`;
   }
   function noteReader(key, label) {
     const n = handIn(key), r = n && handRead(key, n), wasRead = n && state.read && state.read[key];
     const canMark = n && !r && state.date === isoDate(new Date()) && !state.readOnly;
-    const foot = !n ? "" : r ? `<div class="rfoot"><b class="okread">✓ ${readLine(r)}</b></div>`
+    const foot = !n ? "" : r ? `<div class="rfoot"><b class="okread">✓ ${readLine(r)}</b></div>${r.reply ? `<div class="reply">Rückmeldung: ${esc(r.reply)}</div>` : ""}`
       : `<div class="rfoot"><span>${wasRead ? "Nach dem Lesen geändert" : "Noch nicht gelesen"}</span>${canMark ? `<button class="btn primary sm" data-hread="${key}">Gelesen</button>` : ""}</div>`;
     return `<div class="note"><label>${n && n.important ? '<span class="imptag">Wichtig</span> ' : ""}${esc(label)}${n ? noteAuthor(n) : ""}</label>
       <div class="read${n ? (n.important && !r ? " imp" : "") : " none"}">${n ? esc(n.text) : "Keine Notiz hinterlassen."}</div>${foot}</div>`;
@@ -1373,16 +1439,22 @@ export function mount(container, opts = {}) {
   // Links der Fahrplan der gewählten Schicht, rechts Immer im Blick, Dienst und Übergabe.
   function renderSchicht() {
     const plan = P(), ctx = timeCtx(), d = derive(plan);
-    const cp = currentPerson(), role = cp && state.who && ["frueh", "spaet"].includes(state.who.shift) && state.date === isoDate(new Date()) ? state.who.shift : null;
-    const auto = role || focusShift(plan, ctx), key = state.shiftSel || auto, s = plan[key], meta = SHIFT_META[key];
+    const cp = currentPerson(), role = lockedShift();
+    // Eingecheckt als Früh oder Spät: nur die eigene Schicht, kein Umschalten (sonst verwirrend).
+    const auto = role || focusShift(plan, ctx), key = role || state.shiftSel || auto, s = plan[key], meta = SHIFT_META[key];
     const MARK = { done: "✓", now: "▶", late: "!", later: "" };
     const stops = s.phases.map(p => {
       const st = phaseState(p, ctx);
       const done = p.items.filter(i => state.checks[i.id]).length;
-      const collapsed = st === "done" && !state.expanded.has(p.id);
+      // Übersicht: offen sind nur der laufende und überfällige Abschnitte (und nach „Zurück zur Schicht“ alle mit offenen Punkten);
+      // erledigte und spätere sind eine Zeile zum Aufklappen.
+      const flagged = state.coFlag === key && done < p.items.length;
+      const foldable = st === "done" || st === "later";
+      const collapsed = foldable && !flagged && !state.expanded.has(p.id);
       const label = { done: "erledigt", now: "jetzt", late: "offen", later: "später" }[st];
-      const head = `<span class="mark" aria-hidden="true">${MARK[st]}</span><span class="time">${p.from}–${p.to}</span><span class="ttl">${esc(p.title)}<small>${done}/${p.items.length}</small></span>${PILL[st]}`;
-      const headEl = st === "done"
+      const count = st === "later" && collapsed ? `${p.items.length} ${p.items.length === 1 ? "Aufgabe" : "Aufgaben"}` : `${done}/${p.items.length}`;
+      const head = `<span class="mark" aria-hidden="true">${MARK[st]}</span><span class="time">${p.from}–${p.to}</span><span class="ttl">${esc(p.title)}<small>${count}</small></span>${PILL[st]}`;
+      const headEl = foldable
         ? `<button class="stop-head" data-toggle="${esc(p.id)}" aria-expanded="${!collapsed}" aria-label="${esc(p.title)}, ${label}, ${collapsed ? "aufklappen" : "zuklappen"}">${head}</button>`
         : `<div class="stop-head">${head}</div>`;
       const hint = p.hint && (st === "now" || st === "late") ? `<div class="phint">${esc(p.hint)}</div>` : "";
@@ -1396,12 +1468,15 @@ export function mount(container, opts = {}) {
     const seg = KEYS.map(k => `<button class="segbtn${k === key ? " on" : ""}" data-shiftsel="${k}" aria-pressed="${k === key}">${SHIFT_META[k].short}${k === auto && typeof ctx === "number" && activeShift(plan, ctx) === k ? " ·&nbsp;jetzt" : ""}</button>`).join("");
     const title = ctx === "past" ? "Rückblick" : ctx === "future" ? "Vorschau" : "Fahrplan";
     const lay = getLayout();
-    const colBtns = `<div class="seg" role="group" aria-label="Spalten im Fahrplan">${[["auto", "Auto"], ["1", "1 Spalte"], ["2", "2 Spalten"]].map(([v, l]) => `<button class="segbtn${lay.cols === v ? " on" : ""}" data-cols="${v}" aria-pressed="${lay.cols === v}">${l}</button>`).join("")}</div>`;
-    return `<div class="schicht cols-${lay.cols}" style="--side:${lay.side}px">
+    // Ungelesene Übergabe: Leiste über dem Fahrplan, bis die eingecheckte Person sie als gelesen markiert.
+    const hb = state.date === isoDate(new Date()) && cp && !state.readOnly ? handIn(key) : null;
+    const banner = hb && !handRead(key, hb) ? `<div class="handbar${hb.important ? " imp" : ""}"><span class="imptag">Übergabe</span><span class="htxt"><b>${key === "frueh" ? "Von der Spätschicht" : "Von der Frühschicht"}:</b> ${esc(hb.text)}</span><button class="btn" data-hopen="${key}">Öffnen</button><button class="btn primary" data-hread="${key}">Gelesen</button></div>` : "";
+    if (state.coFlag === key && !shiftOpenList(key).items.length && !shiftOpenList(key).confirms.length) state.coFlag = null;
+    return `${banner}<div class="schicht cols-1" style="--side:${lay.side}px">
       <section class="card boardcard">
-        <div class="chead"><h2>${title} ${meta.label}</h2><span class="hint">${s.start}–${s.end} · ${pr.done}/${pr.total} erledigt</span><div class="seg" role="group" aria-label="Schicht wählen">${seg}</div>${colBtns}</div>
+        <div class="chead"><h2>${title} ${meta.label}</h2><span class="hint">${s.start}–${s.end} · ${pr.done}/${pr.total} erledigt</span>${role ? "" : `<div class="seg" role="group" aria-label="Schicht wählen">${seg}</div>`}</div>
         <div class="bar flat"><i style="width:${pr.pct}%"></i></div>
-        ${otherOpen ? `<button class="othersum" data-shiftsel="${other}">${SHIFT_META[other].label}: <b>${otherOpen} offen geblieben</b> – ansehen</button>` : ""}
+        ${otherOpen ? (role ? `<div class="othersum">${SHIFT_META[other].label}: <b>${otherOpen} offen geblieben</b></div>` : `<button class="othersum" data-shiftsel="${other}">${SHIFT_META[other].label}: <b>${otherOpen} offen geblieben</b> – ansehen</button>`) : ""}
         <div class="cbody board"><div class="board-in">${stops}</div></div>
       </section>
       <div class="splitter" data-split="side" role="separator" aria-orientation="vertical" aria-label="Spaltenbreite – ziehen oder Pfeiltasten, Doppelklick setzt zurück" tabindex="0" title="Ziehen zum Anpassen · Doppelklick = Standard"></div>
@@ -1413,9 +1488,9 @@ export function mount(container, opts = {}) {
     </div>`;
   }
 
-  // Spaltenaufteilung der Schicht-Ansicht, gespeichert pro Person (sonst „Standard“) im Browser-Speicher des Geräts.
+  // Breite der rechten Spalte und Höhe von „Dienst & Übergabe“, gespeichert pro Person (sonst „Standard“) im Browser-Speicher des Geräts.
   // hand = Höhe der Karte „Dienst & Übergabe“ in px, null = so hoch wie der Inhalt.
-  const LAYOUT_DEFAULT = { side: 460, cols: "auto", hand: null };
+  const LAYOUT_DEFAULT = { side: 420, hand: null };
   const clampSide = (v) => Math.min(900, Math.max(280, Math.round(v)));
   const clampHand = (v) => Math.min(1200, Math.max(120, Math.round(v)));
   const layoutKey = () => { const p = currentPerson(); return p ? p.id : "_"; };
@@ -1423,7 +1498,6 @@ export function mount(container, opts = {}) {
     const all = LS.get("rz2layout", {}), l = (all && all[layoutKey()]) || (all && all._) || {};
     return {
       side: Number.isFinite(l.side) ? clampSide(l.side) : LAYOUT_DEFAULT.side,
-      cols: ["auto", "1", "2"].includes(l.cols) ? l.cols : LAYOUT_DEFAULT.cols,
       hand: Number.isFinite(l.hand) ? clampHand(l.hand) : LAYOUT_DEFAULT.hand,
     };
   }
@@ -1465,8 +1539,8 @@ export function mount(container, opts = {}) {
     const head = Array.from({ length: days }, (_, i) => `<th scope="col">${pad(i + 1)}.</th>`).join("");
     const row = (key) => Array.from({ length: days }, (_, i) => {
       const date = `${y}-${pad(m + 1)}-${pad(i + 1)}`;
-      const entry = date === state.date ? { checks: state.checks, plan: state.dayPlan } : (state.month[date] || { checks: {}, plan: null });
-      const plan = resolvePlan(date, entry.plan).plan;
+      const entry = date === state.date ? { checks: state.checks, plan: state.dayPlan, snap: state.daySnap } : (state.month[date] || { checks: {}, plan: null });
+      const plan = resolvePlan(date, entry.plan, false, entry.snap).plan;
       const p = progress(plan, key, entry.checks || {});
       const cls = date > today && !p.done ? "future" : p.pct === 100 ? "full" : p.done ? "part" : "none";
       const text = p.done ? (p.pct === 100 ? "✓" : p.pct + "%") : "·";
@@ -1511,7 +1585,7 @@ export function mount(container, opts = {}) {
       return `<div class="overlay inmain" role="dialog" aria-modal="true"><div class="dialog">
         <h2>${WD[dd.getDay()]}, ${pad(dd.getDate())}.${pad(dd.getMonth() + 1)}.</h2>
         ${KEYS.map(k => `<div class="grp">${SHIFT_META[k].label}${entry.times && entry.times[k] ? " · " + esc(entry.times[k].replace("-", "–")) : ""}</div><div class="cell">${chips(k)}</div>
-          <label class="rnote">Notiz <input class="in" data-rnote="${date}" data-shift="${k}" maxlength="80" value="${esc((entry.notes && entry.notes[k]) || "")}" placeholder="z. B. +Nia, ab 17 Uhr"></label>`).join("")}
+          <label class="rnote">Notiz <input class="in" data-rnote="${date}" data-shift="${k}" maxlength="80" value="${esc((entry.notes && entry.notes[k]) || "")}" placeholder="optional"></label>`).join("")}
         <div class="row"><button class="btn primary" data-act2="rday-close">Fertig</button></div>
       </div></div>`;
     })() : "";
@@ -1574,9 +1648,10 @@ export function mount(container, opts = {}) {
   // Pro Tag stehen die Namen in „Vormittags“ bzw. „Nachmittags/Abends“. Anmerkungen werden nur angezeigt.
   // Zuordnung über die Spaltenposition der Kopfzeile (PDF: x-Koordinate, Excel: Spaltenbuchstabe).
   const MONTH_NAMES = ["jan", "feb", "mär|mar|maer", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "dez"];
-  // pdf.js: Mac-App lokal, Webversion aus der mitveröffentlichten Kopie (pdfjs/ neben index.html), sonst jsDelivr.
+  // pdf.js: Mac-App lokal, Webversion aus der mitveröffentlichten Kopie (pdfjs/ neben index.html), SharePoint von jsDelivr.
   const PDFJS_CDN = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.mjs";
-  const PDFJS_CANDIDATES = [opts.pdfjsUrl, NATIVE && NATIVE.pdfjsUrl, (() => { try { return new URL("pdfjs/pdf.min.mjs", document.baseURI).href; } catch { return null; } })(), PDFJS_CDN].filter(Boolean);
+  // jsDelivr nur im SharePoint-Betrieb (dort liegt keine eigene Kopie); Mac-App und Webversion laden nichts von fremden Servern.
+  const PDFJS_CANDIDATES = [opts.pdfjsUrl, NATIVE && NATIVE.pdfjsUrl, (() => { try { return new URL("pdfjs/pdf.min.mjs", document.baseURI).href; } catch { return null; } })(), opts.mode === "sharepoint" ? PDFJS_CDN : null].filter(Boolean);
   const TIME_RANGE = /(\d{1,2})[:.](\d{2})\s*[-–]\s*(\d{1,2})[:.](\d{2})/;
   async function unzipEntries(buf) {
     const dv = new DataView(buf), u8 = new Uint8Array(buf);
@@ -1816,6 +1891,26 @@ export function mount(container, opts = {}) {
 
   // ---------- Leitungsbereich (PIN) ----------
   // Einfacher Schutz gegen versehentliche Änderungen auf dem Gemeinschaftsrechner – keine echte Zugriffskontrolle.
+  // Ab 1.17: gesalzener, langsamer Hash (PBKDF2-SHA256) „p2:<salz>:<runden>:<hash>“. Alte „f1:“-Hashes gelten weiter
+  // und werden beim nächsten richtigen Entsperren umgestellt. Nach 5 Fehlversuchen sperrt die Eingabe (gerätebezogen, rz2pinlock).
+  const PIN_ITER = 150000;
+  const hex = (buf) => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
+  const unhex = (h) => new Uint8Array((h.match(/../g) || []).map(x => parseInt(x, 16)));
+  async function pbkdf2Hex(pin, saltHex, iter) {
+    const key = await crypto.subtle.importKey("raw", new TextEncoder().encode("rezeption:" + pin), "PBKDF2", false, ["deriveBits"]);
+    return hex(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: unhex(saltHex), iterations: iter }, key, 256));
+  }
+  async function pinHashSecure(pin) {
+    const salt = hex(crypto.getRandomValues(new Uint8Array(16)));
+    return `p2:${salt}:${PIN_ITER}:${await pbkdf2Hex(pin, salt, PIN_ITER)}`;
+  }
+  async function pinMatches(pin, stored) {
+    if (typeof stored !== "string") return false;
+    if (stored.startsWith("f1:")) return pinHash(pin) === stored;
+    const m = stored.match(/^p2:([0-9a-f]{32}):(\d{4,7}):([0-9a-f]{64})$/);
+    return !!m && (await pbkdf2Hex(pin, m[1], Number(m[2]))) === m[3];
+  }
+  const pinLock = () => { const l = LS.get("rz2pinlock", null); return l && typeof l === "object" ? l : { fails: 0, until: 0 }; };
   function pinHash(pin) {
     let h = 0x811c9dc5;
     for (const ch of "rezeption:" + pin) { h ^= ch.charCodeAt(0); h = Math.imul(h, 0x01000193) >>> 0; }
@@ -1825,6 +1920,9 @@ export function mount(container, opts = {}) {
   const PIN_OFF = "off";
   const pinOff = () => state.cfg.adminPin === PIN_OFF;
   const isUnlocked = () => pinOff() || Date.now() < state.unlockedUntil;
+  const checkinsOn = () => !!CHECKIN_URL && !!(state.cfg.features && state.cfg.features.checkins);
+  // Leitungs-PIN festgelegt (nicht leer, nicht „off“): Zeiten anderer nur für die Leitung.
+  const timesOwnOnly = () => !!state.cfg.adminPin && !pinOff();
   function requireAdmin(next) {
     if (isUnlocked()) { state.unlockedUntil = Date.now() + 10 * 60000; return true; }
     state.pinStage = { mode: state.cfg.adminPin ? "unlock" : "set", next };
@@ -1855,19 +1953,30 @@ export function mount(container, opts = {}) {
     if (st.mode === "set") {
       if (!st.first) { state.pinStage = { ...st, first: val }; render(); setTimeout(() => { const el = $("pin-in"); if (el) el.focus(); }, 0); return; }
       if (st.first !== val) { state.pinStage = { ...st, first: null }; render(); setTimeout(() => { const m2 = $("pin-msg"); if (m2) m2.textContent = "Die PINs stimmen nicht überein. Bitte neu festlegen."; }, 0); return; }
-      state.cfg = { ...state.cfg, adminPin: pinHash(val) };
+      state.cfg = { ...state.cfg, adminPin: await pinHashSecure(val) };
       await persistCfg({ adminPin: state.cfg.adminPin });
-    } else if (pinHash(val) !== state.cfg.adminPin) {
-      if (msg) msg.textContent = "PIN falsch.";
-      const el = $("pin-in"); if (el) { el.value = ""; el.focus(); }
-      return;
+    } else {
+      const lock = pinLock();
+      if (lock.until > Date.now()) { if (msg) msg.textContent = `Zu viele Fehlversuche – bitte in ${Math.ceil((lock.until - Date.now()) / 60000)} Min. erneut versuchen.`; return; }
+      if (!(await pinMatches(val, state.cfg.adminPin))) {
+        const fails = lock.fails + 1;
+        // ab dem 5. Fehlversuch: 1 Min. Sperre, danach jeweils doppelt so lang (höchstens 30 Min.)
+        const until = fails >= 5 ? Date.now() + Math.min(30, 2 ** (fails - 5)) * 60000 : 0;
+        LS.set("rz2pinlock", { fails, until });
+        if (msg) msg.textContent = until ? "PIN falsch. Eingabe für kurze Zeit gesperrt." : "PIN falsch.";
+        const el = $("pin-in"); if (el) { el.value = ""; el.focus(); }
+        return;
+      }
+      LS.set("rz2pinlock", { fails: 0, until: 0 });
+      // Alter, ungesalzener Hash → beim richtigen Entsperren auf den sicheren umstellen.
+      if (state.cfg.adminPin.startsWith("f1:")) { state.cfg = { ...state.cfg, adminPin: await pinHashSecure(val) }; persistCfg({ adminPin: state.cfg.adminPin }); }
     }
     state.unlockedUntil = Date.now() + 10 * 60000;
     const next = st.next || "admin";
     state.pinStage = null;
     if (next === "dienst-edit") { state.view = "dienst"; state.rosterEdit = true; }
     else if (next === "zeiten-all") { state.view = "zeiten"; state.timesAll = true; state.timesPerson = ""; }
-    else state.view = next;
+    else { if (next === "plan") openFirstPhase(); state.view = next; }
     render();
   }
 
@@ -1880,26 +1989,141 @@ export function mount(container, opts = {}) {
     if (days === null) return "Noch keine Sicherung (Verwaltung)";
     return days >= 7 ? `Sicherung ${days} Tage alt (Verwaltung)` : "";
   }
+  // Verwaltung: eine Liste mit Status in drei Gruppen; Team, Datensicherung und PIN öffnen ein Fenster (state.adminPop).
+  function backupStatus() {
+    const last = LS.get("rz2meta", {}).lastBackup, when = last ? new Date(last).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) : null;
+    if (state.mode === "shared") return { text: opts.mode === "sharepoint" ? "Gespeichert in SharePoint (Versionsverlauf)" : "Online gespeichert · Sicherung der Mac-App übernehmen", cls: "" };
+    const enc = state.cfg.backupKey ? " · verschlüsselt" : "";
+    if (NATIVE) return when ? { text: `Gesichert ${when} · automatisch${enc}`, cls: "ok" } : { text: "Noch keine Sicherung", cls: "bad" };
+    if (!backupDir) return { text: "Kein Sicherungsordner gewählt" + (when ? ` · zuletzt ${when}` : ""), cls: "bad" };
+    return when ? { text: `Gesichert ${when} · automatisch nach „${backupDir.name}“${enc}`, cls: "ok" } : { text: `Automatisch nach „${backupDir.name}“ · noch keine Sicherung`, cls: "" };
+  }
+  // ---------- Alte Daten löschen (Löschkonzept) ----------
+  // Fristen: Protokoll/Übergaben 3 Monate, Dienstplan 1 Jahr, Arbeitszeiten 2 Jahre nach Ende des Kalenderjahres.
+  // Nur im lokalen Speicher (Mac-App); gelöscht wird erst nach Bestätigung, jede Löschung wird ohne Inhalte vermerkt.
+  const hasLog = (doc) => ["checks", "logs", "notes", "read"].some(f => doc[f] && typeof doc[f] === "object" && Object.keys(doc[f]).length);
+  function cleanupScan() {
+    if (state.mode !== "local") return null;
+    const d = new Date();
+    const res = {
+      cutLog: isoDate(new Date(d.getFullYear(), d.getMonth() - 3, d.getDate())),
+      cutRoster: isoDate(new Date(d.getFullYear() - 1, d.getMonth(), d.getDate())),
+      cutTime: `${d.getFullYear() - 2}-01-01`, logDays: [], timeDays: [], rosterDays: [],
+    };
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || !/^rz2:\d{4}-\d{2}-\d{2}$/.test(k)) continue;
+        const date = k.slice(4), doc = LS.get(k, null);
+        if (!doc || typeof doc !== "object") continue;
+        if (date < res.cutLog && hasLog(doc)) res.logDays.push(date);
+        if (date < res.cutTime && doc.time && Object.keys(doc.time).length) res.timeDays.push(date);
+      }
+    } catch { return null; }
+    res.rosterDays = Object.keys(state.cfg.roster).filter(k => k < res.cutRoster);
+    res.total = res.logDays.length + res.timeDays.length + res.rosterDays.length;
+    return res;
+  }
+  async function runCleanup() {
+    const sc = cleanupScan(); if (!sc || !sc.total) return;
+    for (const date of new Set([...sc.logDays, ...sc.timeDays])) {
+      const k = "rz2:" + date, doc = { ...LS.get(k, {}) };
+      if (sc.logDays.includes(date)) { doc.checks = {}; doc.logs = {}; doc.notes = {}; doc.read = {}; }
+      if (sc.timeDays.includes(date)) delete doc.time;
+      // Ohne Einträge bleibt nichts Personenbezogenes übrig → Tag ganz entfernen.
+      if (!hasLog(doc) && !(doc.time && Object.keys(doc.time).length)) localStorage.removeItem(k); else LS.set(k, doc);
+    }
+    if (sc.rosterDays.length) {
+      const roster = { ...state.cfg.roster };
+      for (const k of sc.rosterDays) delete roster[k];
+      state.cfg = { ...state.cfg, roster };
+      await persistCfg({ roster });
+    }
+    const meta = LS.get("rz2meta", {});
+    const entry = { at: new Date().toISOString(), log: sc.logDays.length, time: sc.timeDays.length, roster: sc.rosterDays.length };
+    LS.set("rz2meta", { ...meta, cleanups: [entry, ...(Array.isArray(meta.cleanups) ? meta.cleanups : [])].slice(0, 20) });
+    state.confirm = null;
+    subscribeMonth(true); subscribeDay();
+    setStatus(`Alte Daten gelöscht: ${entry.log} Tage Protokoll, ${entry.time} Tage Arbeitszeiten, ${entry.roster} Dienstplan-Tage`);
+    render();
+  }
   function renderAdmin() {
-    const people = state.cfg.people.map((p, i) => `<li>
+    const m = getMaster(), ym = state.date.slice(0, 7), [yy, mm] = ym.split("-").map(Number), days = new Date(yy, mm, 0).getDate();
+    const items = (k) => m.plan[k].phases.reduce((n, p) => n + p.items.length, 0);
+    const rems = KEYS.reduce((n, k) => n + m.plan[k].phases.reduce((x, p) => x + p.items.filter(i => i.remind).length, 0), 0);
+    let planned = 0;
+    for (let d = 1; d <= days; d++) { const r = state.cfg.roster[`${ym}-${pad(d)}`]; if (r && ((r.frueh || []).length || (r.spaet || []).length)) planned++; }
+    const bs = backupStatus(), n = state.cfg.people.length, sc = cleanupScan();
+    const lastClean = (LS.get("rz2meta", {}).cleanups || [])[0];
+    const clTxt = !sc ? null : sc.total ? { text: `${sc.total} ${sc.total === 1 ? "Eintrag" : "Einträge"} über der Frist – bitte löschen`, cls: "bad" } : { text: `Nichts fällig${lastClean ? ` · zuletzt gelöscht ${new Date(lastClean.at).toLocaleDateString("de-DE")}` : ""}`, cls: "" };
+    const pinTxt = pinOff() ? { text: "Ausgeschaltet – Verwaltung und alle Zeiten sind für alle offen", cls: "bad" } : state.cfg.adminPin ? { text: "Aktiv · sperrt 10 Minuten nach der letzten Aktion", cls: "" } : { text: "Noch keine PIN festgelegt", cls: "bad" };
+    const row = (attr, title, st, cls = "") => `<button class="arow" ${attr}><span><b>${title}</b><small class="${cls}">${esc(st)}</small></span><span class="chev" aria-hidden="true">›</span></button>`;
+    const group = (title, rows) => `<section class="agroup" aria-label="${title}"><h3>${title}</h3><div class="alist">${rows}</div></section>`;
+    return `<div class="admin2"><h2>Verwaltung</h2>
+      ${group("Planung",
+        row('data-act2="open-plan"', "Aufgaben-Plan", `Früh ${items("frueh")} Aufgaben · Spät ${items("spaet")} Aufgaben${rems ? ` · ${rems} ${rems === 1 ? "Erinnerung" : "Erinnerungen"}` : ""}`) +
+        row('data-act2="open-roster"', "Dienstplan", `${MONTHS[mm - 1]}: ${planned} von ${days} Tagen eingeteilt`) +
+        row('data-adminpop="team"', "Team", `${n} ${n === 1 ? "Person" : "Personen"}`))}
+      ${group("Auswertung",
+        row('data-act2="open-month"', "Monatsstatistik", "Erledigt pro Tag und Schicht") +
+        row('data-act2="open-times"', "Arbeitszeiten aller", "Korrigieren, Excel- und PDF-Export"))}
+      ${group("System",
+        (state.mode === "loading" ? "" : row('data-adminpop="backup"', state.mode === "shared" ? "Datenspeicher" : "Datensicherung", bs.text, bs.cls)) +
+        (CHECKIN_URL ? `<div class="arow"><span><b>Check-ins</b><small>${checkinsOn() ? "Eingeschaltet" : "Ausgeschaltet"}</small></span><button class="switch${checkinsOn() ? " on" : ""}" role="switch" aria-checked="${checkinsOn()}" aria-label="Check-ins ${checkinsOn() ? "ausschalten" : "einschalten"}" data-act2="feat-checkins"><span></span></button></div>` : "") +
+        (clTxt ? row('data-adminpop="cleanup"', "Alte Daten löschen", clTxt.text, clTxt.cls) : "") +
+        row('data-adminpop="pin"', "Leitungs-PIN", pinTxt.text, pinTxt.cls))}
+    </div>${state.adminPop ? renderAdminPop() : ""}`;
+  }
+  function renderAdminPop() {
+    const pop = state.adminPop, last = LS.get("rz2meta", {}).lastBackup;
+    const frame = (title, body) => `<div class="overlay inmain" role="dialog" aria-modal="true" aria-labelledby="ap-title"><div class="dialog adminpop">
+      <h2 id="ap-title">${title}</h2>${body}<div class="row"><button class="btn primary" data-adminpop-close="1">Fertig</button></div></div></div>`;
+    if (pop === "team") {
+      const people = state.cfg.people.map(p => `<li><span class="av" aria-hidden="true">${esc(initials(p.name))}</span>
         <input class="in" id="pp-${esc(p.id)}" data-person="${esc(p.id)}" value="${esc(p.name)}" maxlength="40" aria-label="Name">
-        ${state.confirm === "p:" + p.id ? `<button class="mini del confirm" data-act2="person-del" data-pid="${esc(p.id)}">Löschen?</button>` : `<button class="mini del" data-act2="person-del" data-pid="${esc(p.id)}" aria-label="Entfernen">✕</button>`}
-      </li>`).join("");
-    const last = LS.get("rz2meta", {}).lastBackup;
-    return `<div class="admin">
-      <section class="card"><div class="chead"><h2>Team</h2><span class="hint">${state.cfg.people.length} Personen</span></div>
-        <div class="cbody">
-          <ul class="people">${people || "<p>Noch niemand angelegt.</p>"}</ul>
-          <form id="addperson" class="people"><li><input class="in" id="newperson" maxlength="40" placeholder="Name, z. B. Lisa" aria-label="Neuer Name"><button class="btn" type="submit">Hinzufügen</button></li></form>
-          <p>Namen erscheinen bei der Auswahl zu Schichtbeginn und im Dienstplan. Entfernte Personen bleiben in alten Einträgen als Kürzel unsichtbar.</p>
-        </div></section>
-      <section class="card"><div class="chead"><h2>Aufgaben &amp; Zeiten</h2></div>
-        <div class="cbody"><p>Abschnitte, Uhrzeiten, Reihenfolge und Daueraufgaben – für einen Tag, einen Wochentag oder als Standard.</p>
-          <button class="btn primary" data-act2="open-plan">Aufgaben-Plan bearbeiten</button>
-          <button class="btn" data-act2="open-roster">Dienstplan bearbeiten</button>
-          <button class="btn" data-act2="open-month">Monatsstatistik</button></div></section>
-      ${state.mode === "local" ? `<section class="card"><div class="chead"><h2>Datensicherung</h2></div>
-        <div class="cbody">${NATIVE ? `<p>Die Daten liegen in der App auf diesem Mac. Bei jedem Schichtbeginn und zum Tagesabschluss legt die App automatisch eine Sicherung ab – „rezeption-sicherung-aktuell.json“ und eine Datei pro Tag.</p>
+        ${state.confirm === "p:" + p.id ? `<button class="btn sm danger" data-act2="person-del" data-pid="${esc(p.id)}">Wirklich entfernen?</button>` : `<button class="btn ghost sm danger" data-act2="person-del" data-pid="${esc(p.id)}">Entfernen</button>`}</li>`).join("");
+      return frame(`Team · ${state.cfg.people.length} ${state.cfg.people.length === 1 ? "Person" : "Personen"}`, `
+        ${people ? `<ul class="teamlist">${people}</ul>` : "<p>Noch niemand angelegt.</p>"}
+        <form id="addperson" class="pkadd"><input class="in" id="newperson" maxlength="40" placeholder="Vor- und Nachname" aria-label="Neue Person"><button class="btn primary" type="submit">Hinzufügen</button></form>
+        <p class="hint">Namen erscheinen bei der Anmeldung und im Dienstplan. Entfernte Personen bleiben in alten Einträgen erhalten.</p>`);
+    }
+    if (pop === "cleanup") {
+      const sc = cleanupScan(); if (!sc) return "";
+      const fmt = (d) => d.split("-").reverse().join(".");
+      const log = (LS.get("rz2meta", {}).cleanups || []).slice(0, 5);
+      return frame("Alte Daten löschen", `<div class="apbody">
+        <p>Nach dem Löschkonzept werden diese Daten nicht mehr gebraucht:</p>
+        <table class="cltab"><thead><tr><th>Daten</th><th>Frist</th><th>Betroffen</th></tr></thead><tbody>
+          <tr><td>Protokoll, Übergaben, „Gelesen“</td><td>älter als 3 Monate (vor ${fmt(sc.cutLog)})</td><td><b>${sc.logDays.length}</b> ${sc.logDays.length === 1 ? "Tag" : "Tage"}</td></tr>
+          <tr><td>Dienstplan</td><td>älter als 1 Jahr (vor ${fmt(sc.cutRoster)})</td><td><b>${sc.rosterDays.length}</b> ${sc.rosterDays.length === 1 ? "Tag" : "Tage"}</td></tr>
+          <tr><td>Arbeitszeiten</td><td>2 Jahre nach Jahresende (vor ${fmt(sc.cutTime)})</td><td><b>${sc.timeDays.length}</b> ${sc.timeDays.length === 1 ? "Tag" : "Tage"}</td></tr>
+        </tbody></table>
+        <p class="hint">Arbeitszeiten, die als Lohnunterlage länger gebraucht werden, vorher als PDF/Excel an die Lohnbuchhaltung geben. Gelöschtes bleibt noch bis zu 120 Tage in älteren Sicherungsdateien. Der Plan-Stand der Tage (ohne Personen) bleibt erhalten.</p>
+        ${sc.total ? (state.confirm === "cleanup" ? `<button class="btn danger" data-act2="cleanup-run">Wirklich ${sc.total} Einträge löschen?</button>` : `<button class="btn primary" data-act2="cleanup-ask">Jetzt löschen</button>`) : `<p><b>Nichts fällig.</b></p>`}
+        ${log.length ? `<p class="hint">Bisherige Löschungen: ${log.map(e => `${new Date(e.at).toLocaleDateString("de-DE")} (${e.log}/${e.roster}/${e.time})`).join(" · ")} – Protokoll/Dienstplan/Zeiten in Tagen</p>` : ""}</div>`);
+    }
+    if (pop === "encsetup") return `<div class="overlay inmain" role="dialog" aria-modal="true" aria-labelledby="ap-title"><form class="dialog adminpop" id="encform">
+      <h2 id="ap-title">Sicherungen verschlüsseln</h2>
+      <p>Ab jetzt lassen sich neue Sicherungen nur mit diesem Passwort oder dem Wiederherstellungscode öffnen. Die automatische Sicherung läuft weiter ohne Eingabe.</p>
+      <label class="fld"><span>Passwort der Leitung (mind. 8 Zeichen)</span><input class="in" type="password" id="enc-pw1" minlength="8" autocomplete="new-password" required></label>
+      <label class="fld"><span>Passwort wiederholen</span><input class="in" type="password" id="enc-pw2" minlength="8" autocomplete="new-password" required></label>
+      <p class="hint">Ohne Passwort und ohne Wiederherstellungscode ist eine verschlüsselte Sicherung nicht mehr lesbar – auch nicht für den Entwickler.</p>
+      <p class="perr" id="enc-msg" role="alert"></p>
+      <div class="row"><button type="button" class="btn ghost" data-adminpop-close="1">Abbrechen</button><button type="submit" class="btn primary">Einrichten</button></div></form></div>`;
+    if (pop === "enccode") return `<div class="overlay inmain" role="dialog" aria-modal="true" aria-labelledby="ap-title"><div class="dialog adminpop">
+      <h2 id="ap-title">Wiederherstellungscode</h2>
+      <p>Falls das Passwort vergessen wird, öffnet dieser Code die Sicherungen. <b>Jetzt ausdrucken oder abschreiben und sicher verwahren</b> (z. B. im Tresor). Er wird nicht noch einmal angezeigt.</p>
+      <div class="enccode" aria-label="Wiederherstellungscode">${esc(state.encCode || "")}</div>
+      <label class="check-inline"><input type="checkbox" id="enc-noted"> Ich habe den Code sicher notiert.</label>
+      <div class="row"><button class="btn primary" data-enc-done="1" disabled id="enc-done">Fertig</button></div></div></div>`;
+    if (pop === "decrypt") return `<div class="overlay inmain" role="dialog" aria-modal="true" aria-labelledby="ap-title"><form class="dialog adminpop" id="decform">
+      <h2 id="ap-title">Verschlüsselte Sicherung</h2>
+      <p>Diese Sicherung ist verschlüsselt (erstellt ${state.pendingImport && state.pendingImport.exportedAt ? new Date(state.pendingImport.exportedAt).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) : "–"}). Passwort der Leitung oder Wiederherstellungscode eingeben.</p>
+      <label class="fld"><span>Passwort oder Wiederherstellungscode</span><input class="in" type="password" id="dec-secret" autocomplete="off" required></label>
+      <p id="dec-msg" role="status"></p>
+      <div class="row"><button type="button" class="btn ghost" data-dec-cancel="1">Abbrechen</button><button type="submit" class="btn primary">Entschlüsseln und einspielen</button></div></form></div>`;
+    if (pop === "backup") return frame(state.mode === "shared" ? "Datenspeicher" : "Datensicherung", `<div class="apbody">
+      ${state.mode === "local" ? `${NATIVE ? `<p>Die Daten liegen in der App auf diesem Mac. Bei jedem Schichtbeginn und zum Tagesabschluss legt die App automatisch eine Sicherung ab – „rezeption-sicherung-aktuell.json“ und eine Datei pro Tag.</p>
           <p>Ordner: <b>${esc((nativeInfo && nativeInfo.backupDir) || "Dokumente/Rezeption Sicherungen")}</b></p>
           <button class="btn primary" data-act2="backup-now">Jetzt sichern</button>
           <button class="btn" data-act2="backup-open">Ordner im Finder zeigen</button>
@@ -1916,20 +2140,24 @@ export function mount(container, opts = {}) {
              <button class="btn" data-act2="export">Einmalig herunterladen</button>`}`}
           <p>Letzte Sicherung: <b>${last ? new Date(last).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) : "noch nie"}</b></p>
           <label class="btn" for="rzfile" data-filepick="backup">Sicherung einspielen</label>
-          <p id="import-msg"></p></div></section>` : state.mode === "shared" ? `<section class="card"><div class="chead"><h2>Datenspeicher</h2></div>
-        <div class="cbody">${opts.mode === "sharepoint" ? `<p>Alle Daten liegen in der SharePoint-Bibliothek <b>${esc(opts.library || "RezeptionDaten")}</b> dieser Website. SharePoint speichert jede Änderung im Versionsverlauf – ein früherer Stand lässt sich dort wiederherstellen.</p>` : `<p>Die Webversion speichert online und ist für alle mit dem Link gleich. Die Mac-App hat ihre eigenen Daten – beide gleichen sich nicht ab.</p>`}
+          <p id="import-msg"></p>
+          <div class="encbox"><b>Verschlüsselung</b>${state.cfg.backupKey
+            ? `<p>Eingeschaltet seit ${esc(new Date(state.cfg.backupKey.created).toLocaleDateString("de-DE"))}. Neue Sicherungen lassen sich nur mit dem Passwort der Leitung oder dem Wiederherstellungscode öffnen.</p>
+              <button class="btn" data-adminpop="encsetup">Passwort ändern (neu einrichten)</button>
+              ${state.confirm === "enc-off" ? `<button class="btn danger" data-act2="enc-off">Wirklich ausschalten?</button>` : `<button class="btn ghost danger" data-act2="enc-off-ask">Ausschalten</button>`}
+              <p class="hint">Ältere Sicherungen bleiben mit dem damaligen Passwort bzw. Code lesbar.</p>`
+            : `<p>Aus – wer eine Sicherungsdatei öffnet, kann alles lesen.</p><button class="btn" data-adminpop="encsetup">Verschlüsselung einrichten</button>`}</div>` : state.mode === "shared" ? `${opts.mode === "sharepoint" ? `<p>Alle Daten liegen in der SharePoint-Bibliothek <b>${esc(opts.library || "RezeptionDaten")}</b> dieser Website. SharePoint speichert jede Änderung im Versionsverlauf – ein früherer Stand lässt sich dort wiederherstellen.</p>` : `<p>Die Webversion speichert online und ist für alle mit dem Link gleich. Die Mac-App hat ihre eigenen Daten – beide gleichen sich nicht ab.</p>`}
           <p>Daten aus der bisherigen Mac-Version übernehmen: dort unter Verwaltung › Datensicherung eine Sicherung herunterladen und hier einspielen.</p>
           <label class="btn" for="rzfile" data-filepick="backup">Sicherung übernehmen</label>
-          <p id="import-msg"></p></div></section>` : ""}
-      <section class="card"><div class="chead"><h2>Leitungs-PIN</h2></div>
-        <div class="cbody">${pinOff()
+          <p id="import-msg"></p>` : ""}</div>`);
+    if (pop === "pin") return frame("Leitungs-PIN", `<div class="apbody">${pinOff()
           ? `<p><b>PIN ist deaktiviert.</b> Verwaltung, Aufgaben-Plan, Dienstplan-Bearbeitung und alle Zeiten sind für alle offen.</p>
           <button class="btn primary" data-act2="pin-change">PIN festlegen</button>`
           : `<p>Entsperrt für 10 Minuten nach der letzten Aktion.</p>
           <button class="btn" data-act2="pin-change">PIN ändern</button>
           <button class="btn ghost" data-act2="lock">Jetzt sperren</button>
-          ${state.confirm === "pin-off" ? `<button class="btn danger" data-act2="pin-off">Wirklich deaktivieren?</button>` : `<button class="btn ghost danger" data-act2="pin-off-ask">PIN deaktivieren</button>`}`}</div></section>
-    </div>`;
+          ${state.confirm === "pin-off" ? `<button class="btn danger" data-act2="pin-off">Wirklich deaktivieren?</button>` : `<button class="btn ghost danger" data-act2="pin-off-ask">PIN deaktivieren</button>`}`}</div>`);
+    return "";
   }
   function addPerson(name) {
     name = name.trim().slice(0, 40);
@@ -1996,10 +2224,68 @@ export function mount(container, opts = {}) {
     try { await idb.set("backupDir", null); } catch { /* egal */ }
     render();
   }
-  function backupPayload() {
+  // Gerätebezogene Schlüssel gehören nicht in die Sicherung.
+  const DEVICE_KEYS = new Set(["rz2who", "rz2bye", "rz2pinlock", "rz2taskrem"]);
+  // Sicherung: version 1 = Klartext; mit eingerichteter Verschlüsselung (cfg.backupKey) version 2 = { enc } (siehe encryptBackup).
+  async function backupPayload() {
     const data = {};
-    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && ((k.startsWith("rz2") && k !== "rz2who" && k !== "rz2bye") || k.startsWith("cir."))) data[k] = localStorage.getItem(k); }
-    return JSON.stringify({ app: "rezeption-schichtcheck", version: 1, exportedAt: new Date().toISOString(), data }, null, 1);
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && ((k.startsWith("rz2") && !DEVICE_KEYS.has(k)) || k.startsWith("cir."))) data[k] = localStorage.getItem(k); }
+    const exportedAt = new Date().toISOString();
+    const plain = JSON.stringify({ app: "rezeption-schichtcheck", version: 1, exportedAt, data }, null, 1);
+    if (!state.cfg.backupKey) return plain;
+    return JSON.stringify({ app: "rezeption-schichtcheck", version: 2, exportedAt, enc: await encryptBackup(plain, state.cfg.backupKey) });
+  }
+
+  // ---------- Verschlüsselte Sicherungen ----------
+  // Öffentlicher Schlüssel (RSA-OAEP 3072) verschlüsselt pro Sicherung einen zufälligen AES-256-GCM-Schlüssel – dafür braucht die
+  // automatische Sicherung kein Passwort. Der private Schlüssel liegt zweimal verschlüsselt vor: mit dem Passwort der Leitung und
+  // mit einem Wiederherstellungscode (PBKDF2-SHA256). Beides steht in jeder Sicherungsdatei, sie lässt sich also auf jedem Gerät
+  // mit der App und Passwort oder Code öffnen. Ohne beides ist sie nicht lesbar.
+  const KDF_ITER = 310000;
+  const b64 = (buf) => { const u = new Uint8Array(buf); let s2 = ""; for (let i = 0; i < u.length; i += 0x8000) s2 += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s2); };
+  const unb64 = (t) => { const s2 = atob(t); const u = new Uint8Array(s2.length); for (let i = 0; i < s2.length; i++) u[i] = s2.charCodeAt(i); return u; };
+  const CODE_ABC = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const normCode = (c) => String(c || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  async function secretKey(secret, salt, iter) {
+    const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), "PBKDF2", false, ["deriveKey"]);
+    return crypto.subtle.deriveKey({ name: "PBKDF2", hash: "SHA-256", salt, iterations: iter }, base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+  }
+  async function wrapWith(secret, data) {
+    const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, await secretKey(secret, salt, KDF_ITER), data);
+    return { salt: b64(salt), iv: b64(iv), iter: KDF_ITER, ct: b64(ct) };
+  }
+  async function unwrapWith(secret, w) {
+    return crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(w.iv) }, await secretKey(secret, unb64(w.salt), w.iter), unb64(w.ct));
+  }
+  // Neu einrichten: Schlüsselpaar erzeugen, privaten Schlüssel mit Passwort und Code verpacken. Liefert { key, code }.
+  async function createBackupKey(password) {
+    const pair = await crypto.subtle.generateKey({ name: "RSA-OAEP", modulusLength: 3072, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" }, true, ["encrypt", "decrypt"]);
+    const pub = await crypto.subtle.exportKey("spki", pair.publicKey), priv = await crypto.subtle.exportKey("pkcs8", pair.privateKey);
+    const rnd = crypto.getRandomValues(new Uint8Array(24));
+    const code = [...rnd].map(b => CODE_ABC[b % 32]).join("").match(/.{6}/g).join("-");
+    return { code, key: { v: 1, created: new Date().toISOString(), pub: b64(pub), pw: await wrapWith(password, priv), code: await wrapWith(normCode(code), priv) } };
+  }
+  async function encryptBackup(plain, k) {
+    const pub = await crypto.subtle.importKey("spki", unb64(k.pub), { name: "RSA-OAEP", hash: "SHA-256" }, false, ["encrypt"]);
+    const aes = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt"]);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, aes, new TextEncoder().encode(plain));
+    const wrapped = await crypto.subtle.encrypt({ name: "RSA-OAEP" }, pub, await crypto.subtle.exportKey("raw", aes));
+    return { alg: "RSA-OAEP-256+A256GCM", key: b64(wrapped), iv: b64(iv), ct: b64(ct), keys: { pw: k.pw, code: k.code } };
+  }
+  // Entschlüsseln mit Passwort oder Wiederherstellungscode (beides wird probiert). Wirft bei falscher Eingabe.
+  async function decryptBackup(enc, secret) {
+    let priv = null;
+    for (const [w, sec] of [[enc.keys.pw, secret], [enc.keys.code, normCode(secret)]]) {
+      if (!w || !sec) continue;
+      try { priv = await unwrapWith(sec, w); break; } catch { /* nächster Versuch */ }
+    }
+    if (!priv) throw new Error("secret");
+    const pk = await crypto.subtle.importKey("pkcs8", priv, { name: "RSA-OAEP", hash: "SHA-256" }, false, ["decrypt"]);
+    const raw = await crypto.subtle.decrypt({ name: "RSA-OAEP" }, pk, unb64(enc.key));
+    const aes = await crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["decrypt"]);
+    return new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(enc.iv) }, aes, unb64(enc.ct)));
   }
   async function writeFile(dir, name, text) {
     const fh = await dir.getFileHandle(name, { create: true });
@@ -2012,7 +2298,7 @@ export function mount(container, opts = {}) {
   async function writeBackup(reason) {
     if (state.mode !== "local" || (!backupDir && !NATIVE)) return false;
     let text;
-    try { text = backupPayload(); } catch { setStatus("Browser-Speicher blockiert", true); return false; }
+    try { text = await backupPayload(); } catch { setStatus("Browser-Speicher blockiert oder Verschlüsselung fehlgeschlagen", true); return false; }
     if (NATIVE) {
       // Mac-App: schreibt ohne Rückfrage nach ~/Dokumente/Rezeption Sicherungen.
       const now = new Date();
@@ -2045,7 +2331,7 @@ export function mount(container, opts = {}) {
   // Manuell ohne Ordner: einmaliger Download in den normalen Download-Ordner.
   async function downloadBackup() {
     let text;
-    try { text = backupPayload(); } catch { setStatus("Browser-Speicher blockiert", true); return; }
+    try { text = await backupPayload(); } catch { setStatus("Browser-Speicher blockiert oder Verschlüsselung fehlgeschlagen", true); return; }
     const now = new Date();
     try { if (!(await offerFile(`rezeption-sicherung-${isoDate(now)}.json`, text, "application/json"))) return; }
     catch (e) { setStatus("Sicherung fehlgeschlagen: " + ((e && e.message) || "Fehler"), true); return; }
@@ -2090,20 +2376,54 @@ export function mount(container, opts = {}) {
     reader.onload = () => {
       try {
         const obj = JSON.parse(String(reader.result));
-        if (!obj || obj.app !== "rezeption-schichtcheck" || !obj.data || typeof obj.data !== "object") throw new Error("format");
-        // cir.* = Daten der Erstattung (Regeln, Hansefit-Liste, Buchungsfortschritt) – nur lokal, nicht im geteilten Speicher.
-        const entries = Object.entries(obj.data).filter(([k, v]) => (k.startsWith("rz2") || (k.startsWith("cir.") && state.mode !== "shared")) && typeof v === "string");
-        if (!entries.length) throw new Error("leer");
-        if (state.mode === "shared") { migrateToShared(entries, msg); return; }
-        for (const [k, v] of entries) localStorage.setItem(k, v);
-        if (msg) msg.textContent = `${entries.length} Einträge eingespielt. Seite lädt neu…`;
-        setTimeout(() => location.reload(), 800);
+        if (obj && obj.app === "rezeption-schichtcheck" && obj.version === 2 && obj.enc && obj.enc.keys) {
+          state.pendingImport = obj; state.adminPop = "decrypt"; state.view = "admin"; render();
+          setTimeout(() => { const i = $("dec-secret"); if (i) i.focus(); }, 0);
+          return;
+        }
+        applyImport(obj, msg);
       } catch {
         if (msg) msg.textContent = "Diese Datei ist keine gültige Sicherung dieser App.";
       }
     };
     reader.onerror = () => { if (msg) msg.textContent = "Datei konnte nicht gelesen werden."; };
     reader.readAsText(file);
+  }
+  // Verschlüsselung einrichten: Schlüssel erzeugen, speichern, Code einmal anzeigen, gleich eine verschlüsselte Sicherung schreiben.
+  async function setupEncryption() {
+    const p1 = ($("enc-pw1") || {}).value || "", p2 = ($("enc-pw2") || {}).value || "", m = $("enc-msg");
+    if (p1.length < 8) { if (m) m.textContent = "Das Passwort braucht mindestens 8 Zeichen."; return; }
+    if (p1 !== p2) { if (m) m.textContent = "Die Passwörter stimmen nicht überein."; return; }
+    if (!isUnlocked()) { requireAdmin("admin"); return; }
+    if (m) m.textContent = "Richte ein …";
+    let res;
+    try { res = await createBackupKey(p1); } catch { if (m) m.textContent = "Verschlüsselung wird von diesem Browser nicht unterstützt."; return; }
+    blurActive();
+    state.cfg = { ...state.cfg, backupKey: res.key };
+    await persistCfg({ backupKey: res.key });
+    state.encCode = res.code; state.adminPop = "enccode"; render();
+    writeBackup("manual");
+  }
+  async function decryptPendingImport(secret) {
+    const m = $("dec-msg"), obj = state.pendingImport;
+    if (!obj) return;
+    if (m) m.textContent = "Entschlüssele …";
+    let plain;
+    try { plain = await decryptBackup(obj.enc, String(secret || "").trim()); }
+    catch { if (m) m.textContent = "Passwort bzw. Wiederherstellungscode passt nicht zu dieser Sicherung."; return; }
+    state.pendingImport = null;
+    try { applyImport(JSON.parse(plain), m); } catch { if (m) m.textContent = "Die entschlüsselte Datei ist keine gültige Sicherung."; }
+  }
+  // Klartext-Sicherung (version 1) übernehmen – auch Sicherungen älterer Versionen.
+  function applyImport(obj, msg) {
+    if (!obj || obj.app !== "rezeption-schichtcheck" || !obj.data || typeof obj.data !== "object") throw new Error("format");
+    // cir.* = Daten der Erstattung (Regeln, Hansefit-Liste, Buchungsfortschritt) – nur lokal, nicht im geteilten Speicher.
+    const entries = Object.entries(obj.data).filter(([k, v]) => (k.startsWith("rz2") || (k.startsWith("cir.") && state.mode !== "shared")) && typeof v === "string" && !DEVICE_KEYS.has(k));
+    if (!entries.length) throw new Error("leer");
+    if (state.mode === "shared") { migrateToShared(entries, msg); return; }
+    for (const [k, v] of entries) localStorage.setItem(k, v);
+    if (msg) msg.textContent = `${entries.length} Einträge eingespielt. Seite lädt neu…`;
+    setTimeout(() => location.reload(), 800);
   }
 
   // ---------- Namensauswahl ----------
@@ -2146,8 +2466,6 @@ export function mount(container, opts = {}) {
     el.innerHTML = `<div class="overlay" role="dialog" aria-modal="true" aria-labelledby="pick-title">${brand}<div class="dialog">
       <h2 id="pick-title">${login ? "Wer arbeitet gerade?" : "Weitere Person einchecken"}</h2>
       <p>${SHIFT_META[shift].label} ${plan[shift].start}–${plan[shift].end}. Name antippen zum Einchecken – Haken und Notizen werden mit deinem Namen gespeichert.</p>
-      ${(rosterFor(today).notes || {})[shift] ? `<p class="pnote">Anmerkung im Dienstplan: <b>${esc(rosterFor(today).notes[shift])}</b></p>` : ""}
-      ${shift === "spaet" && state.date === today && pendingConfirms(plan, "frueh").length ? `<p class="pwarn">Von der Frühschicht nicht bestätigt: <b>${pendingConfirms(plan, "frueh").map(a => esc(a.t)).join(", ")}</b> – bitte prüfen.</p>` : ""}
       ${checked.length ? `<div class="grp in">Schon eingecheckt – antippen, um weiterzuarbeiten</div><div class="names">${checked.map(p => { const o = openEntry(today, p.id); return `<button class="namebtn inn" data-pick="${esc(p.id)}"><span class="av">${esc(initials(p.name))}</span><span>${esc(p.name)}<small class="ninfo ok">${ROLE_LABEL[o.entry.role] || ""} seit ${o.entry.in}</small></span></button>`; }).join("")}</div>` : ""}
       ${inSched.length ? `<div class="grp">Laut Dienstplan</div><div class="names">${inSched.map(p => btn(p, "sched")).join("")}</div>` : ""}
       <div class="grp">${inSched.length ? "Andere" : "Team"}</div><div class="names">${others.map(p => btn(p, "")).join("")}${state.pickAdd ? "" : addForm}</div>
@@ -2201,7 +2519,7 @@ export function mount(container, opts = {}) {
       <div class="trow big"><label>Beginn ${timeSelect("ci-time", c.time)}</label>
         <span class="quick"><button class="chip${c.time === now ? "" : " off"}" data-ciq="${now}">Jetzt ${now}</button>${c.planned ? `<button class="chip${c.time === c.planned ? "" : " off"}" data-ciq="${c.planned}">laut Plan ${c.planned}</button>` : ""}</span></div>
       <div class="trow"><span>Als</span><div class="seg">${["frueh", "spaet", "aushilfe"].map(r => `<button class="segbtn${c.role === r ? " on" : ""}" data-cirole="${r}">${ROLE_LABEL[r]}</button>`).join("")}</div></div>
-      <label class="tnote">Notiz (optional) <input class="in" id="ci-note" maxlength="200" value="${esc(c.note || "")}" placeholder="z. B. Einarbeitung mit Lisa"></label>
+      <label class="tnote">Notiz (optional) <input class="in" id="ci-note" maxlength="200" value="${esc(c.note || "")}" placeholder="optional"></label>
       <div class="row"><button class="btn ghost" data-ci="cancel">Abbrechen</button><button class="btn primary" data-ci="ok">Einchecken</button></div>
     </div></div>`;
   }
@@ -2237,27 +2555,45 @@ export function mount(container, opts = {}) {
     state.checkout = { ...open, out, pause: suggestPause(gross), pauseTouched: false, note: open.entry.note || "" };
     renderCheckout();
   }
+  // Früh- und Spätschicht checken erst aus, wenn ihre Schicht (Aufgaben und Pflicht-Bestätigungen) bei 100 % ist – unabhängig davon, wer was erledigt hat.
+  function shiftOpenList(key) {
+    const plan = P(), d = derive(plan);
+    const items = d.ids[key].filter(id => !state.checks[id]).map(id => d.item[id]);
+    return { items, confirms: pendingConfirms(plan, key), pr: progress(plan, key, state.checks) };
+  }
+  function checkoutGate(c) {
+    if (!c || c.date !== isoDate(new Date()) || state.date !== c.date || !KEYS.includes(c.entry.role)) return null;
+    const g = shiftOpenList(c.entry.role);
+    return g.items.length || g.confirms.length ? { key: c.entry.role, ...g } : null;
+  }
   function renderCheckout() {
     const c = state.checkout, el = $("remind");
     if (!c) { el.hidden = true; el.innerHTML = ""; renderRemind(); return; }
-    const today = isoDate(new Date()), plan = P();
+    const today = isoDate(new Date());
     const others = Object.entries(timeOf(today)).filter(([, e]) => e && !e.out);
     const mins = workedMin({ in: c.entry.in, out: c.out, pause: c.pause });
-    const pend = ["frueh", "spaet"].includes(c.entry.role) ? pendingConfirms(plan, c.entry.role) : [];
+    const gate = checkoutGate(c);
+    const openList = gate ? `<p>${SHIFT_META[gate.key].label}: noch <b>${gate.items.length + gate.confirms.length} offen</b> (${gate.pr.pct} %). Hake sie hier ab oder setze optionale Punkte auf „entfällt“. Bleibt etwas offen, ist ein Grund nötig.</p>
+      <ul class="coopen">${gate.items.map(i => `<li><button class="cobox" data-cocheck="${esc(i.id)}" aria-label="${esc(i.t)} abhaken"></button><span><b>${esc(i.t)}</b><small>${esc(i.phase.from)} ${esc(i.phase.title)}${i.optional ? " · optional" : ""}</small></span>${i.optional ? `<button class="btn sm" data-coskip="${esc(i.id)}">entfällt</button>` : ""}</li>`).join("")}${gate.confirms.map(a => `<li><button class="cobox" data-coconfirm="${esc(a.id)}" aria-label="${esc(a.t)} bestätigen"></button><span><b>${esc(a.t)}</b><small>Pflicht · einmal pro Schicht bestätigen</small></span></li>`).join("")}</ul>` : "";
     el.hidden = false;
     el.innerHTML = `<div class="overlay" role="dialog" aria-modal="true" aria-labelledby="co-title"><div class="dialog">
       <h2 id="co-title">Auschecken</h2>
       ${others.length > 1 ? `<div class="trow"><span>Wer</span><div class="seg">${others.map(([id, e]) => `<button class="segbtn${id === c.id ? " on" : ""}" data-coid="${esc(id)}">${esc(personName(e.pid))}</button>`).join("")}</div></div>` : `<p><b>${esc(personName(c.entry.pid))}</b> · ${ROLE_LABEL[c.entry.role]} · eingecheckt um ${c.entry.in}</p>`}
       <div class="trow big"><label>Ende ${timeSelect("co-time", c.out)}</label><label>Pause ${pauseSelect("co-pause", c.pause)}</label></div>
-      <label class="tnote">Notiz (optional) <input class="in" id="co-note" maxlength="200" value="${esc(c.note || "")}" placeholder="z. B. Einarbeitung mit Lisa"></label>
+      <label class="tnote">Notiz (optional) <input class="in" id="co-note" maxlength="200" value="${esc(c.note || "")}" placeholder="optional"></label>
       <p>Arbeitszeit: <b>${fmtHours(mins)} Std.</b> (${c.entry.in}–${c.out}, ${c.pause} Min. Pause)</p>
-      ${pend.length ? `<p class="pwarn">Noch nicht bestätigt: <b>${pend.map(a => esc(a.t)).join(", ")}</b></p>` : ""}
-      <div class="row"><button class="btn ghost" data-co="cancel">Abbrechen</button><button class="btn primary" data-co="ok">Auschecken</button></div>
+      ${openList}
+      ${gate ? `<label class="tnote">Grund, warum Punkte offen bleiben <textarea class="in" id="co-reason" maxlength="300" rows="2" placeholder="Pflichtangabe, wenn nicht alles erledigt ist">${esc(c.reason || "")}</textarea></label>` : ""}
+      <div class="row">${gate ? `<button class="btn" data-co="flag">Zurück zur Schicht</button><button class="btn primary" data-co="ok" ${(c.reason || "").trim() ? "" : "disabled"}>Mit Grund auschecken</button>` : `<button class="btn ghost" data-co="cancel">Abbrechen</button><button class="btn primary" data-co="ok">Auschecken</button>`}</div>
     </div></div>`;
   }
   function confirmCheckout() {
     const c = state.checkout; if (!c) return;
-    persistTime(c.date, c.id, { ...c.entry, out: c.out, pause: c.pause, note: (c.note || "").trim().slice(0, 200) });
+    const gate = checkoutGate(c), reason = (c.reason || "").trim().slice(0, 300);
+    if (gate && !reason) return renderCheckout();
+    state.coFlag = null;
+    const open = gate ? { open: { n: gate.items.length + gate.confirms.length, reason } } : {};
+    persistTime(c.date, c.id, { ...c.entry, out: c.out, pause: c.pause, note: (c.note || "").trim().slice(0, 200), ...open });
     if (state.who && state.who.id === c.entry.pid) { state.who = null; LS.set("rz2who", null); }
     state.checkout = null;
     const name = personName(c.entry.pid), hours = fmtHours(workedMin({ in: c.entry.in, out: c.out, pause: c.pause }));
@@ -2281,7 +2617,11 @@ export function mount(container, opts = {}) {
     const b = $("vobar"); b.classList.remove("pulse"); void b.offsetWidth; b.classList.add("pulse");
   }
   $("outBtn").addEventListener("click", () => openCheckout());
-  $("remind").addEventListener("input", (e) => { if (e.target.id === "co-note" && state.checkout) state.checkout.note = e.target.value; });
+  $("remind").addEventListener("input", (e) => {
+    if (!state.checkout) return;
+    if (e.target.id === "co-note") state.checkout.note = e.target.value;
+    if (e.target.id === "co-reason") { state.checkout.reason = e.target.value; const ok = $("remind").querySelector('[data-co="ok"]'); if (ok) ok.disabled = !e.target.value.trim(); }
+  });
   $("picker").addEventListener("input", (e) => { if (e.target.id === "ci-note" && state.checkin) state.checkin.note = e.target.value; });
   // Klicks/Änderungen im Ein-/Auschecken (Overlays liegen außerhalb von <main>)
   const stepSelect = (b) => { const sel = $(b.dataset.tstep); if (!sel) return; sel.selectedIndex = Math.max(0, Math.min(sel.options.length - 1, sel.selectedIndex + Number(b.dataset.dir))); sel.dispatchEvent(new Event("change", { bubbles: true })); };
@@ -2294,6 +2634,18 @@ export function mount(container, opts = {}) {
       return;
     }
     if (b.dataset.co === "cancel") { state.checkout = null; renderCheckout(); return; }
+    // Offene Punkte direkt im Fenster erledigen; „Zurück zur Schicht“ markiert sie im Fahrplan.
+    const stamp = (st) => ({ s: st, by: actorId(), at: new Date().toISOString() });
+    if (b.dataset.cocheck) { setCheck(b.dataset.cocheck, stamp("done")); renderCheckout(); return; }
+    if (b.dataset.coskip) { setCheck(b.dataset.coskip, stamp("na")); renderCheckout(); return; }
+    if (b.dataset.coconfirm) { const g = checkoutGate(state.checkout); if (g) logAlways(g.key, b.dataset.coconfirm); renderCheckout(); return; }
+    if (b.dataset.co === "flag") {
+      const g = checkoutGate(state.checkout);
+      state.checkout = null; renderCheckout();
+      if (g) { state.coFlag = g.key; state.shiftSel = g.key; if (state.view !== "schicht") setView("schicht"); else render(); }
+      setTimeout(() => { const f = root.querySelector("li.flag, li.confirm.flag"); if (f && f.scrollIntoView) f.scrollIntoView({ block: "center", behavior: "smooth" }); }, 50);
+      return;
+    }
     if (b.dataset.co === "ok") return confirmCheckout();
   });
   $("remind").addEventListener("change", (e) => {
@@ -2351,26 +2703,66 @@ export function mount(container, opts = {}) {
     const pending = pendingConfirms(plan, key);
     return pending.length ? { key, pending, end: plan[key].end } : null;
   }
+  function el2clear() { const el = $("remind"); el.hidden = true; el.innerHTML = ""; renderRemind(); }
   function maybeRemind() {
-    if (state.checkout || state.handPop || state.pickerOpen || state.remindOpen || Date.now() < state.remindSnoozeUntil) return;
-    if (!["schicht", "dienst", "monat"].includes(state.view)) return;
+    if (state.checkout || state.handPop || state.notePop || state.taskRem || state.pickerOpen || state.remindOpen) return;
+    if (!["schicht", "dienst", "monat", "zeiten"].includes(state.view)) return;
+    const tr = taskRemTarget();
+    if (tr) { state.taskRem = tr; renderRemind(); return; }
+    if (Date.now() < state.remindSnoozeUntil || state.view === "zeiten") return;
     if (remindTarget()) { state.remindOpen = true; renderRemind(); }
   }
   function renderRemind() {
     if (state.checkout) return;
     const el = $("remind");
-    const hk = state.handPop, hn = hk && handIn(hk);
-    if (hn && hn.important && !handRead(hk, hn)) {
+    const hk = state.handPop;
+    if (hk) {
+      const hn = handIn(hk), hr = hn && handRead(hk, hn), today = isoDate(new Date());
+      const from = hk === "frueh" ? "von der Spätschicht (gestern)" : "von der Frühschicht";
+      const rnote = (rosterFor(today).notes || {})[hk];
+      const unconf = hk === "spaet" ? pendingConfirms(P(), "frueh") : [];
+      const extra = `${rnote ? `<p class="pnote">Anmerkung im Dienstplan: <b>${esc(rnote)}</b></p>` : ""}${unconf.length ? `<p class="pwarn">Von der Frühschicht nicht bestätigt: <b>${unconf.map(a => esc(a.t)).join(", ")}</b> – bitte prüfen.</p>` : ""}`;
       el.hidden = false;
       el.innerHTML = `<div class="overlay" role="dialog" aria-modal="true" aria-labelledby="hand-title"><div class="dialog">
-        <h2 id="hand-title"><span class="imptag">Wichtig</span> Übergabe ${hk === "frueh" ? "von der Spätschicht (gestern)" : "von der Frühschicht"}</h2>
-        <div class="handpop">${esc(hn.text)}</div>
-        <p class="hint">${noteAuthor(hn).replace(/^ · /, "")}</p>
-        <div class="row"><button class="btn ghost" data-hlater="1">Später</button><button class="btn primary" data-hread="${hk}">Gelesen</button></div>
+        <h2 id="hand-title">${hn && hn.important ? '<span class="imptag">Wichtig</span> ' : ""}Übergabe ${from}</h2>
+        ${hn ? `<div class="handpop${hn.important ? "" : " plain"}">${esc(hn.text)}</div><p class="hint">${noteAuthor(hn).replace(/^ · /, "")}</p>` : `<div class="handpop none">Keine Übergabe hinterlassen – es gibt nichts Besonderes zu beachten.</div>`}
+        ${extra}
+        ${hn && !hr ? `<label class="tnote">Rückmeldung oder Ergänzung (optional, steht danach unter der Übergabe) <textarea class="in" id="hand-reply" maxlength="300" rows="2" placeholder="optional"></textarea></label>` : ""}
+        <div class="row">${hn && !hr ? `<button class="btn ghost" data-hlater="1">Später</button><button class="btn primary" data-hread="${hk}">Gelesen</button>` : `<button class="btn primary" data-hlater="1">OK</button>`}</div>
       </div></div>`;
+      const ta = el.querySelector("#hand-reply"); if (ta) ta.focus();
       return;
     }
     state.handPop = null;
+    const np = state.notePop;
+    if (np) {
+      if (el.querySelector("#notepop-text")) return; // schon offen: Eingabe nicht überschreiben
+      const n = state.notes[np];
+      el.hidden = false;
+      el.innerHTML = `<div class="overlay" role="dialog" aria-modal="true" aria-labelledby="np-title"><div class="dialog">
+        <h2 id="np-title">Übergabe ${np === "frueh" ? "für die Spätschicht" : "für die Frühschicht morgen"}</h2>
+        <textarea class="in notepop" id="notepop-text" maxlength="4000" rows="6" placeholder="z. B. offene Rückrufe, Defekte, Lieferungen …">${esc((n && n.text) || "")}</textarea>
+        <label class="impchk${n && n.important ? " on" : ""}"><input type="checkbox" id="notepop-imp" ${n && n.important ? "checked" : ""}> Wichtig – erscheint bei der nächsten Schicht rot</label>
+        <div class="row"><button class="btn ghost" data-noteclose="1">Abbrechen</button><button class="btn primary" data-notesave="${np}">Speichern</button></div>
+      </div></div>`;
+      const ta = $("notepop-text"); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+      return;
+    }
+    const tr = state.taskRem;
+    if (tr) {
+      const done = state.checks[tr.id];
+      if (done && !tr.item.remindAlways) { state.taskRem = null; return renderRemind(); }
+      el.hidden = false;
+      el.innerHTML = `<div class="overlay" role="dialog" aria-modal="true" aria-labelledby="tr-title"><div class="dialog taskrem">
+        <div class="trhead">${BELL_SVG}<span>${done ? "Zur Sicherheit" : "Erinnerung"} · ${esc(tr.item.remind)}</span></div>
+        <h2 id="tr-title">${esc(tr.item.t)}</h2>${tr.item.s ? `<p>${esc(tr.item.s)}</p>` : ""}
+        ${done ? `<p class="trdone">Schon ${whoLine(done)} – bitte kurz kontrollieren, ob alles passt.</p>` : ""}
+        <div class="row"><button class="btn" data-trsnooze="${esc(tr.id)}">In 10 Minuten erinnern</button>${done
+          ? `<button class="btn primary done" data-trok="${esc(tr.id)}">Kontrolliert</button>`
+          : `<button class="btn primary done" data-trdone="${esc(tr.id)}">Erledigt</button>`}</div>
+      </div></div>`;
+      return;
+    }
     const t = state.remindOpen ? remindTarget() : null;
     if (!t) { state.remindOpen = false; el.hidden = true; el.innerHTML = ""; return; }
     el.hidden = false;
@@ -2384,8 +2776,14 @@ export function mount(container, opts = {}) {
   $("remind").addEventListener("click", (e) => {
     const b = e.target.closest("button");
     if (!b) return;
-    if (b.dataset.hread) { markHandRead(b.dataset.hread); state.handPop = null; renderRemind(); render(); return; }
+    if (b.dataset.hread) { const r = $("hand-reply"); markHandRead(b.dataset.hread, r ? r.value : ""); state.handPop = null; renderRemind(); render(); return; }
     if (b.dataset.hlater) { state.handPop = null; renderRemind(); return; }
+    if (b.dataset.trsnooze) { snoozeTaskRem(b.dataset.trsnooze, 10 * 60000); state.taskRem = null; el2clear(); return; }
+    // Erledigte Aufgabe kontrolliert: für heute nicht mehr erinnern.
+    if (b.dataset.trok) { snoozeTaskRem(b.dataset.trok, 24 * 3600000); state.taskRem = null; el2clear(); return; }
+    if (b.dataset.trdone) { const id = b.dataset.trdone; snoozeTaskRem(id, 24 * 3600000); state.taskRem = null; setCheck(id, { s: "done", by: actorId(), at: new Date().toISOString() }); el2clear(); return; }
+    if (b.dataset.noteclose) { state.notePop = null; el2clear(); return; }
+    if (b.dataset.notesave) { const ta = $("notepop-text"), im = $("notepop-imp"); saveNote(b.dataset.notesave, ta ? ta.value : "", im ? im.checked : false); state.notePop = null; el2clear(); return; }
     if (b.dataset.rconfirm) { logAlways(b.dataset.shift, b.dataset.rconfirm); renderRemind(); return; }
     if (b.dataset.rsnooze) { state.remindOpen = false; state.remindSnoozeUntil = Date.now() + 10 * 60000; renderRemind(); }
   });
@@ -2440,9 +2838,16 @@ export function mount(container, opts = {}) {
           <button class="btn" data-act2="t-xlsx">Excel</button><button class="btn primary" data-act2="t-pdf">PDF</button>`
           : `<button class="btn" data-act2="t-all">Alle Zeiten (Leitung)</button>`}
       </div>`;
+    // Mit Leitungs-PIN sieht jede Person nur ihre eigenen Zeiten (= die eingecheckte Person), alle anderen nur die Leitung.
+    // Ohne PIN (nicht festgelegt oder „off“) bleibt die Namenswahl.
+    const ownOnly = timesOwnOnly();
     if (!state.timesAll || !isUnlocked()) {
       state.timesAll = false;
-      if (!state.timesPerson) {
+      if (ownOnly) {
+        const cp = currentPerson();
+        state.timesPerson = cp ? cp.id : null;
+        if (!cp) return head + `<section class="card tpick"><div class="chead"><h2>Eigene Zeiten</h2></div><div class="cbody"><p>Checke dich ein, um deine eigenen Zeiten zu sehen. Die Zeiten anderer sieht nur die Leitung.</p></div></section>`;
+      } else if (!state.timesPerson) {
         return head + `<section class="card tpick"><div class="chead"><h2>Eigene Zeiten ansehen</h2></div><div class="cbody"><div class="names">${state.cfg.people.map(p => `<button class="namebtn" data-tperson="${esc(p.id)}"><span class="av">${esc(initials(p.name))}</span>${esc(p.name)}</button>`).join("") || "<p>Noch kein Team angelegt.</p>"}</div></div></section>`;
       }
     }
@@ -2452,11 +2857,11 @@ export function mount(container, opts = {}) {
     const body = rows.map(r => {
       const planned = plannedFor(r.date, r.e.pid, r.e.role);
       const edited = r.e.orig ? ` <span class="pill later" title="ursprünglich ${esc([r.e.orig.in, r.e.orig.out].filter(Boolean).join("–"))}${r.e.orig.pause !== null ? ", Pause " + r.e.orig.pause : ""}">korrigiert</span>` : "";
-      return `<tr class="${r.e.out ? "" : "openrow"}"><td>${dateLabel(r.date)}</td><td>${esc(personName(r.e.pid) || "?")}</td><td>${ROLE_LABEL[r.e.role]}</td><td>${r.e.in}</td><td>${r.e.out || "<b>offen</b>"}</td><td>${r.e.pause !== null ? r.e.pause + " Min." : "–"}</td><td class="num">${fmtHours(r.mins)}</td><td class="muted">${planned || "–"}</td><td class="tnotecell" title="${esc(r.e.note || "")}">${esc(r.e.note || "")}</td><td>${edited}${state.timesAll && isUnlocked() ? ` <button class="mini edit" data-tedit="${esc(r.date)}|${esc(r.id)}" aria-label="Bearbeiten">✎</button>` : ""}</td></tr>`;
+      return `<tr class="${r.e.out ? "" : "openrow"}"><td>${dateLabel(r.date)}</td><td>${esc(personName(r.e.pid) || "?")}</td><td>${ROLE_LABEL[r.e.role]}</td><td>${r.e.in}</td><td>${r.e.out || "<b>offen</b>"}</td><td>${r.e.pause !== null ? r.e.pause + " Min." : "–"}</td><td class="num">${fmtHours(r.mins)}</td><td class="muted">${planned || "–"}</td><td class="tnotecell${r.e.open ? " gap" : ""}" title="${esc(timeNote(r.e))}">${esc(timeNote(r.e))}</td><td>${edited}${state.timesAll && isUnlocked() ? ` <button class="mini edit" data-tedit="${esc(r.date)}|${esc(r.id)}" aria-label="Bearbeiten">✎</button>` : ""}</td></tr>`;
     }).join("");
     const sm = sums(rows);
     return head + `<div class="times">
-      <section class="card"><div class="chead"><h2>${pid ? esc(personName(pid)) : "Alle"}</h2><span class="hint">${rows.length} Einträge${loading ? " · lädt…" : ""}</span>${!state.timesAll ? `<button class="btn ghost" data-act2="t-back">Andere Person</button>` : ""}</div>
+      <section class="card"><div class="chead"><h2>${pid ? esc(personName(pid)) : "Alle"}</h2><span class="hint">${rows.length} Einträge${loading ? " · lädt…" : ""}</span>${!state.timesAll && !ownOnly ? `<button class="btn ghost" data-act2="t-back">Andere Person</button>` : ""}</div>
         <div class="cbody tscroll"><table class="ttab"><thead><tr><th>Datum</th><th>Name</th><th>Rolle</th><th>Ein</th><th>Aus</th><th>Pause</th><th>Stunden</th><th>Geplant</th><th>Notiz</th><th></th></tr></thead><tbody>${body || `<tr><td colspan="10" class="empty">Keine Einträge in diesem Monat.</td></tr>`}</tbody></table></div></section>
       <section class="card"><div class="chead"><h2>Summe</h2></div><div class="cbody"><table class="ttab"><thead><tr><th>Name</th><th>Tage</th><th>Stunden</th><th>Offen</th></tr></thead><tbody>${sm.map(x => `<tr><td>${esc(personName(x.pid))}</td><td>${x.days}</td><td class="num">${x.mins || !x.open ? fmtHours(x.mins) : "–"}</td><td>${x.open || ""}</td></tr>`).join("")}</tbody></table></div></section>
     </div>${state.timesEdit ? renderTimeEdit() : ""}`;
@@ -2528,7 +2933,7 @@ export function mount(container, opts = {}) {
   function exportTables() {
     const rows = timeRows(state.timesPerson || null), [y, m] = (state.timesMonth || state.date.slice(0, 7)).split("-").map(Number);
     const detail = [["Datum", "Name", "Rolle", "Ein", "Aus", "Pause (Min.)", "Stunden", "Stunden (dezimal)", "Geplant", "Korrigiert", "Notiz"]]
-      .concat(rows.map(r => [`${dateLabel(r.date)}${y}`, personName(r.e.pid), ROLE_LABEL[r.e.role], r.e.in, r.e.out || "offen", r.e.pause ?? "", fmtHours(r.mins), r.mins === null ? "" : Math.round(r.mins / 60 * 100) / 100, plannedFor(r.date, r.e.pid, r.e.role) || "", r.e.orig ? "ja" : "", r.e.note || ""]));
+      .concat(rows.map(r => [`${dateLabel(r.date)}${y}`, personName(r.e.pid), ROLE_LABEL[r.e.role], r.e.in, r.e.out || "offen", r.e.pause ?? "", fmtHours(r.mins), r.mins === null ? "" : Math.round(r.mins / 60 * 100) / 100, plannedFor(r.date, r.e.pid, r.e.role) || "", r.e.orig ? "ja" : "", timeNote(r.e)]));
     const summary = [["Name", "Tage", "Stunden", "Stunden (dezimal)", "Offene Einträge"]]
       .concat(sums(rows).map(x => [personName(x.pid), x.days, x.mins || !x.open ? fmtHours(x.mins) : "–", Math.round(x.mins / 60 * 100) / 100, x.open || ""]));
     const who = state.timesPerson ? personName(state.timesPerson) : "Alle";
@@ -2628,24 +3033,16 @@ export function mount(container, opts = {}) {
     return true;
   }
 
-  // ---------- Plan-Editor ----------
-  const SOURCE_LABEL = { day: "Tagesanpassung", weekday: "Wochentag-Vorlage", base: "Standard", default: "Standard (Aushang)" };
-
-  // Bearbeiten-Bereich: "day" = angezeigter Tag, "wk" = Mo–Fr, "we" = Sa+So (Wochentag-Vorlagen für alle Tage der Gruppe).
-  const GROUPS = { wk: { days: [1, 2, 3, 4, 5], label: "Mo–Fr", long: "Montag bis Freitag" }, we: { days: [6, 0], label: "Sa+So", long: "Samstag und Sonntag" } };
+  // ---------- Aufgaben-Plan (Editor) ----------
+  // Ein Plan für alle Tage: gleiche Abschnitte und Aufgaben, eigene Uhrzeiten für Mo–Fr (im Plan selbst) und Sa+So (cfg.master.we).
+  // Jede Änderung gilt sofort. Gespeichert wird der Plan zusätzlich als Wochentag-Vorlage für alle 7 Tage und als Standard –
+  // so gilt er über resolvePlan unverändert (auch in älteren Versionen). Vergangene Tage behalten ihren festgehaltenen Stand (snap).
+  const WEEKEND = [0, 6];
   // Nächstes Datum ab dem angezeigten Tag mit diesem Wochentag – liefert den Plan, der dort ohne Tagesanpassung gilt.
   function dateForWeekday(wd) {
     let d = state.date;
     for (let i = 0; i < 7 && parseIso(d).getDay() !== wd; i++) d = addDays(d, 1);
     return d;
-  }
-  function ensureDraft() {
-    const scope = state.edScope || "day";
-    if (!state.draft || state.draft.date !== state.date || state.draft.scope !== scope) {
-      const src = scope === "day" ? resolvePlan(state.date, state.dayPlan, true) : resolvePlan(dateForWeekday(GROUPS[scope].days[0]), null, true);
-      state.draft = { date: state.date, scope, plan: clone(src.plan) }; state.draftDirty = false;
-    }
-    return state.draft.plan;
   }
   // Schichtbeginn/-ende wachsen mit, wenn ein Abschnitt früher beginnt oder später endet.
   function fitShift(s) {
@@ -2655,197 +3052,315 @@ export function mount(container, opts = {}) {
     if (first < toMin(s.start)) s.start = fmtMin(first);
     if (last > toMin(s.end)) s.end = fmtMin(last);
   }
+  function normalizeMaster(raw) {
+    if (!raw || typeof raw !== "object") return null;
+    const plan = normalizePlan(raw.plan);
+    if (!plan) return null;
+    const src = raw.we && typeof raw.we === "object" ? raw.we : {};
+    const we = { phases: {}, remind: {} };
+    for (const k of KEYS) {
+      const s = (src[k] && typeof src[k] === "object") ? src[k] : {};
+      we[k] = { start: TIME_RE.test(s.start) ? s.start : plan[k].start, end: TIME_RE.test(s.end) ? s.end : plan[k].end };
+      for (const p of plan[k].phases) {
+        const t = src.phases && src.phases[p.id];
+        we.phases[p.id] = t && TIME_RE.test(t.from) && TIME_RE.test(t.to) && toMin(t.to) > toMin(t.from) ? { from: t.from, to: t.to } : { from: p.from, to: p.to };
+        for (const i of p.items) if (i.remind) { const r = src.remind && src.remind[i.id]; we.remind[i.id] = TIME_RE.test(r) ? r : i.remind; }
+      }
+    }
+    return { plan, we };
+  }
+  // Plan für Mo–Fr ("wk") oder Sa+So ("we") aus dem gemeinsamen Plan bauen.
+  function materialize(master, which) {
+    const plan = clone(master.plan);
+    if (which !== "we") return plan;
+    for (const k of KEYS) {
+      for (const p of plan[k].phases) {
+        const t = master.we.phases[p.id]; if (t) { p.from = t.from; p.to = t.to; }
+        for (const i of p.items) if (i.remind) i.remind = master.we.remind[i.id] || i.remind;
+      }
+      plan[k].start = master.we[k].start; plan[k].end = master.we[k].end;
+      fitShift(plan[k]);
+    }
+    return plan;
+  }
+  // Erster Start des neuen Editors: bisherige Vorlagen zusammenführen (Montag = Zeiten Mo–Fr, Samstag = Zeiten Sa+So).
+  // Aufgaben, die es bisher nur an einem Tag gab, gelten danach an allen Tagen.
+  function masterFromTemplates() {
+    const wk = clone(resolvePlan(dateForWeekday(1), null, true).plan), sat = resolvePlan(dateForWeekday(6), null, true).plan;
+    const we = { phases: {}, remind: {} };
+    for (const k of KEYS) {
+      we[k] = { start: sat[k].start, end: sat[k].end };
+      const ids = new Set(wk[k].phases.flatMap(p => p.items.map(i => i.id)));
+      for (const sp of sat[k].phases) {
+        let mp = wk[k].phases.find(p => p.id === sp.id);
+        if (!mp) { mp = { ...clone(sp), items: [] }; wk[k].phases.push(mp); }
+        we.phases[mp.id] = { from: sp.from, to: sp.to };
+        for (const i of sp.items) if (!ids.has(i.id)) { mp.items.push(clone(i)); ids.add(i.id); }
+      }
+      const aids = new Set(wk.always[k].map(a => a.id));
+      for (const a of sat.always[k]) if (!aids.has(a.id)) wk.always[k].push(clone(a));
+      fitShift(wk[k]);
+    }
+    return normalizeMaster({ plan: wk, we });
+  }
+  const getMaster = () => state.cfg.master || masterFromTemplates();
+  // Beim Öffnen ist der erste Abschnitt aufgeklappt, die übrigen sind eine Zeile.
+  function openFirstPhase() { const p = getMaster().plan[state.edShift].phases[0]; state.edOpen = new Set(p ? [p.id] : []); }
+  // Änderung anwenden und sofort speichern. mutator bekommt eine Arbeitskopie; false = abbrechen.
+  function editMaster(mutator) {
+    if (state.readOnly) { setStatus("Nur Lesezugriff – Änderungen werden nicht gespeichert", true); return false; }
+    if (!isUnlocked()) { requireAdmin("plan"); return false; }
+    const m = clone(getMaster());
+    if (mutator(m) === false) return false;
+    for (const k of KEYS) {
+      fitShift(m.plan[k]);
+      const t = m.plan[k].phases.map(p => m.we.phases[p.id]).filter(Boolean);
+      if (t.length) {
+        const first = Math.min(...t.map(x => toMin(x.from))), last = Math.max(...t.map(x => toMin(x.to)));
+        if (first < toMin(m.we[k].start)) m.we[k].start = fmtMin(first);
+        if (last > toMin(m.we[k].end)) m.we[k].end = fmtMin(last);
+      }
+    }
+    const master = normalizeMaster(m);
+    if (!master) { setStatus("Plan ungültig – bitte Uhrzeiten prüfen", true); return false; }
+    const wk = materialize(master, "wk"), we = materialize(master, "we"), weekday = {};
+    for (let d = 0; d < 7; d++) weekday[String(d)] = WEEKEND.includes(d) ? we : wk;
+    state.unlockedUntil = Date.now() + 10 * 60000;
+    state.cfg = { ...state.cfg, master, weekday, base: wk };
+    persistCfg({ master, weekday, base: wk }).then(ok => { if (ok) setStatus("Aufgaben-Plan gespeichert – gilt ab sofort"); });
+    refreshTodaySnap();
+    return true;
+  }
+  const findPhase = (m, key, pid) => m.plan[key].phases.find(p => p.id === pid);
+  function findItem(m, key, id) {
+    for (const p of m.plan[key].phases) { const i = p.items.findIndex(x => x.id === id); if (i >= 0) return { phase: p, idx: i, item: p.items[i] }; }
+    return null;
+  }
 
+  const BELL_SVG = '<svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"></path></svg>';
+  const KIND_LABEL = { rhythm: "regelmäßig", confirm: "Pflicht", hint: "Hinweis" };
+  function timesLabel(wk, we) {
+    return wk.from === we.from && wk.to === we.to ? `täglich ${wk.from}–${wk.to}` : `Mo–Fr ${wk.from}–${wk.to} · Sa+So ${we.from}–${we.to}`;
+  }
   function renderEditor() {
-    const plan = ensureDraft();
-    const { source } = resolvePlan(state.date, state.dayPlan);
-    const wd = parseIso(state.date).getDay();
-    const dd = parseIso(state.date);
-    const dateTxt = `${WD[wd]}, ${pad(dd.getDate())}.${pad(dd.getMonth() + 1)}.`;
-    const wdTemplates = Object.keys(state.cfg.weekday).map(Number).sort();
-    const del = (path) => state.confirm === path ? `<button class="mini del confirm" data-act="del" data-path="${path}">Löschen?</button>` : `<button class="mini del" data-act="del" data-path="${path}" aria-label="Löschen">✕</button>`;
-
-    const shiftHtml = (key) => {
-      const s = plan[key], meta = SHIFT_META[key];
-      const phases = s.phases.map((p, pi) => {
-        const base = `${key}.phases.${pi}`;
-        const items = p.items.map((it, ii) => {
-          const path = `${base}.items.${ii}`;
-          const moveOpts = s.phases.map((q, qi) => `<option value="${qi}"${qi === pi ? " selected" : ""}>${esc(q.from)} ${esc(q.title)}</option>`).join("");
-          return `<li>
-            <div class="order"><button class="mini" data-act="up" data-path="${path}" ${ii === 0 ? "disabled" : ""} aria-label="Nach oben">▲</button><button class="mini" data-act="down" data-path="${path}" ${ii === p.items.length - 1 ? "disabled" : ""} aria-label="Nach unten">▼</button></div>
-            <div class="fields">
-              <input class="in" id="ed-${path}-t" data-path="${path}.t" value="${esc(it.t)}" maxlength="200" aria-label="Aufgabe">
-              <input class="in sub" id="ed-${path}-s" data-path="${path}.s" value="${esc(it.s || "")}" maxlength="300" placeholder="Hinweis (optional)" aria-label="Hinweis">
-              <div class="opts">
-                <label><input type="checkbox" data-path="${path}.important" ${it.important ? "checked" : ""}> wichtig (rot)</label>
-                <label><input type="checkbox" data-path="${path}.optional" ${it.optional ? "checked" : ""}> „entfällt“ erlaubt</label>
-                <label>Abschnitt <select data-move="${path}">${moveOpts}</select></label>
-              </div>
-            </div>
-            ${del(path)}
-          </li>`;
-        }).join("");
-        return `<section class="card ed-phase">
-          <div class="chead">
-            <input class="in title" id="ed-${base}-title" data-path="${base}.title" value="${esc(p.title)}" maxlength="60" aria-label="Abschnitt">
-            <input class="in time" inputmode="numeric" maxlength="5" placeholder="HH:MM" id="ed-${base}-from" data-time="${base}.from" value="${p.from}" aria-label="von">
-            <span class="hint">–</span>
-            <input class="in time" inputmode="numeric" maxlength="5" placeholder="HH:MM" id="ed-${base}-to" data-time="${base}.to" value="${p.to}" aria-label="bis">
-            ${del(base)}
-          </div>
-          <ul class="ed-items">${items}</ul>
-          <button class="addrow" data-act="add-item" data-path="${base}">+ Aufgabe</button>
-        </section>`;
+    const m = getMaster(), key = state.edShift, s = m.plan[key], wes = m.we[key];
+    const shiftTimes = timesLabel({ from: s.start, to: s.end }, { from: wes.start, to: wes.end });
+    const seg = KEYS.map(k => `<button class="segbtn${k === key ? " on" : ""}" data-edshift="${k}" aria-pressed="${k === key}">${SHIFT_META[k].label}</button>`).join("");
+    const phases = s.phases.map(p => {
+      const open = state.edOpen.has(p.id) || state.edAdd === p.id;
+      const rows = p.items.map(i => {
+        const rem = i.remind ? `<span class="badge rem">${BELL_SVG}${esc(i.remind === m.we.remind[i.id] ? i.remind : `${i.remind} / ${m.we.remind[i.id]}`)}${i.remindAlways ? " · immer" : ""}</span>` : "";
+        return `<li data-id="${esc(i.id)}"${state.edNew === i.id ? ' class="new"' : ""}><span class="grip" data-grip="1" aria-hidden="true" title="Ziehen zum Sortieren">⋮⋮</span>
+          <button class="edtxt${i.important ? " imp" : ""}" data-editem="${esc(i.id)}">${esc(i.t)}${i.s ? `<small>${esc(i.s)}</small>` : ""}</button>
+          ${i.optional ? '<span class="badge">darf entfallen</span>' : ""}${rem}</li>`;
       }).join("");
-      const always = plan.always[key].map((a, ai) => {
-        const path = `always.${key}.${ai}`;
-        return `<li>
-          <div class="order"><button class="mini" data-act="up" data-path="${path}" ${ai === 0 ? "disabled" : ""} aria-label="Nach oben">▲</button><button class="mini" data-act="down" data-path="${path}" ${ai === plan.always[key].length - 1 ? "disabled" : ""} aria-label="Nach unten">▼</button></div>
-          <div class="fields">
-            <input class="in" id="ed-${path}-t" data-path="${path}.t" value="${esc(a.t)}" maxlength="200" aria-label="Daueraufgabe">
-            <div class="opts"><label><input type="checkbox" data-path="${path}.important" ${a.important ? "checked" : ""}> wichtig (rot)</label><label>Art <select data-kind="${path}" aria-label="Art"><option value="rhythm"${a.kind === "rhythm" ? " selected" : ""}>Regelmäßig</option><option value="confirm"${a.kind === "confirm" ? " selected" : ""}>Pflicht – einmal pro Schicht bestätigen</option><option value="hint"${a.kind === "hint" ? " selected" : ""}>Nur Hinweis</option></select></label>${a.kind === "rhythm" ? `<label>alle <input class="in time" data-num="${path}.every" id="ed-${path}-every" value="${a.every || ""}" inputmode="numeric" maxlength="3" aria-label="Rhythmus in Minuten"> Min.</label>` : ""}</div>
-          </div>
-          ${del(path)}
-        </li>`;
-      }).join("");
-      return `<div class="edshift">
-        <h2>${meta.label}
-          <label>Beginn <input class="in time" inputmode="numeric" maxlength="5" placeholder="HH:MM" id="ed-${key}-start" data-time="${key}.start" value="${s.start}"></label>
-          <label>Ende <input class="in time" inputmode="numeric" maxlength="5" placeholder="HH:MM" id="ed-${key}-end" data-time="${key}.end" value="${s.end}"></label>
-        </h2>
-        ${phases}
-        <button class="btn" data-act="add-phase" data-path="${key}">+ Abschnitt</button>
-        <section class="card"><div class="chead"><h2>Immer im Blick</h2><span class="hint">Regelmäßig · Pflicht · Hinweis</span></div>
-          <ul class="ed-items">${always}</ul>
-          <button class="addrow" data-act="add-always" data-path="always.${key}">+ Daueraufgabe</button></section>
-      </div>`;
+      const add = state.edAdd === p.id
+        ? `<form class="edadd" data-addto="${esc(p.id)}"><label for="ed-new">Neue Aufgabe</label><input class="in" id="ed-new" maxlength="200" autocomplete="off" placeholder="Text eingeben, Enter"><button class="btn primary" type="submit">Hinzufügen</button><button class="btn ghost" type="button" data-edaddclose="1">Fertig</button></form>`
+        : `<button class="addrow" data-edadd="${esc(p.id)}">+ Aufgabe</button>`;
+      return `<section class="card edphase">
+        <div class="edhead"><button class="edtoggle" data-edopen="${esc(p.id)}" aria-expanded="${open}"><span class="ttl">${esc(p.title)}</span><span class="tm">${timesLabel(p, m.we.phases[p.id])}</span>${open ? "" : `<span class="cnt">${p.items.length} ${p.items.length === 1 ? "Aufgabe" : "Aufgaben"} ›</span>`}</button>
+          <button class="btn ghost sm" data-edphase="${esc(p.id)}">Abschnitt bearbeiten</button></div>
+        ${open ? `<ul class="edlist" data-list="phase:${esc(p.id)}">${rows}</ul>${add}` : ""}
+      </section>`;
+    }).join("");
+    const always = m.plan.always[key].map(a => `<li data-id="${esc(a.id)}"><span class="grip" data-grip="1" aria-hidden="true" title="Ziehen zum Sortieren">⋮⋮</span><button class="edtxt${a.important ? " imp" : ""}" data-edalways="${esc(a.id)}">${esc(a.t)}</button><span class="badge">${a.kind === "rhythm" ? `alle ${a.every} Min.` : KIND_LABEL[a.kind]}</span></li>`).join("");
+    return `<div class="edtop"><h2>Aufgaben-Plan</h2><div class="seg" role="group" aria-label="Schicht">${seg}</div>
+        <button class="btn" data-edshifttimes="1">Schichtzeiten: ${shiftTimes}</button></div>
+      <div class="edgrid">
+        <div class="edcol">${phases || '<p class="empty">Noch keine Abschnitte.</p>'}<button class="btn addphase" data-ednewphase="1">+ Abschnitt</button></div>
+        <section class="card edalways"><div class="chead"><h2>Immer im Blick · ${SHIFT_META[key].short}</h2></div><ul class="edlist" data-list="always">${always}</ul><button class="addrow" data-ednewalways="1">+ Daueraufgabe</button></section>
+      </div>${state.edPop ? renderEdPop(m) : ""}`;
+  }
+  // Uhrzeit als Textfeld (HH:MM, auch „730“ oder „7.30“) – type="time" zeigt je nach Systemsprache AM/PM.
+  const timeIn = (id, v, label) => `<input class="in tin" id="${id}" value="${v}" inputmode="numeric" maxlength="5" placeholder="HH:MM" autocomplete="off" aria-label="${label}">`;
+  function renderEdPop(m) {
+    const pop = state.edPop, key = state.edShift, del = state.edConfirmDel;
+    const frame = (title, body, canDel, delText) => `<div class="overlay inmain" role="dialog" aria-modal="true" aria-labelledby="ep-title"><form class="dialog edpop" id="edpop">
+      <h2 id="ep-title">${title}</h2>${body}<p class="perr" id="ep-err" role="alert"></p>
+      <div class="row">${canDel ? `<button type="button" class="btn ghost danger left" data-epdel="1">${del ? delText : "Löschen"}</button>` : ""}<button type="button" class="btn ghost" data-epclose="1">Abbrechen</button><button type="submit" class="btn primary">Speichern</button></div></form></div>`;
+    const fld = (label, inner) => `<label class="fld"><span>${label}</span>${inner}</label>`;
+    if (pop.type === "item") {
+      const f = findItem(m, key, pop.id); if (!f) return "";
+      const i = f.item, wkT = m.plan[key].phases.find(p => p.id === f.phase.id), weT = m.we.phases[f.phase.id];
+      return frame("Aufgabe bearbeiten", `
+        ${fld("Aufgabe", `<input class="in" id="ep-t" maxlength="200" value="${esc(i.t)}" required>`)}
+        ${fld("Hinweis (optional)", `<input class="in" id="ep-s" maxlength="300" value="${esc(i.s || "")}">`)}
+        ${fld("Abschnitt", `<select class="in" id="ep-phase">${m.plan[key].phases.map(p => `<option value="${esc(p.id)}"${p.id === f.phase.id ? " selected" : ""}>${esc(p.from)} ${esc(p.title)}</option>`).join("")}</select>`)}
+        <div class="checks"><label><input type="checkbox" id="ep-imp" ${i.important ? "checked" : ""}> Wichtig (rot)</label><label><input type="checkbox" id="ep-opt" ${i.optional ? "checked" : ""}> Darf entfallen</label></div>
+        <fieldset class="remfs"><legend>Erinnerung als Popup</legend>
+          <label><input type="checkbox" id="ep-rem" ${i.remind ? "checked" : ""}> Erinnern</label>
+          <label>Mo–Fr um ${timeIn("ep-remwk", i.remind || wkT.from, "Erinnerung Mo–Fr")}</label>
+          <label>Sa+So um ${timeIn("ep-remwe", m.we.remind[i.id] || weT.from, "Erinnerung Sa+So")}</label>
+          <div class="remwhen" role="radiogroup" aria-label="Wann erinnern">
+            <label><input type="radio" name="ep-remwhen" id="ep-remopen" ${i.remindAlways ? "" : "checked"}> nur wenn noch offen</label>
+            <label><input type="radio" name="ep-remwhen" id="ep-remalways" ${i.remindAlways ? "checked" : ""}> immer – auch wenn schon erledigt (zur Sicherheit)</label></div></fieldset>`, true, "Wirklich löschen?");
+    }
+    if (pop.type === "phase") {
+      const p = pop.id ? findPhase(m, key, pop.id) : null;
+      const s = m.plan[key], last = s.phases.length ? Math.max(...s.phases.map(x => toMin(x.to))) : toMin(s.start);
+      const lastWe = s.phases.length ? Math.max(...s.phases.map(x => toMin(m.we.phases[x.id].to))) : toMin(m.we[key].start);
+      const d = p ? { title: p.title, hint: p.hint, wk: p, we: m.we.phases[p.id] } : { title: "", hint: "", wk: { from: fmtMin(Math.min(last, 1409)), to: fmtMin(Math.min(last + 30, 1439)) }, we: { from: fmtMin(Math.min(lastWe, 1409)), to: fmtMin(Math.min(lastWe + 30, 1439)) } };
+      const n = p ? p.items.length : 0;
+      return frame(p ? "Abschnitt bearbeiten" : "Neuer Abschnitt", `
+        ${fld("Name", `<input class="in" id="ep-t" maxlength="60" value="${esc(d.title)}" placeholder="z. B. Nachmittag" required>`)}
+        ${fld("Hinweis (optional)", `<input class="in" id="ep-s" maxlength="80" value="${esc(d.hint || "")}" placeholder="z. B. direkt bei Schichtbeginn">`)}
+        <div class="tgrid"><span></span><b>von</b><b>bis</b>
+          <b>Mo–Fr</b>${timeIn("ep-wkf", d.wk.from, "Mo–Fr von")}${timeIn("ep-wkt", d.wk.to, "Mo–Fr bis")}
+          <b>Sa + So</b>${timeIn("ep-wef", d.we.from, "Sa+So von")}${timeIn("ep-wet", d.we.to, "Sa+So bis")}</div>`, !!p, n ? `Mit ${n} ${n === 1 ? "Aufgabe" : "Aufgaben"} löschen?` : "Wirklich löschen?");
+    }
+    if (pop.type === "shift") {
+      const s = m.plan[key], we = m.we[key];
+      return frame(`Schichtzeiten · ${SHIFT_META[key].label}`, `<div class="tgrid"><span></span><b>Beginn</b><b>Ende</b>
+          <b>Mo–Fr</b>${timeIn("ep-wkf", s.start, "Mo–Fr Beginn")}${timeIn("ep-wkt", s.end, "Mo–Fr Ende")}
+          <b>Sa + So</b>${timeIn("ep-wef", we.start, "Sa+So Beginn")}${timeIn("ep-wet", we.end, "Sa+So Ende")}</div>
+        <p class="hint">Abschnitte außerhalb dieser Zeiten verlängern die Schicht automatisch.</p>`, false);
+    }
+    if (pop.type === "always") {
+      const a = pop.id ? m.plan.always[key].find(x => x.id === pop.id) : null;
+      const kind = a ? a.kind : "confirm";
+      return frame(a ? "Daueraufgabe bearbeiten" : "Neue Daueraufgabe", `
+        ${fld("Aufgabe", `<input class="in" id="ep-t" maxlength="200" value="${esc(a ? a.t : "")}" required>`)}
+        ${fld("Hinweis (optional)", `<input class="in" id="ep-s" maxlength="200" value="${esc(a ? a.s || "" : "")}">`)}
+        ${fld("Art", `<select class="in" id="ep-kind"><option value="confirm"${kind === "confirm" ? " selected" : ""}>Pflicht – einmal pro Schicht bestätigen</option><option value="rhythm"${kind === "rhythm" ? " selected" : ""}>Regelmäßig – mit Zähler</option><option value="hint"${kind === "hint" ? " selected" : ""}>Nur Hinweis</option></select>`)}
+        <div id="ep-everyf"${kind === "rhythm" ? "" : " hidden"}>${fld("Alle … Minuten", `<input class="in" type="number" id="ep-every" min="5" max="480" step="5" value="${a && a.every ? a.every : 60}">`)}</div>
+        <div class="checks"><label><input type="checkbox" id="ep-imp" ${a && a.important ? "checked" : ""}> Wichtig (rot)</label></div>`, !!a, "Wirklich löschen?");
+    }
+    return "";
+  }
+  function closeEdPop() { state.edPop = null; state.edConfirmDel = false; render(); }
+  // Fenster „Speichern“: Felder lesen, prüfen, übernehmen.
+  function submitEdPop() {
+    const pop = state.edPop; if (!pop) return;
+    const key = state.edShift, v = (id) => { const el = $(id); return el ? el.value : ""; }, c = (id) => { const el = $(id); return !!(el && el.checked); };
+    const tv = (id) => normTime(v(id)) || "";
+    const err = (msg) => { const e = $("ep-err"); if (e) e.textContent = msg; };
+    const range = (a, b) => TIME_RE.test(a) && TIME_RE.test(b) && toMin(b) > toMin(a);
+    const t = v("ep-t").replace(/\s+/g, " ").trim();
+    let ok = true;
+    if (pop.type === "item") {
+      if (!t) return err("Bitte einen Text eingeben.");
+      const rem = c("ep-rem"), rwk = tv("ep-remwk"), rwe = tv("ep-remwe");
+      if (rem && (!TIME_RE.test(rwk) || !TIME_RE.test(rwe))) return err("Bitte beide Erinnerungszeiten angeben.");
+      ok = editMaster(m => {
+        const f = findItem(m, key, pop.id); if (!f) return false;
+        const i = f.item;
+        i.t = t; i.s = v("ep-s").trim(); i.important = c("ep-imp"); i.optional = c("ep-opt");
+        if (rem) { i.remind = rwk; m.we.remind[i.id] = rwe; if (c("ep-remalways")) i.remindAlways = true; else delete i.remindAlways; }
+        else { delete i.remind; delete i.remindAlways; delete m.we.remind[i.id]; }
+        const target = findPhase(m, key, v("ep-phase"));
+        if (target && target !== f.phase) { f.phase.items.splice(f.idx, 1); target.items.push(i); }
+      });
+    } else if (pop.type === "phase") {
+      if (!t) return err("Bitte einen Namen eingeben.");
+      const wk = { from: tv("ep-wkf"), to: tv("ep-wkt") }, we = { from: tv("ep-wef"), to: tv("ep-wet") };
+      if (!range(wk.from, wk.to) || !range(we.from, we.to)) return err("Bitte Uhrzeiten als HH:MM eingeben – „bis“ muss nach „von“ liegen.");
+      ok = editMaster(m => {
+        let p = pop.id ? findPhase(m, key, pop.id) : null;
+        if (!p) { p = { id: newId("p"), items: [] }; m.plan[key].phases.push(p); state.edOpen.add(p.id); }
+        Object.assign(p, { title: t, hint: v("ep-s").trim(), from: wk.from, to: wk.to });
+        m.we.phases[p.id] = we;
+      });
+    } else if (pop.type === "shift") {
+      const wk = { from: tv("ep-wkf"), to: tv("ep-wkt") }, we = { from: tv("ep-wef"), to: tv("ep-wet") };
+      if (!range(wk.from, wk.to) || !range(we.from, we.to)) return err("Bitte Uhrzeiten als HH:MM eingeben – das Ende muss nach dem Beginn liegen.");
+      ok = editMaster(m => { m.plan[key].start = wk.from; m.plan[key].end = wk.to; m.we[key].start = we.from; m.we[key].end = we.to; });
+    } else if (pop.type === "always") {
+      if (!t) return err("Bitte einen Text eingeben.");
+      const kind = v("ep-kind"), every = Math.min(480, Math.max(5, parseInt(v("ep-every"), 10) || 60));
+      ok = editMaster(m => {
+        const list = m.plan.always[key];
+        let a = pop.id ? list.find(x => x.id === pop.id) : null;
+        if (!a) { a = { id: newId("a") }; list.push(a); }
+        Object.assign(a, { t, s: v("ep-s").trim(), kind, every: kind === "rhythm" ? every : 0, important: c("ep-imp") });
+      });
+    }
+    if (ok) closeEdPop();
+  }
+  function deleteEdPop() {
+    const pop = state.edPop, key = state.edShift;
+    if (!pop || !pop.id) return;
+    if (!state.edConfirmDel) { state.edConfirmDel = true; render(); return; }
+    const ok = editMaster(m => {
+      if (pop.type === "item") { const f = findItem(m, key, pop.id); if (!f) return false; f.phase.items.splice(f.idx, 1); delete m.we.remind[pop.id]; }
+      else if (pop.type === "phase") { m.plan[key].phases = m.plan[key].phases.filter(p => p.id !== pop.id); delete m.we.phases[pop.id]; }
+      else if (pop.type === "always") m.plan.always[key] = m.plan.always[key].filter(a => a.id !== pop.id);
+      else return false;
+    });
+    if (ok) closeEdPop();
+  }
+  // Neue Aufgabe aus der Eingabezeile: gilt sofort an jedem Tag; die Zeile bleibt für die nächste offen.
+  function addTask(pid, raw) {
+    const t = String(raw || "").replace(/\s+/g, " ").trim().slice(0, 200), key = state.edShift;
+    if (!t) return;
+    const id = newId(SHIFT_META[key].prefix);
+    if (editMaster(m => { const p = findPhase(m, key, pid); if (!p) return false; p.items.push({ id, t, s: "", important: false, optional: false }); })) {
+      state.edNew = id; render();
+      const inp = $("ed-new"); if (inp) inp.focus();
+    }
+  }
+  // Sortieren per Ziehen am Griff ⋮⋮ (Maus und Touch); gespeichert wird die neue Reihenfolge beim Loslassen.
+  function startSort(e, grip) {
+    const li = grip.closest("li"), ul = li && li.parentElement;
+    if (!ul || !ul.dataset.list) return;
+    e.preventDefault();
+    drag = { kind: "sort" };
+    li.classList.add("dragging");
+    // Auf Dokument-Ebene lauschen: Das Verschieben der Zeile im DOM beendet einen Pointer-Capture am Griff.
+    const doc = grip.ownerDocument || document;
+    const move = (ev) => {
+      const sibs = [...ul.children].filter(x => x !== li);
+      const after = sibs.find(x => { const r = x.getBoundingClientRect(); return ev.clientY < r.top + r.height / 2; });
+      if (after) { if (li.nextElementSibling !== after) ul.insertBefore(li, after); } else if (ul.lastElementChild !== li) ul.appendChild(li);
     };
-
-    const scope = state.draft.scope, g = GROUPS[scope], dirty = state.draftDirty ? "" : "disabled";
-    const scopeSeg = `<div class="seg" role="group" aria-label="Plan bearbeiten für">${[["day", dateTxt], ["wk", "Mo–Fr"], ["we", "Sa+So"]].map(([v, l]) => `<button class="segbtn${scope === v ? " on" : ""}" data-edscope="${v}" aria-pressed="${scope === v}">${l}</button>`).join("")}</div>`;
-    const unsaved = state.draftDirty ? " · <b style=\"color:var(--now)\">ungespeicherte Änderungen</b>" : "";
-    let info, btns;
-    if (g) {
-      const has = g.days.filter(d => state.cfg.weekday[String(d)]);
-      info = `Plan für <b>${g.long}</b>${unsaved}<br>${has.length ? `Vorlage vorhanden für ${has.map(d => WD[d].slice(0, 2)).join(", ")}.` : "Noch keine Vorlage – es gilt der Standard."} Speichern überschreibt alle ${g.days.length} Tage.`;
-      btns = `<button class="btn primary" data-act="save-${scope}" ${dirty}>Für ${g.label} speichern</button>
-        <button class="btn ghost" data-act="discard" ${dirty}>Verwerfen</button>
-        ${has.length ? `<button class="btn ghost danger" data-act="reset-${scope}">${g.label}-Vorlage entfernen</button>` : ""}`;
-    } else {
-      info = `Plan für <b>${dateTxt}</b> · aktuell gilt: <b>${SOURCE_LABEL[source]}</b>${unsaved}<br>
-          ${wdTemplates.length ? "Wochentag-Vorlagen: " + wdTemplates.map(i => WD[i].slice(0, 2)).join(", ") + ". " : ""}Abschnitte sortieren sich nach Uhrzeit, die Schichtzeiten wachsen mit.`;
-      btns = `<button class="btn primary" data-act="save-day" ${dirty}>Nur ${dateTxt} speichern</button>
-        <button class="btn" data-act="save-weekday" ${dirty}>Für alle ${WD_PL[wd]}</button>
-        <button class="btn" data-act="save-base" ${dirty}>Als Standard</button>
-        <button class="btn ghost" data-act="discard" ${dirty}>Verwerfen</button>
-        ${source === "day" ? `<button class="btn ghost danger" data-act="reset-day">Tagesanpassung entfernen</button>` : ""}
-        ${state.cfg.weekday[String(wd)] ? `<button class="btn ghost danger" data-act="reset-weekday">${WD[wd]}-Vorlage entfernen</button>` : ""}`;
-    }
-    return `<div class="edbar">
-        ${scopeSeg}
-        <div class="info">${info}</div>
-        ${btns}
-      </div>
-      <div class="editor">${shiftHtml("frueh")}${shiftHtml("spaet")}</div>`;
+    const up = () => {
+      doc.removeEventListener("pointermove", move); doc.removeEventListener("pointerup", up); doc.removeEventListener("pointercancel", up);
+      drag = null; li.classList.remove("dragging");
+      const ids = [...ul.children].map(x => x.dataset.id), list = ul.dataset.list, key = state.edShift;
+      editMaster(m => {
+        const arr = list === "always" ? m.plan.always[key] : (findPhase(m, key, list.slice(6)) || {}).items;
+        if (!arr) return false;
+        const byId = new Map(arr.map(x => [x.id, x]));
+        const next = ids.map(id => byId.get(id)).filter(Boolean);
+        if (next.length !== arr.length || next.every((x, i) => x === arr[i])) return false;
+        arr.splice(0, arr.length, ...next);
+      });
+      render();
+    };
+    doc.addEventListener("pointermove", move); doc.addEventListener("pointerup", up); doc.addEventListener("pointercancel", up);
   }
 
-  function getRef(path) {
-    const parts = path.split(".");
-    const last = parts.pop();
-    let obj = state.draft.plan;
-    for (const p of parts) obj = obj[/^\d+$/.test(p) ? Number(p) : p];
-    return { parent: obj, key: /^\d+$/.test(last) ? Number(last) : last };
-  }
-  function markDirty() { state.draftDirty = true; const b = root.querySelectorAll('[data-act^="save-"],[data-act="discard"]'); b.forEach(x => { x.disabled = false; }); }
-
-  function editorAction(act, path) {
-    const plan = state.draft.plan;
-    if (act === "del") {
-      if (state.confirm !== path) { state.confirm = path; render(); return; }
-      state.confirm = null;
-      const { parent, key } = getRef(path);
-      parent.splice(key, 1);
-    } else if (act === "up" || act === "down") {
-      const { parent, key } = getRef(path);
-      const j = act === "up" ? key - 1 : key + 1;
-      if (j < 0 || j >= parent.length) return;
-      [parent[key], parent[j]] = [parent[j], parent[key]];
-    } else if (act === "add-item") {
-      const { parent, key } = getRef(path);
-      const shift = path.split(".")[0];
-      parent[key].items.push({ id: newId(SHIFT_META[shift].prefix), t: "Neue Aufgabe", s: "", important: false, optional: false });
-    } else if (act === "add-phase") {
-      // Neuer Abschnitt direkt nach dem letzten, 30 Min. lang; das Schichtende rückt bei Bedarf mit.
-      const s = plan[path];
-      const lastEnd = s.phases.length ? Math.max(...s.phases.map(p => toMin(p.to))) : toMin(s.start);
-      const from = Math.min(lastEnd, 23 * 60 + 29), to = Math.min(from + 30, 23 * 60 + 59);
-      s.phases.push({ id: newId("p"), title: "Neuer Abschnitt", from: fmtMin(from), to: fmtMin(to), hint: "", items: [] });
-      fitShift(s);
-    } else if (act === "add-always") {
-      const { parent, key } = getRef(path);
-      parent[key].push({ id: newId("a"), t: "Neue Daueraufgabe", s: "", important: false, kind: "hint", every: 0 });
-    } else return;
-    state.confirm = null;
-    markDirty();
-    render();
-  }
-
-  async function saveDraft(scope) {
-    const plan = normalizePlan(state.draft.plan);
-    if (!plan) { setStatus("Plan ungültig – bitte Uhrzeiten prüfen", true); return; }
-    const wd = String(parseIso(state.date).getDay());
-    let ok;
-    if (GROUPS[scope]) {
-      const patch = {};
-      for (const d of GROUPS[scope].days) patch[String(d)] = plan;
-      state.cfg = { ...state.cfg, weekday: { ...state.cfg.weekday, ...patch } };
-      ok = await persistCfg({ weekday: patch });
-      if (ok) { state.draft = null; state.draftDirty = false; setStatus(`Plan für ${GROUPS[scope].long} gespeichert.${state.dayPlan && GROUPS[scope].days.includes(Number(wd)) ? " Für den angezeigten Tag gilt weiter die Tagesanpassung." : ""}`, false); }
-      return render();
+  // ---------- Erinnerungs-Popups (Aufgaben mit Uhrzeit) ----------
+  // Fällig: heutige Aufgabe der laufenden Schicht mit Erinnerungszeit, nicht weggedrückt – und noch offen,
+  // außer die Aufgabe soll „zur Sicherheit“ immer erinnern (remindAlways), dann auch, wenn sie schon erledigt ist.
+  function taskRemTarget() {
+    const today = isoDate(new Date());
+    if (state.date !== today || !currentPerson()) return null;
+    const plan = P(), now = nowMin(), key = activeShift(plan, now);
+    if (!key) return null;
+    const snz = LS.get("rz2taskrem", {}), sn = snz && snz.date === today ? snz.until || {} : {};
+    for (const p of plan[key].phases) for (const i of p.items) {
+      if (i.remind && (i.remindAlways || !state.checks[i.id]) && now >= toMin(i.remind) && !(sn[i.id] > Date.now())) return { id: i.id, key, item: i };
     }
-    if (scope === "day") {
-      state.dayPlan = plan;
-      ok = await persistDay(state.date, { plan });
-    } else if (scope === "weekday") {
-      state.cfg = { ...state.cfg, weekday: { ...state.cfg.weekday, [wd]: plan } };
-      ok = await persistCfg({ weekday: { [wd]: plan } });
-    } else {
-      state.cfg = { ...state.cfg, base: plan };
-      ok = await persistCfg({ base: plan });
-    }
-    if (ok) {
-      state.draft = null; state.draftDirty = false;
-      const { source } = resolvePlan(state.date, state.dayPlan);
-      const shadow = scope !== "day" && source === "day" ? " Für diesen Tag gilt weiter die Tagesanpassung." : (scope === "base" && source === "weekday" ? ` Für ${WD_PL[Number(wd)]} gilt weiter die Wochentag-Vorlage.` : "");
-      setStatus("Plan gespeichert." + shadow, !!shadow);
-    }
-    render();
+    return null;
   }
-
-  async function resetScope(scope) {
-    const wd = String(parseIso(state.date).getDay());
-    if (GROUPS[scope]) {
-      const w = { ...state.cfg.weekday }, patch = {};
-      for (const d of GROUPS[scope].days) { delete w[String(d)]; patch[String(d)] = null; }
-      state.cfg = { ...state.cfg, weekday: w }; await persistCfg({ weekday: patch });
-    } else if (scope === "day") { state.dayPlan = null; await persistDay(state.date, { plan: null }); }
-    else { const w = { ...state.cfg.weekday }; delete w[wd]; state.cfg = { ...state.cfg, weekday: w }; await persistCfg({ weekday: { [wd]: null } }); }
-    state.draft = null; state.draftDirty = false;
-    render();
+  function snoozeTaskRem(id, ms) {
+    const today = isoDate(new Date()), s = LS.get("rz2taskrem", {}), until = s && s.date === today ? { ...(s.until || {}) } : {};
+    until[id] = Date.now() + ms;
+    LS.set("rz2taskrem", { date: today, until });
   }
 
   // ---------- Rendering ----------
   function renderHeader() {
     const d = parseIso(state.date), plan = P(), ctx = timeCtx();
-    const { source } = resolvePlan(state.date, state.dayPlan);
+    const { source } = resolvePlan(state.date, state.dayPlan, false, state.daySnap);
     $("weekday").textContent = WD[d.getDay()] + (state.date === isoDate(new Date()) ? " · heute" : "");
     $("datelabel").textContent = `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
-    $("datesrc").textContent = source === "day" ? "angepasst" : source === "weekday" ? WD[d.getDay()].slice(0, 2) + "-Plan" : "";
+    $("datesrc").textContent = source === "day" ? "angepasst" : source === "snap" ? "Stand vom Tag" : source === "weekday" && !state.cfg.master ? WD[d.getDay()].slice(0, 2) + "-Plan" : "";
     $("datepick").value = state.date;
     const act = activeShift(plan, ctx);
     $("clock").innerHTML = `${fmtMin(nowMin())}${act ? `<small>${SHIFT_META[act].label} bis ${plan[act].end}</small>` : ""}`;
-    { const k = state.shiftSel || focusShift(plan, ctx), pr = progress(plan, k, state.checks); $("meta-shift").textContent = `${SHIFT_META[k].short} ${pr.done}/${pr.total}`; }
+    { const k = lockedShift() || state.shiftSel || focusShift(plan, ctx), pr = progress(plan, k, state.checks); $("meta-shift").textContent = `${SHIFT_META[k].short} ${pr.done}/${pr.total}`; }
+    root.querySelector('[data-view="erstattung"]').hidden = !checkinsOn();
     const tabView = ["plan", "pin", "monat"].includes(state.view) ? "admin" : state.view;
     root.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", String(t.dataset.view === tabView)));
     const p = currentPerson(), pres = presentPeople(), bar = $("presence");
@@ -2868,6 +3383,7 @@ export function mount(container, opts = {}) {
     const typing = active && $("main").contains(active) && (active.tagName === "TEXTAREA" || (active.tagName === "INPUT" && !["checkbox", "radio", "file", "button", "submit"].includes(active.type)));
     if (typing || drag) { renderPending = true; renderHeader(); return; }
     renderPending = false;
+    if (state.view === "erstattung" && !checkinsOn()) state.view = "schicht";
     renderHeader();
     const v = state.view, main = $("main");
     main.hidden = v === "erstattung"; $("ciwrap").hidden = v !== "erstattung";
@@ -2950,24 +3466,16 @@ export function mount(container, opts = {}) {
   // ---------- Interaktion ----------
   function goDate(date) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
-    if (state.view === "plan" && state.draftDirty && !confirmLeave()) return;
     state.date = date;
     state.expanded.clear();
-    state.draft = null; state.draftDirty = false; state.confirm = null;
+    state.confirm = null;
     subscribeMonth();
     subscribeDay();
   }
-  let leaveArmed = false;
-  function confirmLeave() {
-    if (leaveArmed) { leaveArmed = false; return true; }
-    leaveArmed = true;
-    setStatus("Ungespeicherte Plan-Änderungen – nochmal tippen zum Verwerfen", true);
-    setTimeout(() => { leaveArmed = false; }, 4000);
-    return false;
-  }
   function setView(v) {
-    if (state.view === "plan" && v !== "plan" && state.draftDirty && !confirmLeave()) return;
-    if (v !== "plan") { state.draft = null; state.draftDirty = false; }
+    if (v !== "plan") { state.edPop = null; state.edAdd = null; state.edNew = null; }
+    if (v !== "admin") state.adminPop = null;
+    else if (state.view !== "plan") openFirstPhase();
     if (v === "admin" || v === "plan" || v === "monat") { if (!requireAdmin(v)) return; }
     if (v === "schicht") state.shiftSel = null; // Tab „Schicht“ zeigt immer die laufende Schicht
     if (v !== "dienst") state.rosterEdit = false;
@@ -2989,18 +3497,23 @@ export function mount(container, opts = {}) {
   main.addEventListener("click", (e) => {
     const t = e.target.closest("button");
     if (!t || t.disabled) return;
-    if (t.dataset.act) {
-      const a = t.dataset.act;
-      if (a === "save-day") return saveDraft("day");
-      if (a === "save-weekday") return saveDraft("weekday");
-      if (a === "save-base") return saveDraft("base");
-      if (a === "save-wk" || a === "save-we") return saveDraft(a.slice(5));
-      if (a === "discard") { state.draft = null; state.draftDirty = false; render(); return; }
-      if (a === "reset-day") return resetScope("day");
-      if (a === "reset-weekday") return resetScope("weekday");
-      if (a === "reset-wk" || a === "reset-we") return resetScope(a.slice(6));
-      return editorAction(a, t.dataset.path);
-    }
+    if (t.dataset.adminpop) { blurActive(); state.adminPop = t.dataset.adminpop; state.confirm = null; render(); return; }
+    if (t.dataset.encDone) { blurActive(); state.encCode = null; state.adminPop = "backup"; render(); return; }
+    if (t.dataset.decCancel) { blurActive(); state.pendingImport = null; state.adminPop = null; render(); return; }
+    if (t.dataset.adminpopClose) { blurActive(); state.adminPop = null; state.confirm = null; render(); return; }
+    // Aufgaben-Plan
+    if (t.dataset.edshift) { state.edShift = t.dataset.edshift; state.edAdd = null; state.edNew = null; openFirstPhase(); render(); return; }
+    if (t.dataset.edopen) { const id = t.dataset.edopen; state.edOpen.has(id) ? state.edOpen.delete(id) : state.edOpen.add(id); if (state.edAdd === id) state.edAdd = null; render(); return; }
+    if (t.dataset.edadd) { state.edAdd = t.dataset.edadd; state.edOpen.add(t.dataset.edadd); state.edNew = null; render(); const i = $("ed-new"); if (i) i.focus(); return; }
+    if (t.dataset.edaddclose) { state.edAdd = null; state.edNew = null; render(); return; }
+    if (t.dataset.editem) { state.edPop = { type: "item", id: t.dataset.editem }; state.edConfirmDel = false; render(); return; }
+    if (t.dataset.edphase) { state.edPop = { type: "phase", id: t.dataset.edphase }; state.edConfirmDel = false; render(); return; }
+    if (t.dataset.ednewphase) { state.edPop = { type: "phase", id: null }; state.edConfirmDel = false; render(); return; }
+    if (t.dataset.edshifttimes) { state.edPop = { type: "shift", id: null }; render(); return; }
+    if (t.dataset.edalways) { state.edPop = { type: "always", id: t.dataset.edalways }; state.edConfirmDel = false; render(); return; }
+    if (t.dataset.ednewalways) { state.edPop = { type: "always", id: null }; state.edConfirmDel = false; render(); return; }
+    if (t.dataset.epclose) { closeEdPop(); return; }
+    if (t.dataset.epdel) { deleteEdPop(); return; }
     if (t.dataset.act2) {
       const a = t.dataset.act2;
       if (a === "roster-edit") { if (requireAdmin("dienst-edit")) { state.rosterEdit = true; render(); } return; }
@@ -3008,7 +3521,7 @@ export function mount(container, opts = {}) {
       if (a === "rday-close") { state.rosterDay = null; render(); return; }
       if (a === "rhi-clear") { state.rosterHi = ""; render(); return; }
       if (a === "t-all") { if (requireAdmin("zeiten-all")) { state.timesAll = true; state.timesPerson = ""; render(); } return; }
-      if (a === "t-back") { state.timesPerson = null; render(); return; }
+      if (a === "t-back") { if (!timesOwnOnly()) state.timesPerson = null; render(); return; }
       if (a === "t-add") { if (isUnlocked()) { state.timesEdit = { id: null, date: state.date, e: { pid: (state.cfg.people[0] || {}).id, role: "frueh", in: "08:30", out: null, pause: 0 } }; render(); } return; }
       if (a === "te-cancel") { state.timesEdit = null; state.confirm = null; render(); return; }
       if (a === "te-save") { if (isUnlocked()) saveTimeEdit(); return; }
@@ -3021,7 +3534,20 @@ export function mount(container, opts = {}) {
       if (a === "t-pdf") { if (isUnlocked()) saveExport(buildPdf()); return; }
       if (a === "pin-cancel") { state.pinStage = null; state.view = "schicht"; render(); return; }
       if (a === "open-plan") return setView("plan");
+      if (a === "cleanup-ask") { state.confirm = "cleanup"; render(); return; }
+      if (a === "cleanup-run") { if (isUnlocked()) runCleanup(); return; }
+      if (a === "enc-off-ask") { state.confirm = "enc-off"; render(); return; }
+      if (a === "enc-off") { if (!isUnlocked()) return; state.confirm = null; state.cfg = { ...state.cfg, backupKey: null }; persistCfg({ backupKey: null }); setStatus("Verschlüsselung der Sicherungen ausgeschaltet"); render(); return; }
+      if (a === "feat-checkins") {
+        if (!isUnlocked()) return;
+        const features = { ...(state.cfg.features || {}), checkins: !checkinsOn() };
+        state.cfg = { ...state.cfg, features };
+        persistCfg({ features });
+        render(); return;
+      }
+      if (["open-plan", "open-roster", "open-month", "open-times", "pin-change", "lock"].includes(a)) state.adminPop = null;
       if (a === "open-month") return setView("monat");
+      if (a === "open-times") { setView("zeiten"); if (isUnlocked()) { state.timesAll = true; state.timesPerson = ""; render(); } return; }
       if (a === "open-roster") { state.view = "dienst"; state.rosterMonth = state.date.slice(0, 7); state.rosterEdit = true; render(); return; }
       if (a === "export") return downloadBackup();
       if (a === "import-cancel") { state.importPreview = null; render(); return; }
@@ -3056,8 +3582,7 @@ export function mount(container, opts = {}) {
       const nd = new Date(yy, mm - 1 + (t.id === "mrprev" ? -1 : 1), 1);
       state.rosterMonth = `${nd.getFullYear()}-${pad(nd.getMonth() + 1)}`; state.rosterDay = null; render(); return;
     }
-    if (t.dataset.cols) { saveLayout({ cols: t.dataset.cols }); render(); return; }
-    if (t.dataset.tperson) { state.timesPerson = t.dataset.tperson; render(); return; }
+    if (t.dataset.tperson) { if (!timesOwnOnly()) state.timesPerson = t.dataset.tperson; render(); return; }
     if (t.dataset.tedit) {
       if (!isUnlocked()) return;
       state.unlockedUntil = Date.now() + 10 * 60000;
@@ -3072,16 +3597,14 @@ export function mount(container, opts = {}) {
       state.timesMonth = `${nd.getFullYear()}-${pad(nd.getMonth() + 1)}`; state.timesData = null; render(); return;
     }
     if (t.dataset.rday) { if (isUnlocked()) { state.unlockedUntil = Date.now() + 10 * 60000; state.rosterDay = t.dataset.rday; render(); } return; }
-    if (t.dataset.shiftsel) { const k = t.dataset.shiftsel; const plan = P(); state.shiftSel = k === focusShift(plan, timeCtx()) ? null : k; state.expanded.clear(); scrolledOnce = false; render(); return; }
+    if (t.dataset.shiftsel) { if (lockedShift()) return; const k = t.dataset.shiftsel; const plan = P(); state.shiftSel = k === focusShift(plan, timeCtx()) ? null : k; state.expanded.clear(); scrolledOnce = false; render(); return; }
     if (t.dataset.goview) return setView(t.dataset.goview);
-    if (t.dataset.edscope) {
-      if (t.dataset.edscope === state.edScope) return;
-      if (state.draftDirty) { setStatus("Erst speichern oder verwerfen, dann wechseln", true); return; }
-      state.edScope = t.dataset.edscope; state.draft = null; render(); return;
-    }
     if (t.dataset.hread) { markHandRead(t.dataset.hread); render(); return; }
+    if (t.dataset.hopen) { state.handPop = t.dataset.hopen; renderRemind(); return; }
+    if (t.dataset.noteedit) { if (needPerson()) return; state.notePop = t.dataset.noteedit; renderRemind(); return; }
     if (t.dataset.log) return logAlways(t.dataset.shift, t.dataset.log);
     if (t.dataset.unlog) return unlogAlways(t.dataset.shift, t.dataset.unlog);
+    if (t.dataset.sideopen) { const k = t.dataset.sideopen; state.sideOpen.has(k) ? state.sideOpen.delete(k) : state.sideOpen.add(k); render(); return; }
     if (t.dataset.toggle) { const id = t.dataset.toggle; state.expanded.has(id) ? state.expanded.delete(id) : state.expanded.add(id); render(); return; }
     if (t.id === "mprev") return shiftMonths(-1);
     if (t.id === "mnext") return shiftMonths(1);
@@ -3090,7 +3613,10 @@ export function mount(container, opts = {}) {
     if (t.dataset.id) { const c = state.checks[t.dataset.id]; if (c && c.s === "na") return; setCheck(t.dataset.id, c && c.s === "done" ? null : stamp("done")); }
     else if (t.dataset.skip) { const c = state.checks[t.dataset.skip]; setCheck(t.dataset.skip, c && c.s === "na" ? null : stamp("na")); }
   });
-  main.addEventListener("pointerdown", (e) => { const sp = e.target.closest && e.target.closest("[data-split]"); if (sp && e.button === 0) startDrag(e, sp); });
+  main.addEventListener("pointerdown", (e) => {
+    const sp = e.target.closest && e.target.closest("[data-split]"); if (sp && e.button === 0) return startDrag(e, sp);
+    const gr = e.target.closest && e.target.closest("[data-grip]"); if (gr && e.button === 0 && isUnlocked()) startSort(e, gr);
+  });
   main.addEventListener("dblclick", (e) => {
     const sp = e.target.closest && e.target.closest("[data-split]"); if (!sp) return;
     saveLayout({ [sp.dataset.split]: LAYOUT_DEFAULT[sp.dataset.split] }); render();
@@ -3110,53 +3636,20 @@ export function mount(container, opts = {}) {
   main.addEventListener("input", (e) => {
     const el = e.target;
     if (el.id === "rhi") { state.rosterHi = el.value.slice(0, 40); return applyRosterHi(); }
-    if (el.dataset.note) return queueNote(el.dataset.note, el.value);
-    if (el.dataset.num && state.draft) {
-      const n = parseInt(el.value, 10);
-      const { parent, key } = getRef(el.dataset.num);
-      parent[key] = Number.isFinite(n) ? Math.min(480, Math.max(0, n)) : 0;
-      markDirty(); return;
-    }
-    if (el.dataset.path && state.draft && el.type !== "checkbox") { const { parent, key } = getRef(el.dataset.path); parent[key] = el.value; markDirty(); }
   });
   main.addEventListener("change", (e) => {
-    if (e.target.dataset && e.target.dataset.noteimp) return setNoteImportant(e.target.dataset.noteimp, e.target.checked);
     if (e.target.dataset && e.target.dataset.rnote) return setRosterNote(e.target.dataset.rnote, e.target.dataset.shift, e.target.value);
-    const el = e.target;
-    if (!state.draft) return;
-    if (el.dataset.path && el.type === "checkbox") { const { parent, key } = getRef(el.dataset.path); parent[key] = el.checked; markDirty(); return; }
-    if (el.dataset.time) {
-      const t = normTime(el.value);
-      if (!t) { setStatus("Bitte eine Uhrzeit wie 07:30 eingeben", true); el.value = getRef(el.dataset.time).parent[getRef(el.dataset.time).key]; return; }
-      const { parent, key } = getRef(el.dataset.time); parent[key] = t;
-      if (parent.from && parent.to && toMin(parent.to) <= toMin(parent.from)) {
-        // Ende vor Beginn: Abschnitt behält seine Länge (mind. 15 Min.).
-        if (key === "from") parent.to = fmtMin(Math.min(toMin(t) + 30, 23 * 60 + 59)); else parent.from = fmtMin(Math.max(toMin(t) - 30, 0));
-      }
-      // Abschnittszeiten ziehen die Schichtzeiten mit; ein bewusst geändertes Schichtende bleibt stehen.
-      for (const k of KEYS) { if (key === "from" || key === "to") fitShift(state.draft.plan[k]); else state.draft.plan[k].phases = sortPhases(state.draft.plan[k].phases); }
-      markDirty(); el.blur(); render(); return;
-    }
-    if (el.dataset.kind) {
-      const { parent, key } = getRef(el.dataset.kind);
-      parent[key].kind = el.value;
-      parent[key].every = el.value === "rhythm" ? (parent[key].every || 60) : 0;
-      markDirty(); render(); return;
-    }
-    if (el.dataset.move) {
-      const parts = el.dataset.move.split(".");
-      const shift = parts[0], pi = Number(parts[2]), ii = Number(parts[4]), target = Number(el.value);
-      const phases = state.draft.plan[shift].phases;
-      if (target === pi || !phases[target]) return;
-      const [item] = phases[pi].items.splice(ii, 1);
-      phases[target].items.push(item);
-      markDirty(); render();
-    }
+    if (e.target.id === "enc-noted") { const b = $("enc-done"); if (b) b.disabled = !e.target.checked; }
+    if (e.target.id === "ep-kind") { const f = $("ep-everyf"); if (f) f.hidden = e.target.value !== "rhythm"; }
   });
   main.addEventListener("submit", (e) => {
     e.preventDefault();
     if (e.target.id === "pinform") return submitPin($("pin-in").value);
     if (e.target.id === "addperson") return addPerson($("newperson").value);
+    if (e.target.id === "edpop") return submitEdPop();
+    if (e.target.id === "decform") { const i = $("dec-secret"); decryptPendingImport(i ? i.value : ""); return; }
+    if (e.target.id === "encform") return setupEncryption();
+    if (e.target.dataset && e.target.dataset.addto) { const i = $("ed-new"); addTask(e.target.dataset.addto, i ? i.value : ""); return; }
   });
   main.addEventListener("change", (e) => {
     const el = e.target;
@@ -3184,7 +3677,7 @@ export function mount(container, opts = {}) {
     toast(`${personName(id)} ist jetzt aktiv`);
   });
   // „Nur ansehen“: in Schicht und Erstattung nur Anzeige-Bedienelemente zulassen.
-  const VIEW_OK = "[data-shiftsel],[data-toggle],[data-cols],[data-split],[data-view]";
+  const VIEW_OK = "[data-shiftsel],[data-toggle],[data-sideopen],[data-split],[data-view]";
   const blockViewOnly = (e) => {
     if (!state.viewOnly || currentPerson() || !["schicht", "erstattung"].includes(state.view)) return;
     const el = e.target.closest && e.target.closest("button, input, textarea, select, label, a");
@@ -3223,6 +3716,7 @@ export function mount(container, opts = {}) {
     setStatus(statusLine(), state.readOnly || !!backupHint());
     if (disposed) return;
     subscribeCfg();
+    migrateSnaps();
     subscribeMonth();
     subscribeDay();
   })();
