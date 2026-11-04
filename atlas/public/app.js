@@ -284,7 +284,7 @@ function frame(src) {
 async function playHls(btn, url) {
   const v = document.createElement('video');
   Object.assign(v, { className: 'player', muted: true, autoplay: true, playsInline: true, controls: true });
-  const fail = () => v.replaceWith(Object.assign(document.createElement('p'), { className: 'noimg', textContent: 'Stream gerade nicht erreichbar' }));
+  const fail = () => v.replaceWith(Object.assign(document.createElement('p'), { className: 'noimg', textContent: 'Video lässt sich hier gerade nicht abspielen – „Stream öffnen“ versuchen' }));
   btn.replaceWith(v);
   if (v.canPlayType('application/vnd.apple.mpegurl')) {
     v.addEventListener('error', fail, { once: true });
@@ -305,9 +305,8 @@ async function playHls(btn, url) {
 /** Player erst nach dem Antippen einbetten (YouTube über youtube-nocookie: keine Cookies, bevor abgespielt wird). */
 function playVideo(btn) {
   const { yt, embed, hls } = btn.dataset;
-  if (yt && /^([\w-]{11}|live_stream\?channel=UC[\w-]{22})$/.test(yt)) {
-    const sep = yt.includes('?') ? '&' : '?';
-    btn.replaceWith(frame(`https://www.youtube-nocookie.com/embed/${yt}${sep}autoplay=1&mute=1&playsinline=1&rel=0`));
+  if (yt && /^[\w-]{11}$/.test(yt)) {
+    btn.replaceWith(frame(`https://www.youtube-nocookie.com/embed/${yt}?autoplay=1&mute=1&playsinline=1&rel=0`));
   } else if (embed && EMBED_HOSTS.includes(new URL(embed).hostname)) {
     btn.replaceWith(frame(embed));
   } else if (hls && /^https:\/\//.test(hls)) {

@@ -2,8 +2,9 @@
 // Start: node tools/livestreams.mjs [--write]
 // --write entfernt Streams, die es nicht mehr gibt oder die nicht eingebettet werden dürfen, und setzt das Prüfdatum.
 // Offline-Streams bleiben drin (viele Webcams starten nachts oder bei Wartung neu), werden aber gemeldet.
-// YouTube vergibt nach einem Neustart oft eine neue Video-ID → gemeldete Streams beim Betreiber neu heraussuchen
-// (mit channelId spielt die App den aktuellen Stream des Kanals, die alte ID schadet dann nicht).
+// YouTube vergibt nach einem Neustart oft eine neue Video-ID. Mit channelId (Kanal mit genau einem Livestream) holt das
+// Werkzeug die neue ID selbst und übernimmt sie mit --write; ohne channelId gemeldete Streams beim Betreiber neu heraussuchen.
+// (Das Einbetten per embed/live_stream?channel= zeigt bei YouTube nur noch „Video nicht verfügbar“, deshalb feste IDs.)
 // In der Cloud-Umgebung sind die Anbieter gesperrt → auf dem Pi ausführen.
 import { readFile, writeFile } from 'node:fs/promises';
 
@@ -26,7 +27,8 @@ const CHECKS = {
       if (!video) return { keep: true, live: false, why: 'Kanal sendet gerade nicht' };
     }
     const page = await (await get(`https://www.youtube.com/watch?v=${video}`)).text();
-    return { keep: true, live: page.includes('"isLiveNow":true'), why: video !== p.video ? `läuft jetzt unter ${video}` : '' };
+    const live = page.includes('"isLiveNow":true');
+    return { keep: true, live, video: live && video !== p.video ? video : null, why: video !== p.video ? `läuft jetzt unter ${video}` : '' };
   },
   async embed(p) {
     const res = await get(p.embed);
@@ -48,15 +50,22 @@ const CHECKS = {
 
 const keep = [];
 let offline = 0;
+let moved = 0;
 for (const f of data.features) {
   let r;
   try { r = await CHECKS[f.props.kind](f.props); } catch (e) { r = { keep: true, live: false, why: `Fehler: ${e.message}` }; }
+  if (r.video) {
+    // neue ID des Kanals übernehmen
+    f.props.video = r.video;
+    f.id = `yt:${r.video}`;
+    moved++;
+  }
   if (r.keep) keep.push(f);
   if (!r.live) offline++;
   const why = r.why || (r.live ? '' : 'gerade nicht live');
   console.log(`${r.keep ? (r.live ? 'LIVE' : 'AUS ') : 'WEG '} ${f.props.kind.padEnd(5)} ${f.label}${why ? `  – ${why}` : ''}`);
 }
-console.log(`\n${data.features.length - offline} von ${data.features.length} live, ${data.features.length - keep.length} zu entfernen.`);
+console.log(`\n${data.features.length - offline} von ${data.features.length} live, ${data.features.length - keep.length} zu entfernen, ${moved} mit neuer YouTube-ID.`);
 
 if (write) {
   const out = { ...data, at: new Date().toISOString(), features: keep };

@@ -57,9 +57,8 @@ function intersects(bounds, [w, s, e, n]) {
   return bounds.getWest() <= e && bounds.getEast() >= w && bounds.getSouth() <= n && bounds.getNorth() >= s;
 }
 
-/** YouTube-Kennungen (Video 11 Zeichen, Kanal UC…); alles andere landet nie in einer Adresse. */
+/** YouTube-Kennung (11 Zeichen); alles andere landet nie in einer Adresse. */
 const ytId = (v) => (typeof v === 'string' && /^[\w-]{11}$/.test(v) ? v : null);
-const ytChannel = (v) => (typeof v === 'string' && /^UC[\w-]{22}$/.test(v) ? v : null);
 /** Eingebettete Player nur von bekannten Anbietern, die das Einbetten ausdrücklich anbieten. */
 export const EMBED_HOSTS = ['g0.ipcamlive.com', 'v.angelcam.com', 'player.livespotting.com'];
 const embedUrl = (u) => {
@@ -121,9 +120,7 @@ export const LAYERS = [
       const embed = p.kind === 'embed' ? embedUrl(p.embed) : null;
       const hls = p.kind === 'hls' ? hlsUrl(p.hls) : null;
       const site = safeUrl(p.site);
-      // Kanal-Modus: spielt den aktuellen Livestream des Kanals, auch wenn YouTube nach einem Neustart eine neue ID vergibt.
-      const ytSrc = yt && (ytChannel(p.channelId) ? `live_stream?channel=${p.channelId}` : yt);
-      const player = ytSrc ? playButton('data-yt', ytSrc, 'lädt den Player von YouTube')
+      const player = yt ? playButton('data-yt', yt, 'lädt den Player von YouTube')
         : embed ? playButton('data-embed', embed, `lädt den Player von ${p.channel || 'Anbieter'}`)
           : hls ? playButton('data-hls', hls, `Video direkt von ${p.channel || 'Anbieter'}`)
             : '<p class="noimg">Kein Video verfügbar</p>';
