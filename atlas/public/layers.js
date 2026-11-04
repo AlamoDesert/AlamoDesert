@@ -57,15 +57,29 @@ function intersects(bounds, [w, s, e, n]) {
   return bounds.getWest() <= e && bounds.getEast() >= w && bounds.getSouth() <= n && bounds.getNorth() >= s;
 }
 
-/** YouTube-Kennung (11 Zeichen); alles andere landet nie in einer Adresse. */
+/** YouTube-Kennungen (Video 11 Zeichen, Kanal UC…); alles andere landet nie in einer Adresse. */
 const ytId = (v) => (typeof v === 'string' && /^[\w-]{11}$/.test(v) ? v : null);
+const ytChannel = (v) => (typeof v === 'string' && /^UC[\w-]{22}$/.test(v) ? v : null);
+/** Eingebettete Player nur von bekannten Anbietern, die das Einbetten ausdrücklich anbieten. */
+export const EMBED_HOSTS = ['g0.ipcamlive.com', 'v.angelcam.com', 'player.livespotting.com'];
+const embedUrl = (u) => {
+  if (!safeUrl(u)) return null;
+  try { return EMBED_HOSTS.includes(new URL(u).hostname) ? u : null; } catch { return null; }
+};
+const hlsUrl = (u) => (safeUrl(u) && /\.m3u8(\?|$)/.test(u) ? u : null);
+
+/** Abspielknopf: der Player lädt erst nach dem Antippen – vorher erfährt der Anbieter nichts vom Besuch. */
+function playButton(attr, value, via) {
+  return `<button class="player" ${attr}="${esc(value)}" aria-label="Livestream abspielen"><span class="play" aria-hidden="true">▶</span>`
+    + `<span>Abspielen<small>${esc(via)}</small></span></button>`;
+}
 
 export const LAYERS = [
   {
     id: 'live',
     name: 'Livestreams',
-    desc: 'Live-Videos aus Deutschland (YouTube)',
-    attribution: 'Livestreams: <a href="https://www.youtube.com" target="_blank" rel="noopener">YouTube</a> · Rechte bei den jeweiligen Betreibern',
+    desc: 'Live-Videos aus Deutschland (YouTube, Webcams)',
+    attribution: 'Livestreams: <a href="https://www.youtube.com" target="_blank" rel="noopener">YouTube</a> · <a href="https://www.ipcamlive.com" target="_blank" rel="noopener">IPCamLive</a> · <a href="https://www.angelcam.com" target="_blank" rel="noopener">Angelcam</a> · Verzeichnis <a href="https://worldcam.eu" target="_blank" rel="noopener">worldcam.eu</a> · Rechte bei den jeweiligen Betreibern',
     // Feste, auf dem Pi geprüfte Liste (tools/livestreams.mjs); kein Proxy nötig.
     url: 'data/livestreams.json',
     fixed: true,
@@ -103,16 +117,26 @@ export const LAYERS = [
       });
     },
     detail(p) {
-      const id = ytId(p.video);
-      const watch = id ? `https://www.youtube.com/watch?v=${id}` : null;
+      const yt = p.kind === 'yt' ? ytId(p.video) : null;
+      const embed = p.kind === 'embed' ? embedUrl(p.embed) : null;
+      const hls = p.kind === 'hls' ? hlsUrl(p.hls) : null;
+      const site = safeUrl(p.site);
+      // Kanal-Modus: spielt den aktuellen Livestream des Kanals, auch wenn YouTube nach einem Neustart eine neue ID vergibt.
+      const ytSrc = yt && (ytChannel(p.channelId) ? `live_stream?channel=${p.channelId}` : yt);
+      const player = ytSrc ? playButton('data-yt', ytSrc, 'lädt den Player von YouTube')
+        : embed ? playButton('data-embed', embed, `lädt den Player von ${p.channel || 'Anbieter'}`)
+          : hls ? playButton('data-hls', hls, `Video direkt von ${p.channel || 'Anbieter'}`)
+            : '<p class="noimg">Kein Video verfügbar</p>';
+      const links = [
+        yt ? `<a class="ext" href="https://www.youtube.com/watch?v=${yt}" target="_blank" rel="noopener">Auf YouTube öffnen ›</a>` : '',
+        site ? `<a class="ext" href="${esc(site)}" target="_blank" rel="noopener">Seite des Betreibers ›</a>` : '',
+        hls ? `<a class="ext" href="${esc(hls)}" target="_blank" rel="noopener">Stream öffnen ›</a>` : ''
+      ].join('');
       return {
         title: esc(p.name),
-        // Erst beim Antippen lädt der Player – vorher erfährt YouTube nichts vom Besuch.
-        body: (id
-          ? `<button class="player" data-yt="${id}" aria-label="Livestream abspielen"><span class="play" aria-hidden="true">▶</span><span>Abspielen<small>lädt den Player von YouTube</small></span></button>`
-          : '<p class="noimg">Kein Video verfügbar</p>')
-          + `<dl>${row('Betreiber', esc(p.channel))}${row('Quelle', 'YouTube-Livestream')}</dl>`
-          + (watch ? `<div class="links"><a class="ext" href="${watch}" target="_blank" rel="noopener">Auf YouTube öffnen ›</a></div>` : '')
+        body: player
+          + `<dl>${row('Betreiber', esc(p.channel))}${row('Quelle', esc({ yt: 'YouTube-Livestream', embed: 'Webcam-Player des Betreibers', hls: 'Direkter Videostream' }[p.kind] || null))}</dl>`
+          + (links ? `<div class="links">${links}</div>` : '')
       };
     }
   },

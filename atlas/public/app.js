@@ -1,5 +1,5 @@
 /* Live Karten – Oberfläche: Karte, Ebenen-Steuerung, Abfragetakt, Detailansicht. */
-import { LAYERS, esc } from './layers.js';
+import { LAYERS, EMBED_HOSTS, esc } from './layers.js';
 
 const STORE = 'livekarten.v1';
 const STYLES = { light: 'https://tiles.openfreemap.org/styles/liberty', dark: 'https://tiles.openfreemap.org/styles/dark' };
@@ -259,30 +259,68 @@ function startImageRefresh() {
   imgTimer = setInterval(() => { if (!document.hidden) load(); }, Number(img.dataset.refresh) * 1000);
 }
 
+let hlsPlayer = null;
+
 function closeDetail() {
   clearInterval(imgTimer);
+  hlsPlayer?.destroy();
+  hlsPlayer = null;
   $('#detail').hidden = true;
   $('#detail').innerHTML = ''; // laufendes Video beenden
 }
 
-/** Livestream erst nach dem Antippen einbetten (youtube-nocookie: keine Cookies, bevor abgespielt wird). */
-function playVideo(btn) {
-  const id = btn.dataset.yt;
-  if (!/^[\w-]{11}$/.test(id)) return;
+function frame(src) {
   const f = document.createElement('iframe');
   f.className = 'player';
-  f.src = `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&mute=1&playsinline=1&rel=0`;
+  f.src = src;
   f.title = 'Livestream';
   f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
   f.allowFullscreen = true;
   f.referrerPolicy = 'strict-origin-when-cross-origin';
-  btn.replaceWith(f);
+  return f;
+}
+
+/** Direkter HLS-Stream: Safari/iOS spielt ihn selbst, sonst lädt hls.js (lokal, nur bei Bedarf). */
+async function playHls(btn, url) {
+  const v = document.createElement('video');
+  Object.assign(v, { className: 'player', muted: true, autoplay: true, playsInline: true, controls: true });
+  const fail = () => v.replaceWith(Object.assign(document.createElement('p'), { className: 'noimg', textContent: 'Stream gerade nicht erreichbar' }));
+  btn.replaceWith(v);
+  if (v.canPlayType('application/vnd.apple.mpegurl')) {
+    v.addEventListener('error', fail, { once: true });
+    v.src = url;
+    return;
+  }
+  try {
+    const { default: Hls } = await import('./vendor/hls/hls.light.min.mjs');
+    if (!Hls.isSupported() || !v.isConnected) return fail();
+    hlsPlayer?.destroy();
+    hlsPlayer = new Hls({ lowLatencyMode: false });
+    hlsPlayer.on(Hls.Events.ERROR, (_e, d) => { if (d.fatal) { hlsPlayer.destroy(); hlsPlayer = null; fail(); } });
+    hlsPlayer.loadSource(url);
+    hlsPlayer.attachMedia(v);
+  } catch { fail(); }
+}
+
+/** Player erst nach dem Antippen einbetten (YouTube über youtube-nocookie: keine Cookies, bevor abgespielt wird). */
+function playVideo(btn) {
+  const { yt, embed, hls } = btn.dataset;
+  if (yt && /^([\w-]{11}|live_stream\?channel=UC[\w-]{22})$/.test(yt)) {
+    const sep = yt.includes('?') ? '&' : '?';
+    btn.replaceWith(frame(`https://www.youtube-nocookie.com/embed/${yt}${sep}autoplay=1&mute=1&playsinline=1&rel=0`));
+  } else if (embed && EMBED_HOSTS.includes(new URL(embed).hostname)) {
+    btn.replaceWith(frame(embed));
+  } else if (hls && /^https:\/\//.test(hls)) {
+    playHls(btn, hls);
+  }
 }
 
 function showDetail(l, props) {
   // MapLibre liefert null-Werte aus GeoJSON-Properties als String "null" zurück, Zahlen bleiben Zahlen.
   const p = Object.fromEntries(Object.entries(props).map(([k, v]) => [k, v === 'null' ? null : v]));
   const d = l.detail(p);
+  hlsPlayer?.destroy();
+  hlsPlayer = null;
   $('#detail').innerHTML = `<header><span class="kind">${esc(l.name)}</span><h2>${d.title}</h2>
     <button class="close" aria-label="Schließen">×</button></header>${d.body}`;
   $('#detail').hidden = false;
@@ -290,8 +328,8 @@ function showDetail(l, props) {
 }
 $('#detail').addEventListener('click', (e) => {
   if (e.target.closest('.close')) closeDetail();
-  const yt = e.target.closest('button[data-yt]');
-  if (yt) playVideo(yt);
+  const btn = e.target.closest('button.player');
+  if (btn) playVideo(btn);
 });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeDetail(); $('#panel').hidden = true; } });
 

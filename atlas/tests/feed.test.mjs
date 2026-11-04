@@ -163,19 +163,30 @@ test('Kameras: nur bekannte Anbieter, Parser bekommt den Anbieter', async () => 
   assert.match(r.headers.get('netlify-cdn-cache-control'), /s-maxage=600/);
 });
 
-test('Livestream-Liste: gültige YouTube-IDs, eindeutig, alle in Deutschland', async () => {
+test('Livestream-Liste: gültige Quellen, eindeutig, alle in Deutschland', async () => {
   const { readFile } = await import('node:fs/promises');
   const data = JSON.parse(await readFile(new URL('../public/data/livestreams.json', import.meta.url), 'utf8'));
   assert.equal(data.source, 'live');
   assert.ok(!Number.isNaN(Date.parse(data.at)));
-  assert.ok(data.features.length >= 20);
+  assert.ok(data.features.length >= 100);
   const ids = new Set();
+  const embedHosts = ['g0.ipcamlive.com', 'v.angelcam.com', 'player.livespotting.com'];
   for (const f of data.features) {
-    assert.match(f.props.video, /^[\w-]{11}$/, f.label);
-    assert.equal(f.id, `yt:${f.props.video}`);
+    const p = f.props;
     assert.ok(!ids.has(f.id), `doppelt: ${f.label}`);
     ids.add(f.id);
     assert.ok(f.lon > 5.8 && f.lon < 15.1 && f.lat > 47.2 && f.lat < 55.1, `außerhalb Deutschlands: ${f.label}`);
-    assert.ok(f.label && f.props.name === f.label && f.props.channel, f.label);
+    assert.ok(f.label && p.name === f.label && p.channel, f.label);
+    if (p.kind === 'yt') {
+      assert.match(p.video, /^[\w-]{11}$/, f.label);
+      assert.equal(f.id, `yt:${p.video}`);
+      if (p.channelId) assert.match(p.channelId, /^UC[\w-]{22}$/, f.label);
+    } else if (p.kind === 'embed') {
+      assert.ok(embedHosts.includes(new URL(p.embed).hostname), f.label);
+      assert.match(p.embed, /^https:\/\//);
+    } else if (p.kind === 'hls') {
+      assert.match(p.hls, /^https:\/\/.+\.m3u8(\?|$)/, f.label);
+    } else assert.fail(`unbekannte Art: ${f.label}`);
+    if (p.site) assert.match(p.site, /^https:\/\//, f.label);
   }
 });
