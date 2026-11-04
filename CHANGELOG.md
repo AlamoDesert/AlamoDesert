@@ -2,6 +2,9 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.16.0 – 04.11.2026
+- Erinnerungen „zur Sicherheit“: Pro Aufgabe wählbar, ob die Erinnerung nur bei offener Aufgabe kommt oder immer – dann auch, wenn sie schon erledigt ist („Schon erledigt … – bitte kurz kontrollieren“, Knopf „Kontrolliert“). Im Aufgaben-Plan steht dann „· immer“ an der Glocke.
+
 ## 1.15.0 – 03.11.2026
 - Check-ins neu gegliedert: Ablauf in drei Schritten (Dateien laden · Prüfen · Wallet buchen), jeder Schritt zeigt seinen Stand. Nach „Prüfen“ geht es automatisch weiter. „Wird erstattet“ und „Keine Erstattung“ sind eingeklappt, solange noch etwas zu entscheiden ist. Regeln & Preise und Hansefit-Liste liegen hinter „Einstellungen“.
 

@@ -595,3 +595,5 @@ button.arow:hover { background: var(--surface-2) }
 .teamlist .in { flex: 1; border-color: transparent; background: none; font-size: 16px }
 .teamlist .in:focus { border-color: var(--line); background: var(--surface-2) }
 .btn.danger:not(.ghost) { background: var(--warn); border-color: var(--warn); color: #fff }
+.remwhen { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 8px 18px }
+.taskrem .trdone { color: var(--done); font-weight: 600 }

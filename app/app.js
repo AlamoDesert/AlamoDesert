@@ -709,7 +709,7 @@ export function mount(container, opts = {}) {
           const t = str(i.t, 200).trim();
           if (!t) return null;
           seen.add(i.id);
-          return { id: i.id, t, s: str(i.s, 300), important: i.important === true, optional: i.optional === true, ...(TIME_RE.test(i.remind) ? { remind: i.remind } : {}) };
+          return { id: i.id, t, s: str(i.s, 300), important: i.important === true, optional: i.optional === true, ...(TIME_RE.test(i.remind) ? { remind: i.remind, ...(i.remindAlways === true ? { remindAlways: true } : {}) } : {}) };
         }).filter(Boolean);
         return { id: ID_RE.test(p.id) ? p.id : newId("p"), title: str(p.title, 60).trim() || "Abschnitt", from: p.from, to: p.to, hint: str(p.hint, 80), items };
       }).filter(Boolean);
@@ -1304,7 +1304,7 @@ export function mount(container, opts = {}) {
     const c = state.checks[item.id];
     const flag = !c && state.coFlag === item.shift && state.date === isoDate(new Date());
     const cls = [item.important ? "important" : "", c ? (c.s === "na" ? "na" : "done") : "", opts.upcoming ? "upcoming" : "", flag ? "flag" : ""].join(" ");
-    const tag = (opts.showPhase ? `<span class="tag">${esc(item.phase.title)} · bis ${item.phase.to}</span>` : "") + (item.remind && !c ? `<span class="remtag" title="Erinnerung als Popup">${BELL_SVG}${esc(item.remind)}</span>` : "");
+    const tag = (opts.showPhase ? `<span class="tag">${esc(item.phase.title)} · bis ${item.phase.to}</span>` : "") + (item.remind && (!c || item.remindAlways) ? `<span class="remtag" title="${item.remindAlways ? "Erinnerung als Popup, auch wenn schon erledigt" : "Erinnerung als Popup"}">${BELL_SVG}${esc(item.remind)}</span>` : "");
     // „entfällt“ sperrt den Haken für diesen Tag; nur „rückgängig“ gibt ihn wieder frei.
     const na = !!c && c.s === "na";
     return `<li class="${cls}">
@@ -2525,12 +2525,16 @@ export function mount(container, opts = {}) {
     }
     const tr = state.taskRem;
     if (tr) {
-      if (state.checks[tr.id]) { state.taskRem = null; return renderRemind(); }
+      const done = state.checks[tr.id];
+      if (done && !tr.item.remindAlways) { state.taskRem = null; return renderRemind(); }
       el.hidden = false;
       el.innerHTML = `<div class="overlay" role="dialog" aria-modal="true" aria-labelledby="tr-title"><div class="dialog taskrem">
-        <div class="trhead">${BELL_SVG}<span>Erinnerung · ${esc(tr.item.remind)}</span></div>
+        <div class="trhead">${BELL_SVG}<span>${done ? "Zur Sicherheit" : "Erinnerung"} · ${esc(tr.item.remind)}</span></div>
         <h2 id="tr-title">${esc(tr.item.t)}</h2>${tr.item.s ? `<p>${esc(tr.item.s)}</p>` : ""}
-        <div class="row"><button class="btn" data-trsnooze="${esc(tr.id)}">In 10 Minuten erinnern</button><button class="btn primary done" data-trdone="${esc(tr.id)}">Erledigt</button></div>
+        ${done ? `<p class="trdone">Schon ${whoLine(done)} – bitte kurz kontrollieren, ob alles passt.</p>` : ""}
+        <div class="row"><button class="btn" data-trsnooze="${esc(tr.id)}">In 10 Minuten erinnern</button>${done
+          ? `<button class="btn primary done" data-trok="${esc(tr.id)}">Kontrolliert</button>`
+          : `<button class="btn primary done" data-trdone="${esc(tr.id)}">Erledigt</button>`}</div>
       </div></div>`;
       return;
     }
@@ -2550,7 +2554,9 @@ export function mount(container, opts = {}) {
     if (b.dataset.hread) { const r = $("hand-reply"); markHandRead(b.dataset.hread, r ? r.value : ""); state.handPop = null; renderRemind(); render(); return; }
     if (b.dataset.hlater) { state.handPop = null; renderRemind(); return; }
     if (b.dataset.trsnooze) { snoozeTaskRem(b.dataset.trsnooze, 10 * 60000); state.taskRem = null; el2clear(); return; }
-    if (b.dataset.trdone) { const id = b.dataset.trdone; state.taskRem = null; setCheck(id, { s: "done", by: actorId(), at: new Date().toISOString() }); el2clear(); return; }
+    // Erledigte Aufgabe kontrolliert: für heute nicht mehr erinnern.
+    if (b.dataset.trok) { snoozeTaskRem(b.dataset.trok, 24 * 3600000); state.taskRem = null; el2clear(); return; }
+    if (b.dataset.trdone) { const id = b.dataset.trdone; snoozeTaskRem(id, 24 * 3600000); state.taskRem = null; setCheck(id, { s: "done", by: actorId(), at: new Date().toISOString() }); el2clear(); return; }
     if (b.dataset.noteclose) { state.notePop = null; el2clear(); return; }
     if (b.dataset.notesave) { const ta = $("notepop-text"), im = $("notepop-imp"); saveNote(b.dataset.notesave, ta ? ta.value : "", im ? im.checked : false); state.notePop = null; el2clear(); return; }
     if (b.dataset.rconfirm) { logAlways(b.dataset.shift, b.dataset.rconfirm); renderRemind(); return; }
@@ -2918,7 +2924,7 @@ export function mount(container, opts = {}) {
     const phases = s.phases.map(p => {
       const open = state.edOpen.has(p.id) || state.edAdd === p.id;
       const rows = p.items.map(i => {
-        const rem = i.remind ? `<span class="badge rem">${BELL_SVG}${esc(i.remind === m.we.remind[i.id] ? i.remind : `${i.remind} / ${m.we.remind[i.id]}`)}</span>` : "";
+        const rem = i.remind ? `<span class="badge rem">${BELL_SVG}${esc(i.remind === m.we.remind[i.id] ? i.remind : `${i.remind} / ${m.we.remind[i.id]}`)}${i.remindAlways ? " · immer" : ""}</span>` : "";
         return `<li data-id="${esc(i.id)}"${state.edNew === i.id ? ' class="new"' : ""}><span class="grip" data-grip="1" aria-hidden="true" title="Ziehen zum Sortieren">⋮⋮</span>
           <button class="edtxt${i.important ? " imp" : ""}" data-editem="${esc(i.id)}">${esc(i.t)}${i.s ? `<small>${esc(i.s)}</small>` : ""}</button>
           ${i.optional ? '<span class="badge">darf entfallen</span>' : ""}${rem}</li>`;
@@ -2957,9 +2963,12 @@ export function mount(container, opts = {}) {
         ${fld("Abschnitt", `<select class="in" id="ep-phase">${m.plan[key].phases.map(p => `<option value="${esc(p.id)}"${p.id === f.phase.id ? " selected" : ""}>${esc(p.from)} ${esc(p.title)}</option>`).join("")}</select>`)}
         <div class="checks"><label><input type="checkbox" id="ep-imp" ${i.important ? "checked" : ""}> Wichtig (rot)</label><label><input type="checkbox" id="ep-opt" ${i.optional ? "checked" : ""}> Darf entfallen</label></div>
         <fieldset class="remfs"><legend>Erinnerung als Popup</legend>
-          <label><input type="checkbox" id="ep-rem" ${i.remind ? "checked" : ""}> Erinnern, falls noch offen</label>
+          <label><input type="checkbox" id="ep-rem" ${i.remind ? "checked" : ""}> Erinnern</label>
           <label>Mo–Fr um ${timeIn("ep-remwk", i.remind || wkT.from, "Erinnerung Mo–Fr")}</label>
-          <label>Sa+So um ${timeIn("ep-remwe", m.we.remind[i.id] || weT.from, "Erinnerung Sa+So")}</label></fieldset>`, true, "Wirklich löschen?");
+          <label>Sa+So um ${timeIn("ep-remwe", m.we.remind[i.id] || weT.from, "Erinnerung Sa+So")}</label>
+          <div class="remwhen" role="radiogroup" aria-label="Wann erinnern">
+            <label><input type="radio" name="ep-remwhen" id="ep-remopen" ${i.remindAlways ? "" : "checked"}> nur wenn noch offen</label>
+            <label><input type="radio" name="ep-remwhen" id="ep-remalways" ${i.remindAlways ? "checked" : ""}> immer – auch wenn schon erledigt (zur Sicherheit)</label></div></fieldset>`, true, "Wirklich löschen?");
     }
     if (pop.type === "phase") {
       const p = pop.id ? findPhase(m, key, pop.id) : null;
@@ -3011,7 +3020,8 @@ export function mount(container, opts = {}) {
         const f = findItem(m, key, pop.id); if (!f) return false;
         const i = f.item;
         i.t = t; i.s = v("ep-s").trim(); i.important = c("ep-imp"); i.optional = c("ep-opt");
-        if (rem) { i.remind = rwk; m.we.remind[i.id] = rwe; } else { delete i.remind; delete m.we.remind[i.id]; }
+        if (rem) { i.remind = rwk; m.we.remind[i.id] = rwe; if (c("ep-remalways")) i.remindAlways = true; else delete i.remindAlways; }
+        else { delete i.remind; delete i.remindAlways; delete m.we.remind[i.id]; }
         const target = findPhase(m, key, v("ep-phase"));
         if (target && target !== f.phase) { f.phase.items.splice(f.idx, 1); target.items.push(i); }
       });
@@ -3095,7 +3105,8 @@ export function mount(container, opts = {}) {
   }
 
   // ---------- Erinnerungs-Popups (Aufgaben mit Uhrzeit) ----------
-  // Fällig: heutige Aufgabe der laufenden Schicht mit Erinnerungszeit, noch nicht erledigt, nicht weggedrückt.
+  // Fällig: heutige Aufgabe der laufenden Schicht mit Erinnerungszeit, nicht weggedrückt – und noch offen,
+  // außer die Aufgabe soll „zur Sicherheit“ immer erinnern (remindAlways), dann auch, wenn sie schon erledigt ist.
   function taskRemTarget() {
     const today = isoDate(new Date());
     if (state.date !== today || !currentPerson()) return null;
@@ -3103,7 +3114,7 @@ export function mount(container, opts = {}) {
     if (!key) return null;
     const snz = LS.get("rz2taskrem", {}), sn = snz && snz.date === today ? snz.until || {} : {};
     for (const p of plan[key].phases) for (const i of p.items) {
-      if (i.remind && !state.checks[i.id] && now >= toMin(i.remind) && !(sn[i.id] > Date.now())) return { id: i.id, key, item: i };
+      if (i.remind && (i.remindAlways || !state.checks[i.id]) && now >= toMin(i.remind) && !(sn[i.id] > Date.now())) return { id: i.id, key, item: i };
     }
     return null;
   }
