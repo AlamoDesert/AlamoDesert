@@ -182,6 +182,9 @@
   /* Netlify blendet unten rechts einen Hinweis ein (iframe #nl-badge-frame) – so verschieben, dass er nichts verdeckt. */
   #nl-badge-frame { right: 64px !important; bottom: 10px !important; }
 
+  /* Mittlere Breiten (iPad hochkant): Zähler weglassen, damit Suche und Uhr Platz haben. */
+  @media (max-width: 1180px) { .stats { display: none; } }
+
   /* ---------- Handy ---------- */
   @media (max-width: 760px) {
     .stats, .clock .sys > span, #searchbtn kbd, #searchbtn .lbl { display: none; }

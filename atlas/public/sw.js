@@ -1,6 +1,6 @@
 /* Live Karten – Offline-Cache für die App-Hülle. Live-Daten (/api/*) und Kartenkacheln gehen immer ans Netz.
    Bei Änderungen an Dateien CACHE hochzählen. */
-const CACHE = 'livekarten-v7';
+const CACHE = 'livekarten-v8';
 const ASSETS = [
   './', 'index.html', 'app.js', 'layers.js', 'manifest.webmanifest',
   'vendor/maplibre/maplibre-gl.js', 'vendor/maplibre/maplibre-gl.css',

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createProxy } from '../netlify/functions/feed/core.mts';
-import { parseReadsb, parseUsgs, cellCenter, CELL, parseShips, parseTrace, parseAircraftInfo, parseFotoWebcam, parseShipPhoto, SHIP_MAX_AGE_MS } from '../netlify/functions/feed/sources.mts';
+import { parseReadsb, parseUsgs, cellCenter, CELL, parseTrace, parseAircraftInfo, parseFotoWebcam, parseShipPhoto } from '../netlify/functions/feed/sources.mts';
 
 const okJson = (body) => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
 const READSB = {
@@ -189,23 +189,6 @@ test('Livestream-Liste: gültige Quellen, eindeutig, alle in Deutschland', async
     } else assert.fail(`unbekannte Art: ${f.label}`);
     if (p.site) assert.match(p.site, /^https:\/\//, f.label);
   }
-});
-
-test('Schiffe: Positionen und Stammdaten zusammengeführt, alte Positionen verworfen', () => {
-  const now = 1_800_000_000_000;
-  const locs = { features: [
-    { mmsi: 1, geometry: { coordinates: [24.9, 60.1] }, properties: { mmsi: 1, sog: 12.3, cog: 90, heading: 511, navStat: 0, timestampExternal: now - 60_000 } },
-    { mmsi: 2, geometry: { coordinates: [25, 60] }, properties: { mmsi: 2, sog: 0, cog: 360, heading: 45, timestampExternal: now - SHIP_MAX_AGE_MS - 1 } },
-    { mmsi: 3, geometry: { coordinates: [0, 0] }, properties: { mmsi: 3, timestampExternal: now } }
-  ] };
-  const meta = [{ mmsi: 1, name: 'VIKING  GRACE', imo: 9606900, shipType: 60, destination: 'FITKU', callSign: 'OJPQ' }];
-  const f = parseShips([locs, meta], '', now);
-  assert.equal(f.length, 1);
-  assert.equal(f[0].label, 'VIKING GRACE');
-  assert.equal(f[0].heading, 90); // 511 = kein Kurs → Kurs über Grund
-  assert.equal(f[0].props.kind, 'Passagierschiff');
-  assert.equal(f[0].props.imo, 9606900);
-  assert.deepEqual(parseShips([locs, null], '', now)[0].props.name, null);
 });
 
 test('Flugweg: nur ab dem letzten Start, höchstens ~600 Punkte', () => {

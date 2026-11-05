@@ -133,7 +133,8 @@ function setOverlay(features) {
 function ensureInstalled(l) {
   if (map.getSource(srcId(l))) return;
   // Quellennachweis hängt an der Quelle: MapLibre zeigt ihn nur, solange die Ebene sichtbar ist.
-  map.addSource(srcId(l), { type: 'geojson', data: toGeoJSON(runtime.get(l.id).features), attribution: l.attribution, ...(l.sourceOptions || {}) });
+  if (l.tiles) map.addSource(srcId(l), { type: 'vector', tiles: [l.tiles.url], maxzoom: l.tiles.maxzoom, attribution: l.attribution });
+  else map.addSource(srcId(l), { type: 'geojson', data: toGeoJSON(runtime.get(l.id).features), attribution: l.attribution, ...(l.sourceOptions || {}) });
   l.install(map, srcId(l));
   // Ebenen-Handler überleben setStyle; nur einmal binden, sonst öffnet ein Klick die Details mehrfach.
   if (bound.has(l.id)) return;
@@ -151,7 +152,8 @@ function ensureInstalled(l) {
         } catch { map.easeTo({ center: f.geometry.coordinates, zoom: map.getZoom() + 2 }); }
         return;
       }
-      showDetail(l, f.properties, f.geometry.coordinates);
+      // Vektorkacheln tragen die Kennung am Feature, nicht in den Properties.
+      showDetail(l, { ...f.properties, id: f.properties.id ?? f.id ?? f.properties.mmsi }, f.geometry.coordinates);
     });
     map.on('mouseenter', id, () => { map.getCanvas().style.cursor = 'pointer'; });
     map.on('mouseleave', id, () => { map.getCanvas().style.cursor = ''; });
@@ -211,6 +213,16 @@ async function refresh(l) {
   // Hintergrund-Tab: nichts abfragen, beim Zurückkehren sofort aktualisieren (visibilitychange).
   if (document.hidden) return;
 
+  if (l.tiles) {
+    // Kacheln mit neuem Zeitstempel anfordern (die Quelle cached nur kurz), Zählen übernimmt countTiles.
+    if (rt.at) map.getSource(srcId(l))?.setTiles([`${l.tiles.url}?t=${Math.floor(Date.now() / l.refresh)}`]);
+    rt.at = Date.now();
+    rt.error = null;
+    renderChrome();
+    rt.timer = setTimeout(() => refresh(l), l.refresh);
+    return;
+  }
+
   const plan = l.requests(map);
   rt.hint = plan.hint || null;
   if (!plan.queries) {
@@ -233,7 +245,6 @@ async function refresh(l) {
     const byId = new Map();
     for (const r of ok) for (const f of r.features) byId.set(f.id, f); // Zellen überlappen: doppelte Objekte zusammenführen
     rt.features = [...byId.values()];
-    if (l.trail) recordTrail(l, rt.features);
     rt.at = ok.map((r) => Date.parse(r.at)).reduce((a, b) => Math.min(a, b));
     rt.stale = ok.some((r) => r.stale);
   }
@@ -245,22 +256,9 @@ async function refresh(l) {
   rt.timer = setTimeout(() => refresh(l), l.refresh);
 }
 
-/** Positionen mitschreiben, solange die Karte offen ist (für Quellen ohne eigenen Verlauf). */
-const trails = new Map();
-function recordTrail(l, features) {
-  for (const f of features) {
-    const key = `${l.id}|${f.id}`;
-    const t = trails.get(key) || [];
-    const last = t[t.length - 1];
-    if (!last || last[0] !== f.lon || last[1] !== f.lat) t.push([f.lon, f.lat]);
-    if (t.length > 240) t.shift();
-    trails.set(key, t);
-  }
-}
-
 function render(l) {
   const src = map.getSource(srcId(l));
-  if (src) src.setData(toGeoJSON(runtime.get(l.id).features));
+  if (src && !l.tiles) src.setData(toGeoJSON(runtime.get(l.id).features));
   renderChrome();
 }
 
@@ -445,7 +443,7 @@ async function loadMore() {
   const pos = live ? [live.lon, live.lat] : coords;
   const ctrl = new AbortController();
   try {
-    const r = await l.more(live ? { ...p, ...live.props, id: live.id } : p, pos, (url) => getJSON(url, ctrl.signal), trails.get(`${l.id}|${p.id}`));
+    const r = await l.more(live ? { ...p, ...live.props, id: live.id } : p, pos, (url) => getJSON(url, ctrl.signal));
     if (run !== moreRun || !current) return;
     const box = $('#detail .more');
     if (box && r.html !== undefined) box.innerHTML = r.html;
@@ -597,7 +595,7 @@ function runSearch() {
     ? '<p class="r-empty">Sucht in allen eingeschalteten Ebenen: Livestreams, Kameras, Flüge (Rufzeichen, Kennzeichen), Erdbeben.</p>'
     : hits.length
       ? hits.map((h, i) => `<button class="r ${i === sel ? 'sel' : ''}" style="--c:${h.l.color}" data-i="${i}"><i></i>
-          <span>${esc(h.f.label)}<small>${esc(h.f.props.channel || h.f.props.area || h.f.props.place || h.f.props.type || '')}</small></span><em>${esc(h.l.short)}</em></button>`).join('')
+          <span>${esc(h.f.label)}<small>${esc(h.f.props.channel || h.f.props.area || h.f.props.place || (typeof h.f.props.type === 'string' ? h.f.props.type : '') || (h.f.props.mmsi ? `MMSI ${h.f.props.mmsi}` : ''))}</small></span><em>${esc(h.l.short)}</em></button>`).join('')
       : '<p class="r-empty">Nichts gefunden – nur eingeschaltete Ebenen werden durchsucht.</p>';
 }
 
@@ -656,6 +654,28 @@ function installAll() {
     setVisible(l, active.has(l.id));
   }
 }
+
+/** Objekte aus den geladenen Vektorkacheln übernehmen (für Zähler, Suche und Detail-Aktualisierung). */
+function countTiles() {
+  for (const l of LAYERS) {
+    if (!l.tiles || !active.has(l.id) || !map.getSource(srcId(l))) continue;
+    const byId = new Map();
+    for (const f of map.querySourceFeatures(srcId(l), { sourceLayer: l.tiles.layer })) {
+      const p = f.properties;
+      if (p.kind && p.kind !== 'vessel') continue;
+      const id = String(f.id ?? p.mmsi);
+      if (byId.has(id) || f.geometry.type !== 'Point') continue;
+      const [lon, lat] = f.geometry.coordinates;
+      byId.set(id, { id, lon, lat, heading: p.hdg ?? null, label: p.name || `MMSI ${p.mmsi}`, props: { ...p, id } });
+    }
+    runtime.get(l.id).features = [...byId.values()];
+  }
+  renderChrome();
+}
+let idleTimer = 0;
+const recount = () => { clearTimeout(idleTimer); idleTimer = setTimeout(countTiles, 400); };
+map.on('idle', recount);
+map.on('sourcedata', (e) => { if (e.isSourceLoaded && LAYERS.some((l) => l.tiles && srcId(l) === e.sourceId)) recount(); });
 
 let moveTimer = 0;
 map.on('moveend', () => {

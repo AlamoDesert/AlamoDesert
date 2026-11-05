@@ -251,60 +251,6 @@ export const CAM_PROVIDERS: Record<string, { url: string; parse: (j: unknown, ke
   }))
 };
 
-/* ---------- Schiffe (Digitraffic AIS: Ostsee rund um Finnland) ---------- */
-
-/** AIS-Schiffstyp (erste Ziffer) → Klartext. */
-export function shipKind(t: number | null): string | null {
-  if (t === null) return null;
-  if (t === 30) return 'Fischerei';
-  if (t === 31 || t === 32 || t === 52) return 'Schlepper';
-  if (t === 35) return 'Militär';
-  if (t === 36) return 'Segelboot';
-  if (t === 37) return 'Sportboot';
-  if (t === 50) return 'Lotse';
-  if (t === 51) return 'Rettung';
-  const d = Math.floor(t / 10);
-  return ({ 4: 'Schnellfähre', 6: 'Passagierschiff', 7: 'Frachtschiff', 8: 'Tanker' } as Record<number, string>)[d] ?? null;
-}
-
-/** [Positionen (GeoJSON), Stammdaten (Liste)] → ein Feature pro Schiff mit Name, Ziel und Typ. */
-/** Positionen, die älter sind, zeigen wir nicht (Digitraffic liefert auch Schiffe, die längst außer Reichweite sind). */
-export const SHIP_MAX_AGE_MS = 2 * 3600 * 1000;
-
-export function parseShips(parts: unknown, _key = '', now = Date.now()): Feature[] {
-  const [locs, meta] = Array.isArray(parts) ? parts : [parts, null];
-  if (!isRecord(locs) || !Array.isArray(locs.features)) throw new Error('Unerwartetes Format: features fehlt');
-  const byMmsi = new Map<number, Record<string, unknown>>();
-  if (Array.isArray(meta)) for (const v of meta) if (isRecord(v) && typeof v.mmsi === 'number') byMmsi.set(v.mmsi, v);
-  const out: Feature[] = [];
-  for (const f of locs.features) {
-    if (!isRecord(f) || !isRecord(f.geometry) || !isRecord(f.properties) || !Array.isArray(f.geometry.coordinates)) continue;
-    const p = f.properties;
-    const mmsi = num(p.mmsi) ?? num(f.mmsi);
-    const lon = num(f.geometry.coordinates[0]);
-    const lat = num(f.geometry.coordinates[1]);
-    const time = num(p.timestampExternal);
-    if (mmsi === null || !validPos(lat, lon) || (time !== null && now - time > SHIP_MAX_AGE_MS)) continue;
-    const m = byMmsi.get(mmsi) ?? {};
-    const heading = num(p.heading);
-    const cog = num(p.cog);
-    const type = num(m.shipType);
-    const name = str(m.name)?.replace(/\s+/g, ' ');
-    out.push({
-      id: String(mmsi), lon: lon as number, lat: lat as number,
-      // 511 = kein Kurs gemeldet; dann den Kurs über Grund nehmen
-      heading: heading !== null && heading < 360 ? heading : cog !== null && cog < 360 ? cog : null,
-      label: name ?? `MMSI ${mmsi}`,
-      props: {
-        mmsi, name: name ?? null, imo: num(m.imo) || null, callsign: str(m.callSign), type, kind: shipKind(type),
-        destination: str(m.destination), speed_kn: num(p.sog) !== null && (p.sog as number) < 102.3 ? num(p.sog) : null,
-        cog: cog !== null && cog < 360 ? cog : null, nav: num(p.navStat), time
-      }
-    });
-  }
-  return out;
-}
-
 /* ---------- Detailabfragen beim Antippen ---------- */
 
 const HEX = /^[0-9a-f]{6}$/;
@@ -371,14 +317,6 @@ export function parseShipPhoto(json: unknown, key: string): Feature[] {
 }
 
 export const SOURCES: Record<string, Source> = {
-  ships: {
-    id: 'ships',
-    ttl: 60,
-    parts: true,
-    key() { return 'baltic'; },
-    urls() { return ['https://meri.digitraffic.fi/api/ais/v1/locations', 'https://meri.digitraffic.fi/api/ais/v1/vessels']; },
-    parse: (j, k) => parseShips(j, k)
-  },
   aircraft: {
     id: 'aircraft',
     ttl: 3600, // Halter, Foto und Route ändern sich im Lauf eines Fluges nicht

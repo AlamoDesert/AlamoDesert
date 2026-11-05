@@ -42,6 +42,15 @@ function planeImage(size = 48) {
   return g.getImageData(0, 0, size, size);
 }
 
+/** AIS-Schiffstyp → Klartext. */
+function shipKind(t) {
+  if (typeof t !== 'number') return null;
+  const named = { 30: 'Fischerei', 31: 'Schlepper', 32: 'Schlepper', 33: 'Baggerschiff', 34: 'Taucherschiff', 35: 'Militär', 36: 'Segelboot', 37: 'Sportboot',
+    50: 'Lotse', 51: 'Rettung', 52: 'Schlepper', 53: 'Hafenschiff', 55: 'Behörde', 58: 'Krankentransport' };
+  if (named[t]) return named[t];
+  return { 2: 'Bodeneffektfahrzeug', 4: 'Schnellfähre', 6: 'Passagierschiff', 7: 'Frachtschiff', 8: 'Tanker' }[Math.floor(t / 10)] || null;
+}
+
 /** Schiffssymbol als SDF-Bild, Bug zeigt nach oben = Norden. */
 function shipImage(size = 48) {
   const c = document.createElement('canvas');
@@ -349,67 +358,91 @@ export const LAYERS = [
     short: 'Schiffe',
     color: '#7fe3c4',
     icon: '<path d="M4 14.5h16l-2.2 4.5H6.2z"/><path d="M7 14.5V9.5h8l2 5"/><path d="M10 9.5V6.5h3v3"/>',
-    attribution: 'Schiffe: <a href="https://www.digitraffic.fi" target="_blank" rel="noopener">Fintraffic / Digitraffic</a> (CC BY 4.0) · Fotos <a href="https://www.wikidata.org" target="_blank" rel="noopener">Wikidata</a>/Commons',
-    desc: 'AIS in der Ostsee rund um Finnland, jede Minute',
+    attribution: 'Schiffe: <a href="https://openwaters.io/ais/#license" target="_blank" rel="noopener">Open Waters AIS</a> (AISHub, aisstream.io, BarentsWatch/Kystverket NLOD u. a.) · Fotos <a href="https://www.wikidata.org" target="_blank" rel="noopener">Wikidata</a>/Commons',
+    desc: 'AIS weltweit, wo Empfänger in der Nähe sind',
+    // Vektorkacheln direkt von Open Waters (frei für private Nutzung, CORS offen): lädt nur den sichtbaren Ausschnitt,
+    // auch bei Zehntausenden Schiffen. Neu laden = Kacheln mit neuem Zeitstempel anfordern.
+    tiles: { url: 'https://ais.openwaters.io/v1/vessels/tiles/{z}/{x}/{y}', layer: 'vessels', maxzoom: 14 },
     refresh: 60_000,
     minzoom: 0,
     viewport: false,
-    trail: true, // die App merkt sich die Positionen, solange sie offen ist (Digitraffic hat keinen Verlauf)
-    requests() { return { queries: [''] }; },
+    requests() { return { queries: [] }; },
     install(map, src) {
       if (!map.hasImage('lk-ship')) map.addImage('lk-ship', shipImage(), { sdf: true, pixelRatio: 2 });
+      const type = ['coalesce', ['get', 'type'], 0];
       map.addLayer({
-        id: `${src}-sym`, type: 'symbol', source: src,
+        id: `${src}-sym`, type: 'symbol', source: src, 'source-layer': 'vessels', filter: ['==', ['get', 'kind'], 'vessel'],
         layout: {
           'icon-image': 'lk-ship',
-          'icon-size': ['interpolate', ['linear'], ['zoom'], 3, 0.45, 10, 0.85],
-          'icon-rotate': ['coalesce', ['get', 'heading'], 0],
+          'icon-size': ['interpolate', ['linear'], ['zoom'], 3, 0.38, 8, 0.6, 12, 0.9],
+          'icon-rotate': ['coalesce', ['get', 'hdg'], ['get', 'cog'], 0],
           'icon-rotation-alignment': 'map',
           'icon-allow-overlap': true,
           'icon-ignore-placement': true
         },
         paint: {
-          // Farbe nach Typ: Fracht grün, Tanker orange, Passagiere magenta, Rest grau; liegende Schiffe blasser.
-          'icon-color': ['match', ['get', 'kind'], 'Frachtschiff', '#7fe3c4', 'Tanker', '#ffb02e', 'Passagierschiff', '#ff7a9c', 'Schnellfähre', '#ff7a9c',
-            'Schlepper', '#7fb4ff', 'Lotse', '#7fb4ff', 'Rettung', '#ff3b6b', 'Militär', '#c0c8cc', '#8aa0a8'],
-          'icon-opacity': ['case', ['<', ['coalesce', ['get', 'speed_kn'], 0], 0.5], 0.55, 1],
+          // Farbe nach AIS-Typ: Fracht grün, Tanker orange, Passagiere pink, Fischerei gelb, Sport/Segeln blau, Rest grau.
+          'icon-color': ['case',
+            ['all', ['>=', type, 70], ['<', type, 80]], '#7fe3c4',
+            ['all', ['>=', type, 80], ['<', type, 90]], '#ffb02e',
+            ['any', ['all', ['>=', type, 60], ['<', type, 70]], ['all', ['>=', type, 40], ['<', type, 50]]], '#ff7a9c',
+            ['==', type, 30], '#ffd23b',
+            ['any', ['==', type, 36], ['==', type, 37]], '#7fb4ff',
+            ['any', ['==', type, 31], ['==', type, 32], ['==', type, 52], ['==', type, 50]], '#a5c8ff',
+            ['==', type, 51], '#ff3b6b',
+            '#8aa0a8'],
+          // Liegende Schiffe und alte Meldungen blasser
+          'icon-opacity': ['case', ['>', ['coalesce', ['get', 'age_s'], 0], 1800], 0.35, ['<', ['coalesce', ['get', 'sog'], 0], 0.5], 0.6, 1],
           'icon-halo-color': 'rgba(0,0,0,.7)',
           'icon-halo-width': 1
         }
       });
     },
     detail(p) {
-      const moving = typeof p.speed_kn === 'number' && p.speed_kn >= 0.5;
+      const moving = typeof p.sog === 'number' && p.sog >= 0.5;
+      const kind = shipKind(p.type);
       return {
         title: esc(p.name || `MMSI ${p.mmsi}`),
-        kicker: `Schiff${p.kind ? ` · ${esc(p.kind)}` : ''}`,
-        chip: { text: moving ? `${fmt(p.speed_kn, 1)} kn` : 'liegt', cls: moving ? 'acc' : 'warn' },
+        kicker: `Schiff${kind ? ` · ${esc(kind)}` : ''}${p.flag ? ` · ${esc(p.flag)}` : ''}`,
+        chip: { text: moving ? `${fmt(p.sog, 1)} kn` : 'liegt', cls: moving ? 'acc' : 'warn' },
         fav: false,
-        body: (p.imo ? '<div class="more">Lädt Foto …</div>' : '<div class="more"></div>')
-          + `<dl>${row('Ziel (AIS)', esc(p.destination))}${row('Typ', esc(p.kind))}`
-          + row('Fahrt', moving ? `${fmt(p.speed_kn, 1)} kn · ${fmt(p.speed_kn * 1.852, 0)} km/h` : 'liegt / ankert')
-          + row('Kurs', p.cog === null ? null : `${fmt(p.cog)}°`) + row('Rufzeichen', esc(p.callsign))
-          + row('IMO', p.imo ? esc(p.imo) : null) + row('MMSI', esc(p.mmsi))
-          + row('Stand', typeof p.time === 'number' ? `${new Date(p.time).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr (vor ${Math.max(0, Math.round((Date.now() - p.time) / 60000))} min)` : null) + '</dl>'
-          + `<a class="ext" href="https://www.vesselfinder.com/vessels/details/${encodeURIComponent(p.imo || p.mmsi)}" target="_blank" rel="noopener">Bei VesselFinder ansehen ›</a>`
+        body: '<div class="more">Lädt Foto, Ziel und Route …</div>'
+          + `<dl>${row('Typ', esc(kind))}${row('Länge', typeof p.length === 'number' && p.length ? `${fmt(p.length)} m${p.beam ? ` × ${fmt(p.beam)} m` : ''}` : null)}`
+          + row('Fahrt', moving ? `${fmt(p.sog, 1)} kn · ${fmt(p.sog * 1.852, 0)} km/h` : 'liegt / ankert')
+          + row('Kurs', typeof p.cog === 'number' && p.cog < 360 ? `${fmt(p.cog)}°` : null)
+          + row('Flagge', esc(p.flag)) + row('MMSI', esc(p.mmsi))
+          + row('Letzte Meldung', typeof p.age_s === 'number' ? (p.age_s < 90 ? `vor ${fmt(p.age_s)} s` : `vor ${fmt(p.age_s / 60)} min`) : null) + '</dl>'
+          + `<a class="ext" href="https://openwaters.io/ais/" target="_blank" rel="noopener">Open Waters AIS ›</a>`
       };
     },
-    /** Beim Antippen: Foto über die IMO-Nummer (Wikidata), mitgeschriebene Spur und voraussichtlicher Kurs für 1 h. */
-    async more(p, pos, get, trail) {
+    /** Beim Antippen: Stammdaten und Weg der letzten Stunden (Open Waters), Foto über die IMO-Nummer (Wikidata), Kurs der nächsten Stunde. */
+    async more(p, pos, get) {
+      const mmsi = encodeURIComponent(p.mmsi);
+      const [info, track] = await Promise.allSettled([
+        get(`https://ais.openwaters.io/v1/vessels/${mmsi}`),
+        get(`https://ais.openwaters.io/v1/vessels/${mmsi}/track`)
+      ]);
+      const v = info.status === 'fulfilled' ? info.value.properties || {} : {};
+      const now = info.status === 'fulfilled' && info.value.geometry?.coordinates ? info.value.geometry.coordinates : pos;
+      const path = track.status === 'fulfilled' && Array.isArray(track.value.geometry?.coordinates) ? track.value.geometry.coordinates : [];
       const feats = [];
-      if (trail?.length > 1) feats.push(line([...trail, pos], 'track'));
-      if (typeof p.speed_kn === 'number' && p.speed_kn >= 0.5 && typeof p.cog === 'number') {
-        feats.push(line([pos, ahead(pos, p.cog, p.speed_kn * 1.852)], 'route'));
-      }
-      let html = '';
-      if (p.imo) {
+      if (path.length > 1) feats.push(line([...path, now], 'track'));
+      const sog = typeof v.sog === 'number' ? v.sog : p.sog;
+      const cog = typeof v.cog === 'number' ? v.cog : p.cog;
+      if (typeof sog === 'number' && sog >= 0.5 && typeof cog === 'number' && cog < 360) feats.push(line([now, ahead(now, cog, sog * 1.852)], 'route'));
+      let photo = '';
+      if (v.imo) {
         try {
-          const ph = (await get(`/api/feed/shipphoto?imo=${encodeURIComponent(p.imo)}`)).features[0].props;
-          html = photoHtml(ph.photo, ph.photo_by, ph.photo_link, null);
-        } catch { html = '<p class="noimg">Foto gerade nicht abrufbar</p>'; }
+          const ph = (await get(`/api/feed/shipphoto?imo=${encodeURIComponent(v.imo)}`)).features[0].props;
+          photo = photoHtml(ph.photo, ph.photo_by, ph.photo_link, null);
+        } catch { photo = ''; }
       }
-      const note = feats.length ? '<p class="hint-line">Linie gestrichelt = Kurs der nächsten Stunde · durchgezogen = Weg, seit die Karte offen ist</p>' : '';
-      return { html: html + note, overlay: feats, every: 60_000 };
+      const rows = row('Ziel (AIS)', esc(v.destination)) + row('Ankunft (ETA)', esc(v.eta)) + row('In der Nähe von', esc(v.near))
+        + row('Tiefgang', typeof v.draught === 'number' && v.draught ? `${fmt(v.draught, 1)} m` : null)
+        + row('Rufzeichen', esc(v.callsign)) + row('IMO', v.imo ? esc(v.imo) : null)
+        + (path.length > 1 ? row('Weg (letzte Stunden)', `${fmt(path.reduce((s, x, i) => (i ? s + distKm(path[i - 1], x) : 0), 0), 1)} km`) : '');
+      const note = feats.length ? '<p class="hint-line">Durchgezogen = bisheriger Weg · gestrichelt = Kurs der nächsten Stunde</p>' : '';
+      return { html: photo + (rows ? `<dl>${rows}</dl>` : '') + note, overlay: feats, every: 60_000 };
     }
   },
   {
