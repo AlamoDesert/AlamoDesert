@@ -13,23 +13,37 @@ const TIMEOUT_MS = 8000;
 /** Fällt die Quelle aus, liefert der Proxy bis zu diesem Vielfachen der TTL alte Daten (markiert als stale). */
 const STALE_FACTOR = 30;
 const MAX_ENTRIES = 2000;
-const UA = 'LiveKarten/1.0 (private, nicht-kommerzielle Karte)';
+// planespotters verlangt eine Kontaktadresse im User-Agent.
+const UA = 'LiveKarten/1.0 (+https://live-karten.netlify.app; private, nicht-kommerzielle Karte)';
 
 export function createProxy(deps: Deps) {
   const cache = new Map<string, Entry>();
   const inflight = new Map<string, Promise<Entry>>();
 
+  async function fetchJson(url: string): Promise<unknown> {
+    const res = await deps.fetch(url, {
+      // Digitraffic bittet um eine Kennung im Header (und verlangt gzip); die übrigen Quellen ignorieren das.
+      headers: { accept: 'application/json', 'accept-encoding': 'gzip', 'user-agent': UA, 'digitraffic-user': 'LiveKarten' },
+      signal: AbortSignal.timeout(TIMEOUT_MS)
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
+  /** Mehrere Teilabfragen gleichzeitig; fehlende Teile kommen als null beim Parser an. Alles weg = Fehler. */
+  async function upstreamParts(urls: string[], parse: (j: unknown) => Feature[]): Promise<Feature[]> {
+    const parts = await Promise.allSettled(urls.map(fetchJson));
+    if (parts.every((p) => p.status === 'rejected')) {
+      throw new Error(parts.map((p, i) => `${new URL(urls[i]).host}: ${(p as PromiseRejectedResult).reason?.message ?? p}`).join('; '));
+    }
+    return parse(parts.map((p) => (p.status === 'fulfilled' ? p.value : null)));
+  }
+
   async function upstream(urls: string[], parse: (j: unknown) => Feature[]): Promise<Feature[]> {
     const errors: string[] = [];
     for (const url of urls) {
       try {
-        const res = await deps.fetch(url, {
-          // Digitraffic bittet um eine Kennung im Header; die übrigen Quellen ignorieren ihn.
-          headers: { accept: 'application/json', 'user-agent': UA, 'digitraffic-user': 'LiveKarten' },
-          signal: AbortSignal.timeout(TIMEOUT_MS)
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return parse(await res.json());
+        return parse(await fetchJson(url));
       } catch (e) {
         errors.push(`${new URL(url).host}: ${e instanceof Error ? e.message : String(e)}`);
       }
@@ -81,7 +95,7 @@ export function createProxy(deps: Deps) {
     let p = inflight.get(key);
     if (!p) {
       const sub = key.slice(src.id.length + 1);
-      p = upstream(src.urls(sub), (j) => src.parse(j, sub))
+      p = (src.parts ? upstreamParts(src.urls(sub), (j) => src.parse(j, sub)) : upstream(src.urls(sub), (j) => src.parse(j, sub)))
         .then((features) => {
           const e = { at: deps.now(), features };
           remember(key, e);

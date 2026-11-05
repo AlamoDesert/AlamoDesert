@@ -17,7 +17,12 @@ function save() {
   try { localStorage.setItem(STORE, JSON.stringify(prefs)); } catch { /* privater Modus: gilt nur bis zum Neuladen */ }
 }
 
-const active = new Set(Array.isArray(prefs.layers) ? prefs.layers.filter((id) => LAYERS.some((l) => l.id === id)) : ['flights', 'quakes', 'cams', 'live']);
+const active = new Set(Array.isArray(prefs.layers) ? prefs.layers.filter((id) => LAYERS.some((l) => l.id === id)) : LAYERS.map((l) => l.id));
+// Neu hinzugekommene Ebenen einmal von selbst einschalten, auch wenn schon eine Auswahl gespeichert ist.
+const seen = new Set(Array.isArray(prefs.seen) ? prefs.seen : Array.isArray(prefs.layers) ? ['flights', 'quakes', 'cams', 'live'] : []);
+for (const l of LAYERS) if (!seen.has(l.id)) active.add(l.id);
+prefs.seen = LAYERS.map((l) => l.id);
+prefs.layers = [...active];
 const runtime = new Map(LAYERS.map((l) => [l.id, { features: [], at: null, error: null, hint: null, stale: false, timer: 0, ctrl: null }]));
 let base = prefs.base === 'sat' ? 'sat' : 'dark';
 const favs = new Map((Array.isArray(prefs.favs) ? prefs.favs : []).map((f) => [f.key, f]));
@@ -101,6 +106,29 @@ function toGeoJSON(features) {
 }
 
 const bound = new Set();
+
+/** Routen und Wege des angetippten Objekts: durchgezogen = geflogener/gefahrener Weg, gestrichelt = Route/Kurs. */
+function ensureOverlay() {
+  if (map.getSource('lk-overlay')) return;
+  map.addSource('lk-overlay', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addLayer({ id: 'lk-overlay-glow', type: 'line', source: 'lk-overlay', filter: ['==', ['get', 'role'], 'track'],
+    layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#19d6e8', 'line-width': 7, 'line-opacity': 0.18, 'line-blur': 3 } });
+  map.addLayer({ id: 'lk-overlay-track', type: 'line', source: 'lk-overlay', filter: ['==', ['get', 'role'], 'track'],
+    layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#19d6e8', 'line-width': 2.2 } });
+  map.addLayer({ id: 'lk-overlay-route', type: 'line', source: 'lk-overlay', filter: ['==', ['get', 'role'], 'route'],
+    paint: { 'line-color': '#dfeef2', 'line-width': 1.6, 'line-opacity': 0.75, 'line-dasharray': [2, 2.5] } });
+  map.addLayer({ id: 'lk-overlay-airport', type: 'circle', source: 'lk-overlay', filter: ['==', ['get', 'role'], 'airport'],
+    paint: { 'circle-radius': 5, 'circle-color': '#05080c', 'circle-stroke-color': '#19d6e8', 'circle-stroke-width': 2 } });
+  if (map.getStyle()?.glyphs) {
+    map.addLayer({ id: 'lk-overlay-label', type: 'symbol', source: 'lk-overlay', filter: ['==', ['get', 'role'], 'airport'],
+      layout: { 'text-field': ['get', 'label'], 'text-size': 12, 'text-offset': [0, 1.2], 'text-font': ['Noto Sans Bold'], 'text-allow-overlap': true },
+      paint: { 'text-color': '#19d6e8', 'text-halo-color': 'rgba(0,0,0,.8)', 'text-halo-width': 1.2 } });
+  }
+}
+
+function setOverlay(features) {
+  map.getSource('lk-overlay')?.setData({ type: 'FeatureCollection', features });
+}
 
 function ensureInstalled(l) {
   if (map.getSource(srcId(l))) return;
@@ -205,6 +233,7 @@ async function refresh(l) {
     const byId = new Map();
     for (const r of ok) for (const f of r.features) byId.set(f.id, f); // Zellen überlappen: doppelte Objekte zusammenführen
     rt.features = [...byId.values()];
+    if (l.trail) recordTrail(l, rt.features);
     rt.at = ok.map((r) => Date.parse(r.at)).reduce((a, b) => Math.min(a, b));
     rt.stale = ok.some((r) => r.stale);
   }
@@ -214,6 +243,19 @@ async function refresh(l) {
     : null;
   render(l);
   rt.timer = setTimeout(() => refresh(l), l.refresh);
+}
+
+/** Positionen mitschreiben, solange die Karte offen ist (für Quellen ohne eigenen Verlauf). */
+const trails = new Map();
+function recordTrail(l, features) {
+  for (const f of features) {
+    const key = `${l.id}|${f.id}`;
+    const t = trails.get(key) || [];
+    const last = t[t.length - 1];
+    if (!last || last[0] !== f.lon || last[1] !== f.lat) t.push([f.lon, f.lat]);
+    if (t.length > 240) t.shift();
+    trails.set(key, t);
+  }
 }
 
 function render(l) {
@@ -252,13 +294,13 @@ function renderChrome() {
   $('#dock').innerHTML = LAYERS.map((l) => {
     const rt = runtime.get(l.id);
     return `<button class="dk ${active.has(l.id) ? 'on' : ''}" style="--c:${l.color}" data-layer="${l.id}" aria-pressed="${active.has(l.id)}" title="${esc(l.name)}">
-      ${svg(l.icon)}<span>${esc(l.short)}</span><i class="n ${rt.error ? 'err' : ''}">${rt.error && !rt.at ? '!' : count(l) > 999 ? `${Math.round(count(l) / 1000)}k` : count(l)}</i></button>`;
+      ${svg(l.icon)}<span>${esc(l.short)}</span><i class="n ${rt.error ? 'err' : ''}">${rt.error && !rt.at ? '!' : rt.hint ? '–' : count(l) > 999 ? `${Math.round(count(l) / 1000)}k` : count(l)}</i></button>`;
   }).join('') + '<div class="dk-sep"></div>'
     + `<button class="dk ${$('#panel').hidden ? '' : 'on'}" data-act="panel" title="Ebenen und Karte">${svg(ICON_LAYERS)}<span>Ebenen</span></button>`
     + `<button class="dk ${favs.size ? 'on' : ''}" style="--c:var(--warn)" data-act="wall" title="Favoriten-Wand">${svg(ICON_WALL)}<span>Wand</span><i class="n">${favs.size}</i></button>`;
 
-  $('#stats').innerHTML = LAYERS.filter((l) => active.has(l.id) && runtime.get(l.id).at)
-    .map((l) => `<div class="stat glass" style="--c:${l.color}"><b>${num(count(l))}</b><span><i></i>${esc(l.name)}</span></div>`).join('');
+  $('#stats').innerHTML = LAYERS.filter((l) => active.has(l.id) && (runtime.get(l.id).at || runtime.get(l.id).hint))
+    .map((l) => `<div class="stat glass" style="--c:${l.color}" title="${esc(runtime.get(l.id).hint || '')}"><b>${runtime.get(l.id).hint ? '–' : num(count(l))}</b><span><i></i>${esc(l.name)}</span></div>`).join('');
 
   if (!$('#panel').hidden) {
     $('#panel').innerHTML = `<div class="p-head"><span class="caps">Ebenen</span><button class="ic" data-act="panel" aria-label="Schließen">×</button></div>`
@@ -389,6 +431,30 @@ function playVideo(btn) {
 /* ---------- Detailkarte ---------- */
 
 let current = null; // { l, p, coords }
+let moreTimer = 0;
+let moreRun = 0;
+
+/** Nachladen (Foto, Route, Weg) für die offene Detailkarte; wiederholt sich, solange sie offen ist. */
+async function loadMore() {
+  clearTimeout(moreTimer);
+  if (!current?.l.more) return;
+  const run = ++moreRun;
+  const { l, p, coords } = current;
+  // Aktuelle Position aus den Live-Daten, falls sich das Objekt bewegt hat
+  const live = runtime.get(l.id).features.find((f) => f.id === p.id);
+  const pos = live ? [live.lon, live.lat] : coords;
+  const ctrl = new AbortController();
+  try {
+    const r = await l.more(live ? { ...p, ...live.props, id: live.id } : p, pos, (url) => getJSON(url, ctrl.signal), trails.get(`${l.id}|${p.id}`));
+    if (run !== moreRun || !current) return;
+    const box = $('#detail .more');
+    if (box && r.html !== undefined) box.innerHTML = r.html;
+    setOverlay(r.overlay || []);
+    if (r.every) moreTimer = setTimeout(loadMore, r.every);
+  } catch {
+    if (run === moreRun) { const box = $('#detail .more'); if (box) box.innerHTML = '<p class="noimg">Details gerade nicht abrufbar</p>'; }
+  }
+}
 
 /** MapLibre liefert null-Werte aus GeoJSON-Properties als String "null" zurück, Zahlen bleiben Zahlen. */
 const clean = (props) => Object.fromEntries(Object.entries(props).map(([k, v]) => [k, v === 'null' ? null : v]));
@@ -408,11 +474,16 @@ function showDetail(l, props, coords) {
   $('#detail').hidden = false;
   $('#panel').hidden = true;
   startImages($('#detail'));
+  setOverlay([]);
+  loadMore();
   renderChrome();
 }
 
 function closeDetail() {
   stopMedia();
+  clearTimeout(moreTimer);
+  moreRun++;
+  setOverlay([]);
   current = null;
   $('#detail').hidden = true;
   $('#detail').innerHTML = ''; // laufendes Video beenden
@@ -579,6 +650,7 @@ function collapseAttribution() {
 
 function installAll() {
   collapseAttribution();
+  ensureOverlay();
   for (const l of LAYERS) {
     ensureInstalled(l);
     setVisible(l, active.has(l.id));

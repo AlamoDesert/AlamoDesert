@@ -42,12 +42,24 @@ function planeImage(size = 48) {
   return g.getImageData(0, 0, size, size);
 }
 
+/** Schiffssymbol als SDF-Bild, Bug zeigt nach oben = Norden. */
+function shipImage(size = 48) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d');
+  g.scale(size / 24, size / 24);
+  g.fillStyle = '#fff';
+  g.fill(new Path2D('M12 2.5c2.2 2.4 3.4 5 3.4 8.2v9.3c0 .9-.7 1.5-1.5 1.5h-3.8c-.8 0-1.5-.6-1.5-1.5v-9.3c0-3.2 1.2-5.8 3.4-8.2z'));
+  return g.getImageData(0, 0, size, size);
+}
+
 /** Kamera-Anbieter mit Abdeckung [West, Süd, Ost, Nord]; abgefragt wird nur, was im Ausschnitt liegt. */
 const CA = [-124.6, 32.4, -114.0, 42.1];
 const CAM_PROVIDERS = [
   { p: 'tfl', bbox: [-0.65, 51.25, 0.4, 51.72], name: 'TfL JamCams', refresh: 60 },
   { p: 'nyc', bbox: [-74.3, 40.45, -73.65, 40.95], name: 'NYC DOT', refresh: 10 },
   { p: 'fi', bbox: [19.0, 59.5, 31.7, 70.2], name: 'Digitraffic', refresh: 120 },
+  { p: 'fw', bbox: [5.5, 44.0, 17.5, 55.2], name: 'foto-webcam.eu', refresh: 600 },
   ...Array.from({ length: 12 }, (_, i) => ({ p: `caltrans-${i + 1}`, bbox: CA, name: 'Caltrans', refresh: 30 }))
 ];
 const CAM_INFO = Object.fromEntries(CAM_PROVIDERS.map((c) => [c.p.replace(/-\d+$/, ''), c]));
@@ -66,6 +78,56 @@ const embedUrl = (u) => {
   try { return EMBED_HOSTS.includes(new URL(u).hostname) ? u : null; } catch { return null; }
 };
 const hlsUrl = (u) => (safeUrl(u) && /\.m3u8(\?|$)/.test(u) ? u : null);
+
+
+/* ---------- Nachladen beim Antippen: Foto, Route, Weg ---------- */
+
+const R = 6371;
+const rad = (d) => (d * Math.PI) / 180;
+const deg = (r) => (r * 180) / Math.PI;
+
+/** Großkreis-Entfernung in km. */
+export function distKm([lon1, lat1], [lon2, lat2]) {
+  const a = Math.sin(rad(lat2 - lat1) / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(rad(lon2 - lon1) / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+
+/** Punkte entlang des Großkreises (so sehen Flugrouten auf der Karte richtig aus). */
+export function greatCircle(a, b, n = 48) {
+  const [l1, p1, l2, p2] = [rad(a[0]), rad(a[1]), rad(b[0]), rad(b[1])];
+  const d = distKm(a, b) / R;
+  if (d < 1e-6) return [a, b];
+  const out = [];
+  for (let i = 0; i <= n; i++) {
+    const f = i / n;
+    const A = Math.sin((1 - f) * d) / Math.sin(d), B = Math.sin(f * d) / Math.sin(d);
+    const x = A * Math.cos(p1) * Math.cos(l1) + B * Math.cos(p2) * Math.cos(l2);
+    const y = A * Math.cos(p1) * Math.sin(l1) + B * Math.cos(p2) * Math.sin(l2);
+    const z = A * Math.sin(p1) + B * Math.sin(p2);
+    out.push([deg(Math.atan2(y, x)), deg(Math.atan2(z, Math.hypot(x, y)))]);
+  }
+  return out;
+}
+
+/** Zielpunkt bei Kurs und Strecke (für den voraussichtlichen Kurs der Schiffe). */
+function ahead([lon, lat], courseDeg, km) {
+  const d = km / R, c = rad(courseDeg), p = rad(lat);
+  const p2 = Math.asin(Math.sin(p) * Math.cos(d) + Math.cos(p) * Math.sin(d) * Math.cos(c));
+  const l2 = rad(lon) + Math.atan2(Math.sin(c) * Math.sin(d) * Math.cos(p), Math.cos(d) - Math.sin(p) * Math.sin(p2));
+  return [deg(l2), deg(p2)];
+}
+
+const line = (coords, role) => ({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords }, properties: { role } });
+const spot = (coords, role, label) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: coords }, properties: { role, label } });
+
+function photoHtml(src, by, link, source) {
+  if (!safeUrl(src)) return '<p class="noimg">Kein Foto vorhanden</p>';
+  const credit = `${by ? `© ${esc(by)}` : ''}${source ? ` · ${esc(source)}` : ''}`;
+  return `<figure class="photo"><img src="${esc(src)}" alt="Foto" referrerpolicy="no-referrer" loading="lazy">`
+    + `<figcaption>${safeUrl(link) ? `<a href="${esc(link)}" target="_blank" rel="noopener">${credit}</a>` : credit}</figcaption></figure>`;
+}
+
+const airportName = (a) => (a ? `${esc(a.iata || a.icao || '')}${a.city || a.name ? ` · ${esc(a.city || a.name)}` : ''}` : null);
 
 /** Abspielknopf: der Player lädt erst nach dem Antippen – vorher erfährt der Anbieter nichts vom Besuch. */
 function playButton(attr, value, via) {
@@ -156,12 +218,12 @@ export const LAYERS = [
   },
   {
     id: 'cams',
-    name: 'Verkehrskameras',
+    name: 'Kameras',
     short: 'Kameras',
     color: COLORS.image,
     icon: '<path d="M4 8.5h3.2l1.8-2.5h6l1.8 2.5H20v10H4z"/><circle cx="12" cy="13.3" r="3.2"/>',
-    desc: 'London, New York, Kalifornien, Finnland',
-    attribution: 'Kameras: <a href="https://tfl.gov.uk" target="_blank" rel="noopener">TfL</a> · <a href="https://webcams.nyctmc.org" target="_blank" rel="noopener">NYC DOT</a> · <a href="https://cwwp2.dot.ca.gov" target="_blank" rel="noopener">Caltrans</a> · <a href="https://www.digitraffic.fi" target="_blank" rel="noopener">Fintraffic / Digitraffic</a> (CC BY 4.0)',
+    desc: 'Alpen und Süddeutschland, London, New York, Kalifornien, Finnland',
+    attribution: 'Kameras: <a href="https://tfl.gov.uk" target="_blank" rel="noopener">TfL</a> · <a href="https://webcams.nyctmc.org" target="_blank" rel="noopener">NYC DOT</a> · <a href="https://cwwp2.dot.ca.gov" target="_blank" rel="noopener">Caltrans</a> · <a href="https://www.digitraffic.fi" target="_blank" rel="noopener">Fintraffic / Digitraffic</a> (CC BY 4.0) · <a href="https://www.foto-webcam.eu" target="_blank" rel="noopener">foto-webcam.eu</a>',
     refresh: 600_000,
     minzoom: 2,
     viewport: true,
@@ -170,7 +232,7 @@ export const LAYERS = [
       if (map.getZoom() < this.minzoom) return { hint: 'Zum Anzeigen näher heranzoomen' };
       const b = map.getBounds();
       const hits = CAM_PROVIDERS.filter((c) => intersects(b, c.bbox));
-      if (!hits.length) return { hint: 'Hier keine freien Kameras – London, New York, Kalifornien oder Finnland' };
+      if (!hits.length) return { hint: 'Hier keine freien Kameras – Alpen/Süddeutschland, London, New York, Kalifornien oder Finnland' };
       return { queries: hits.map((c) => `p=${c.p}`) };
     },
     install(map, src) { pointLayers(map, src, COLORS.image, { radius: [6, 4, 14, 7] }); },
@@ -178,16 +240,18 @@ export const LAYERS = [
       const image = safeUrl(p.image);
       const video = safeUrl(p.video);
       const info = CAM_INFO[p.provider] || { name: p.provider, refresh: 30 };
+      const every = info.refresh >= 120 ? `alle ${info.refresh / 60} min` : `alle ${info.refresh} s`;
       return {
         title: esc(p.name),
         kicker: `Verkehrskamera · ${esc(info.name)}`,
-        chip: { text: `Bild · ${info.refresh} s`, cls: 'img' },
+        chip: { text: `Bild · ${info.refresh >= 120 ? `${info.refresh / 60} min` : `${info.refresh} s`}`, cls: 'img' },
         fav: true,
         body: (image
           ? `<img class="cam" alt="Kamerabild ${esc(p.name)}" data-src="${esc(image)}" data-refresh="${info.refresh}" referrerpolicy="no-referrer">`
           : '<p class="noimg">Kein Bild verfügbar</p>')
-          + `<dl>${row('Ort', esc(p.area))}${row('Quelle', esc(info.name))}${row('Aktualisierung', `alle ${info.refresh} s`)}</dl>`
+          + `<dl>${row('Ort', esc(p.area))}${row('Quelle', esc(info.name))}${row('Aktualisierung', every)}</dl>`
           + `<div class="links">${image ? `<a class="ext" href="${esc(image)}" target="_blank" rel="noopener">Bild öffnen ›</a>` : ''}`
+          + `${safeUrl(p.page) ? `<a class="ext" href="${esc(p.page)}" target="_blank" rel="noopener">Seite der Webcam ›</a>` : ''}`
           + `${video ? `<a class="ext" href="${esc(video)}" target="_blank" rel="noopener">Video ›</a>` : ''}</div>`
       };
     }
@@ -237,13 +301,115 @@ export const LAYERS = [
         title: esc(p.callsign || p.reg || p.id.toUpperCase()),
         kicker: `Flugzeug${p.type ? ` · ${esc(p.type)}` : ''}`,
         chip: { text: p.squawk && /^7[5-7]00$/.test(p.squawk) ? `Notfall ${esc(p.squawk)}` : 'ADS-B', cls: p.squawk && /^7[5-7]00$/.test(p.squawk) ? 'live' : 'acc' },
-        body: `<dl>${row('Kennzeichen', esc(p.reg))}${row('Typ', esc(p.type))}`
+        body: '<div class="more">Lädt Foto und Route …</div>'
+          + `<dl>${row('Kennzeichen', esc(p.reg))}${row('Typ', esc(p.type))}`
           + row('Höhe', p.ground ? 'am Boden' : p.alt_ft === null ? null : `${fmt(p.alt_ft)} ft · ${fmt(m)} m`)
           + row('Geschwindigkeit', p.speed_kt === null ? null : `${fmt(p.speed_kt)} kn · ${fmt(kmh)} km/h`)
           + row('Kurs', p.heading === null ? null : `${fmt(p.heading)}°`)
           + row('Squawk', esc(p.squawk)) + row('ICAO-Adresse', esc(p.id.toUpperCase())) + '</dl>'
           + `<a class="ext" href="https://globe.adsb.lol/?icao=${encodeURIComponent(p.id)}" target="_blank" rel="noopener">Flugverlauf auf adsb.lol ›</a>`
       };
+    },
+    /** Beim Antippen: Foto und Halter (planespotters/adsbdb), geplante Route, bisheriger Weg. Alle 30 s neu, solange offen. */
+    async more(p, pos, get) {
+      const cs = /^[A-Z0-9]{2,8}$/.test(p.callsign || '') ? p.callsign : '';
+      const [info, trace] = await Promise.allSettled([
+        get(`/api/feed/aircraft?hex=${encodeURIComponent(p.id)}${cs ? `&cs=${cs}` : ''}`),
+        get(`/api/feed/track?hex=${encodeURIComponent(p.id)}`)
+      ]);
+      const a = info.status === 'fulfilled' ? info.value.features[0].props : {};
+      const path = trace.status === 'fulfilled' ? trace.value.features[0].props.path : [];
+      const feats = [];
+      if (path.length > 1) feats.push(line([...path.map((x) => [x[0], x[1]]), pos], 'track'));
+      // Route aus der Datenbank nur zeigen, wenn die Position dazu passt (Rufzeichen werden manchmal anders genutzt).
+      const o = a.origin, d = a.destination;
+      let plausible = false;
+      if (o?.lat != null && d?.lat != null) {
+        const op = [o.lon, o.lat], dp = [d.lon, d.lat];
+        plausible = distKm(op, pos) + distKm(pos, dp) <= distKm(op, dp) * 1.25 + 150;
+        if (plausible) {
+          feats.push(line(greatCircle(pos, dp), 'route'));
+          feats.push(spot(op, 'airport', o.iata || o.icao), spot(dp, 'airport', d.iata || d.icao));
+        }
+      }
+      const rows = row('Airline', esc(a.airline)) + row('Halter', esc(a.owner)) + row('Hersteller', esc(a.manufacturer))
+        + (o || d ? row(plausible ? 'Route' : 'Route (laut Datenbank, unsicher)', `${airportName(o) || '?'} → ${airportName(d) || '?'}`) : '')
+        + (plausible ? row('Noch bis Ziel', `${fmt(distKm(pos, [d.lon, d.lat]))} km`) : '')
+        + (path.length > 1 ? row('Weg seit Start', `${fmt(path.reduce((s, x, i) => (i ? s + distKm(path[i - 1], x) : 0), 0))} km`) : '');
+      return {
+        html: photoHtml(a.photo, a.photo_by, a.photo_link, a.photo_link?.includes('planespotters') ? 'planespotters.net' : null) + (rows ? `<dl>${rows}</dl>` : ''),
+        overlay: feats,
+        every: 30_000
+      };
+    }
+  },
+  {
+    id: 'ships',
+    name: 'Schiffe',
+    short: 'Schiffe',
+    color: '#7fe3c4',
+    icon: '<path d="M4 14.5h16l-2.2 4.5H6.2z"/><path d="M7 14.5V9.5h8l2 5"/><path d="M10 9.5V6.5h3v3"/>',
+    attribution: 'Schiffe: <a href="https://www.digitraffic.fi" target="_blank" rel="noopener">Fintraffic / Digitraffic</a> (CC BY 4.0) · Fotos <a href="https://www.wikidata.org" target="_blank" rel="noopener">Wikidata</a>/Commons',
+    desc: 'AIS in der Ostsee rund um Finnland, jede Minute',
+    refresh: 60_000,
+    minzoom: 0,
+    viewport: false,
+    trail: true, // die App merkt sich die Positionen, solange sie offen ist (Digitraffic hat keinen Verlauf)
+    requests() { return { queries: [''] }; },
+    install(map, src) {
+      if (!map.hasImage('lk-ship')) map.addImage('lk-ship', shipImage(), { sdf: true, pixelRatio: 2 });
+      map.addLayer({
+        id: `${src}-sym`, type: 'symbol', source: src,
+        layout: {
+          'icon-image': 'lk-ship',
+          'icon-size': ['interpolate', ['linear'], ['zoom'], 3, 0.45, 10, 0.85],
+          'icon-rotate': ['coalesce', ['get', 'heading'], 0],
+          'icon-rotation-alignment': 'map',
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true
+        },
+        paint: {
+          // Farbe nach Typ: Fracht grün, Tanker orange, Passagiere magenta, Rest grau; liegende Schiffe blasser.
+          'icon-color': ['match', ['get', 'kind'], 'Frachtschiff', '#7fe3c4', 'Tanker', '#ffb02e', 'Passagierschiff', '#ff7a9c', 'Schnellfähre', '#ff7a9c',
+            'Schlepper', '#7fb4ff', 'Lotse', '#7fb4ff', 'Rettung', '#ff3b6b', 'Militär', '#c0c8cc', '#8aa0a8'],
+          'icon-opacity': ['case', ['<', ['coalesce', ['get', 'speed_kn'], 0], 0.5], 0.55, 1],
+          'icon-halo-color': 'rgba(0,0,0,.7)',
+          'icon-halo-width': 1
+        }
+      });
+    },
+    detail(p) {
+      const moving = typeof p.speed_kn === 'number' && p.speed_kn >= 0.5;
+      return {
+        title: esc(p.name || `MMSI ${p.mmsi}`),
+        kicker: `Schiff${p.kind ? ` · ${esc(p.kind)}` : ''}`,
+        chip: { text: moving ? `${fmt(p.speed_kn, 1)} kn` : 'liegt', cls: moving ? 'acc' : 'warn' },
+        fav: false,
+        body: (p.imo ? '<div class="more">Lädt Foto …</div>' : '<div class="more"></div>')
+          + `<dl>${row('Ziel (AIS)', esc(p.destination))}${row('Typ', esc(p.kind))}`
+          + row('Fahrt', moving ? `${fmt(p.speed_kn, 1)} kn · ${fmt(p.speed_kn * 1.852, 0)} km/h` : 'liegt / ankert')
+          + row('Kurs', p.cog === null ? null : `${fmt(p.cog)}°`) + row('Rufzeichen', esc(p.callsign))
+          + row('IMO', p.imo ? esc(p.imo) : null) + row('MMSI', esc(p.mmsi))
+          + row('Stand', typeof p.time === 'number' ? `${new Date(p.time).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr (vor ${Math.max(0, Math.round((Date.now() - p.time) / 60000))} min)` : null) + '</dl>'
+          + `<a class="ext" href="https://www.vesselfinder.com/vessels/details/${encodeURIComponent(p.imo || p.mmsi)}" target="_blank" rel="noopener">Bei VesselFinder ansehen ›</a>`
+      };
+    },
+    /** Beim Antippen: Foto über die IMO-Nummer (Wikidata), mitgeschriebene Spur und voraussichtlicher Kurs für 1 h. */
+    async more(p, pos, get, trail) {
+      const feats = [];
+      if (trail?.length > 1) feats.push(line([...trail, pos], 'track'));
+      if (typeof p.speed_kn === 'number' && p.speed_kn >= 0.5 && typeof p.cog === 'number') {
+        feats.push(line([pos, ahead(pos, p.cog, p.speed_kn * 1.852)], 'route'));
+      }
+      let html = '';
+      if (p.imo) {
+        try {
+          const ph = (await get(`/api/feed/shipphoto?imo=${encodeURIComponent(p.imo)}`)).features[0].props;
+          html = photoHtml(ph.photo, ph.photo_by, ph.photo_link, null);
+        } catch { html = '<p class="noimg">Foto gerade nicht abrufbar</p>'; }
+      }
+      const note = feats.length ? '<p class="hint-line">Linie gestrichelt = Kurs der nächsten Stunde · durchgezogen = Weg, seit die Karte offen ist</p>' : '';
+      return { html: html + note, overlay: feats, every: 60_000 };
     }
   },
   {

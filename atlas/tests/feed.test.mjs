@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createProxy } from '../netlify/functions/feed/core.mts';
-import { parseReadsb, parseUsgs, cellCenter, CELL } from '../netlify/functions/feed/sources.mts';
+import { parseReadsb, parseUsgs, cellCenter, CELL, parseShips, parseTrace, parseAircraftInfo, parseFotoWebcam, parseShipPhoto, SHIP_MAX_AGE_MS } from '../netlify/functions/feed/sources.mts';
 
 const okJson = (body) => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
 const READSB = {
@@ -189,4 +189,64 @@ test('Livestream-Liste: gültige Quellen, eindeutig, alle in Deutschland', async
     } else assert.fail(`unbekannte Art: ${f.label}`);
     if (p.site) assert.match(p.site, /^https:\/\//, f.label);
   }
+});
+
+test('Schiffe: Positionen und Stammdaten zusammengeführt, alte Positionen verworfen', () => {
+  const now = 1_800_000_000_000;
+  const locs = { features: [
+    { mmsi: 1, geometry: { coordinates: [24.9, 60.1] }, properties: { mmsi: 1, sog: 12.3, cog: 90, heading: 511, navStat: 0, timestampExternal: now - 60_000 } },
+    { mmsi: 2, geometry: { coordinates: [25, 60] }, properties: { mmsi: 2, sog: 0, cog: 360, heading: 45, timestampExternal: now - SHIP_MAX_AGE_MS - 1 } },
+    { mmsi: 3, geometry: { coordinates: [0, 0] }, properties: { mmsi: 3, timestampExternal: now } }
+  ] };
+  const meta = [{ mmsi: 1, name: 'VIKING  GRACE', imo: 9606900, shipType: 60, destination: 'FITKU', callSign: 'OJPQ' }];
+  const f = parseShips([locs, meta], '', now);
+  assert.equal(f.length, 1);
+  assert.equal(f[0].label, 'VIKING GRACE');
+  assert.equal(f[0].heading, 90); // 511 = kein Kurs → Kurs über Grund
+  assert.equal(f[0].props.kind, 'Passagierschiff');
+  assert.equal(f[0].props.imo, 9606900);
+  assert.deepEqual(parseShips([locs, null], '', now)[0].props.name, null);
+});
+
+test('Flugweg: nur ab dem letzten Start, höchstens ~600 Punkte', () => {
+  const trace = [[0, 50, 8, 'ground'], [10, 50.1, 8.1, 3000], [20, 51, 9, 'ground'], [30, 51, 9.01, 'ground'], [40, 51.1, 9.1, 2000], [50, 52, 10, 30000]];
+  const p = parseTrace({ timestamp: 1, trace }, 'abc123')[0].props.path;
+  assert.deepEqual(p.map((x) => x[1]), [51, 51.1, 52]);
+  const long = parseTrace({ trace: Array.from({ length: 5000 }, (_, i) => [i, 50 + i / 1e4, 8, 30000]) }, 'x')[0].props.path;
+  assert.ok(long.length <= 601 && long.length > 500);
+});
+
+test('Flugzeug-Infos: Foto, Halter und Route; fehlende Teile stören nicht', () => {
+  const ac = { response: { aircraft: { type: 'A319 112', registration: 'D-AIBD', registered_owner: 'Lufthansa', url_photo: 'http://x/y.jpg' } } };
+  const cs = { response: { flightroute: { airline: { name: 'Lufthansa' }, origin: { iata_code: 'FRA', latitude: 50.03, longitude: 8.57, municipality: 'Frankfurt' }, destination: { iata_code: 'JFK', latitude: 40.6, longitude: -73.8 } } } };
+  const ps = { photos: [{ thumbnail_large: { src: 'https://t.plnspttrs.net/1.jpg' }, photographer: 'Max', link: 'https://www.planespotters.net/photo/1' }] };
+  const p = parseAircraftInfo([ac, cs, ps], '3c6444,DLH400')[0].props;
+  assert.equal(p.photo, 'https://t.plnspttrs.net/1.jpg');
+  assert.equal(p.photo_by, 'Max');
+  assert.equal(p.origin.iata, 'FRA');
+  assert.equal(p.destination.lon, -73.8);
+  const q = parseAircraftInfo([ac, null, null], '3c6444')[0].props;
+  assert.equal(q.photo, 'https://x/y.jpg'); // http → https
+  assert.equal(q.origin, null);
+});
+
+test('foto-webcam.eu und Schiffsfotos', () => {
+  const fw = parseFotoWebcam({ cams: [
+    { id: 'zugspitze', title: 'Zugspitze', name: 'Zugspitze', latitude: 47.42, longitude: 10.98, link: 'https://www.foto-webcam.eu/webcam/zugspitze/' },
+    { id: 'aus', latitude: 47, longitude: 11, offline: true },
+    { id: '../böse', latitude: 47, longitude: 11 }
+  ] });
+  assert.equal(fw.length, 1);
+  assert.equal(fw[0].props.image, 'https://www.foto-webcam.eu/webcam/zugspitze/current/1200.jpg');
+  const ph = parseShipPhoto({ query: { pages: { 1: { title: 'Q3024816', pageimage: 'Viking_Grace Ruissalo.jpg' } } } }, '9606900')[0].props;
+  assert.equal(ph.photo, 'https://commons.wikimedia.org/wiki/Special:FilePath/Viking_Grace%20Ruissalo.jpg?width=640');
+  assert.equal(parseShipPhoto({}, '1')[0].props.photo, null);
+});
+
+test('Detailabfragen prüfen ihre Parameter', async () => {
+  const { get } = setup(() => okJson({}));
+  assert.equal((await get('/api/feed/aircraft?hex=zzz')).status, 400);
+  assert.equal((await get('/api/feed/aircraft?hex=3c6444&cs=..')).status, 400);
+  assert.equal((await get('/api/feed/track?hex=3c64')).status, 400);
+  assert.equal((await get('/api/feed/shipphoto?imo=123')).status, 400);
 });
