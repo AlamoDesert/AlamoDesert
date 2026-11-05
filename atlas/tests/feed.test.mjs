@@ -32,7 +32,7 @@ test('parseReadsb normalisiert und verwirft Einträge ohne Position', () => {
   assert.equal(f.length, 2);
   assert.deepEqual(f[0], {
     id: '3c6444', lon: 8.6, lat: 50.1, heading: 271.4, label: 'DLH4AB',
-    props: { callsign: 'DLH4AB', reg: 'D-AIBA', type: 'A319', alt_ft: 35000, ground: 0, speed_kt: 452.3, squawk: '1000' }
+    props: { callsign: 'DLH4AB', reg: 'D-AIBA', type: 'A319', alt_ft: 35000, ground: 0, speed_kt: 452.3, squawk: '1000', age_s: null }
   });
   assert.equal(f[1].props.ground, 1);
   assert.equal(f[1].props.alt_ft, 0);

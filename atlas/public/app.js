@@ -135,6 +135,8 @@ function ensureInstalled(l) {
   // Quellennachweis hängt an der Quelle: MapLibre zeigt ihn nur, solange die Ebene sichtbar ist.
   if (l.tiles) map.addSource(srcId(l), { type: 'vector', tiles: [l.tiles.url], maxzoom: l.tiles.maxzoom, attribution: l.attribution });
   else map.addSource(srcId(l), { type: 'geojson', data: toGeoJSON(runtime.get(l.id).features), attribution: l.attribution, ...(l.sourceOptions || {}) });
+  // Genaue Liste des Ausschnitts (bewegt sich flüssig), zusätzlich zu den Übersichtskacheln
+  if (l.live) map.addSource(`${srcId(l)}-live`, { type: 'geojson', data: toGeoJSON([]) });
   l.install(map, srcId(l));
   // Ebenen-Handler überleben setStyle; nur einmal binden, sonst öffnet ein Klick die Details mehrfach.
   if (bound.has(l.id)) return;
@@ -161,12 +163,93 @@ function ensureInstalled(l) {
 }
 
 function layerIds(l) {
-  return (map.getStyle()?.layers || []).filter((x) => x.source === srcId(l)).map((x) => x.id);
+  return (map.getStyle()?.layers || []).filter((x) => x.source === srcId(l) || x.source === `${srcId(l)}-live`).map((x) => x.id);
 }
 
 function setVisible(l, on) {
-  for (const id of layerIds(l)) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
+  const liveOn = runtime.get(l.id).liveOn;
+  for (const id of layerIds(l)) {
+    const isLive = map.getLayer(id)?.source === `${srcId(l)}-live`;
+    // Mit Ausschnitt-Liste die Kacheln ausblenden und umgekehrt
+    const show = on && (!l.live || isLive === Boolean(liveOn));
+    map.setLayoutProperty(id, 'visibility', show ? 'visible' : 'none');
+  }
 }
+
+/* ---------- Flüssige Bewegung ----------
+   Zwischen zwei Meldungen rechnet die App jede Position mit Geschwindigkeit und Kurs bis „jetzt“ weiter
+   (Koppelnavigation). Kommt eine neue Meldung, gleitet das Symbol weich dorthin statt zu springen. */
+
+const BLEND_MS = 1500;
+const motion = new Map(); // Ebene → (Kennung → Zustand)
+
+function setMotion(l, features, at) {
+  const now = Date.now();
+  const old = motion.get(l.id) || new Map();
+  const next = new Map();
+  for (const f of features) {
+    const st = { f, m: l.motion(f, at), lon: f.lon, lat: f.lat, blend: 0 };
+    const prev = old.get(f.id);
+    if (prev) { [st.fromLon, st.fromLat] = posOf(prev, now); st.blend = now; }
+    next.set(f.id, st);
+  }
+  motion.set(l.id, next);
+}
+
+function posOf(st, now) {
+  let lon = st.lon, lat = st.lat;
+  if (st.m) {
+    const km = (st.m.kmh * Math.min(Math.max(0, now - st.m.t0), st.m.max)) / 3_600_000;
+    const c = (st.m.course * Math.PI) / 180;
+    lat += (km * Math.cos(c)) / 111.32;
+    lon += (km * Math.sin(c)) / (111.32 * Math.cos((lat * Math.PI) / 180));
+  }
+  if (st.blend) {
+    const k = Math.min(1, (now - st.blend) / BLEND_MS);
+    if (k < 1) {
+      const e = k * k * (3 - 2 * k); // weich anfahren und abbremsen
+      lon = st.fromLon + (lon - st.fromLon) * e;
+      lat = st.fromLat + (lat - st.fromLat) * e;
+    } else st.blend = 0;
+  }
+  return [lon, lat];
+}
+
+/** Aktuelle (hochgerechnete) Position eines Objekts, z. B. für Route und Weg in der Detailkarte. */
+function currentPos(l, id) {
+  const st = motion.get(l.id)?.get(id);
+  return st ? posOf(st, Date.now()) : null;
+}
+
+function motionGeoJSON(l) {
+  const now = Date.now();
+  const out = [];
+  for (const st of motion.get(l.id)?.values() || []) {
+    const [lon, lat] = posOf(st, now);
+    out.push({ ...st.f, lon, lat });
+  }
+  return toGeoJSON(out);
+}
+
+let lastFrame = 0;
+function tick(ts) {
+  requestAnimationFrame(tick);
+  if (document.hidden) return;
+  // Bei sehr vielen Objekten seltener neu zeichnen, damit das Handy flüssig bleibt
+  const total = LAYERS.reduce((n, l) => n + (active.has(l.id) && l.motion ? motion.get(l.id)?.size || 0 : 0), 0);
+  if (ts - lastFrame < (total > 4000 ? 300 : total > 1500 ? 180 : 110)) return;
+  lastFrame = ts;
+  for (const l of LAYERS) {
+    if (!l.motion || !active.has(l.id) || !motion.get(l.id)?.size) continue;
+    if (l.live && !runtime.get(l.id).liveOn) continue;
+    const id = l.live ? `${srcId(l)}-live` : srcId(l);
+    // Erst neue Positionen schicken, wenn die vorigen verarbeitet sind – sonst staut sich der Worker
+    // und die Grundkarte lädt keine Kacheln mehr.
+    if (!map.getSource(id) || !map.isSourceLoaded(id)) continue;
+    map.getSource(id).setData(motionGeoJSON(l));
+  }
+}
+requestAnimationFrame(tick);
 
 /* ---------- Abfragen ---------- */
 
@@ -214,12 +297,15 @@ async function refresh(l) {
   if (document.hidden) return;
 
   if (l.tiles) {
+    const now = Date.now();
     // Kacheln mit neuem Zeitstempel anfordern (die Quelle cached nur kurz), Zählen übernimmt countTiles.
-    if (rt.at) map.getSource(srcId(l))?.setTiles([`${l.tiles.url}?t=${Math.floor(Date.now() / l.refresh)}`]);
-    rt.at = Date.now();
+    if (!rt.tilesAt) rt.tilesAt = now;
+    else if (now - rt.tilesAt >= l.refresh) { map.getSource(srcId(l))?.setTiles([`${l.tiles.url}?t=${now}`]); rt.tilesAt = now; }
+    rt.at = now;
     rt.error = null;
+    if (l.live) await refreshLive(l, rt);
     renderChrome();
-    rt.timer = setTimeout(() => refresh(l), l.refresh);
+    if (active.has(l.id)) rt.timer = setTimeout(() => refresh(l), l.live ? l.live.refresh : l.refresh);
     return;
   }
 
@@ -256,9 +342,36 @@ async function refresh(l) {
   rt.timer = setTimeout(() => refresh(l), l.refresh);
 }
 
+/** Genaue Liste des Ausschnitts holen, wenn nah genug herangezoomt; sonst zeigen die Kacheln die Übersicht. */
+async function refreshLive(l, rt) {
+  const b = map.getBounds();
+  const box = [b.getWest(), Math.max(-85, b.getSouth()), b.getEast(), Math.min(85, b.getNorth())];
+  const area = (box[2] - box[0]) * (box[3] - box[1]);
+  let on = false;
+  if (map.getZoom() >= l.live.minzoom && area <= l.live.maxArea) {
+    const ctrl = new AbortController();
+    rt.ctrl = ctrl;
+    try {
+      rt.liveFeatures = l.live.parse(await getJSON(l.live.url(box), ctrl.signal));
+      setMotion(l, rt.liveFeatures, Date.now());
+      map.getSource(`${srcId(l)}-live`)?.setData(motionGeoJSON(l));
+      on = true;
+    } catch {
+      if (ctrl.signal.aborted) return;
+    }
+  }
+  if (rt.liveOn !== on) { rt.liveOn = on; setVisible(l, active.has(l.id)); }
+  if (on) rt.features = rt.liveFeatures; else countTiles();
+}
+
 function render(l) {
   const src = map.getSource(srcId(l));
-  if (src && !l.tiles) src.setData(toGeoJSON(runtime.get(l.id).features));
+  if (src && !l.tiles) {
+    if (l.motion) {
+      setMotion(l, runtime.get(l.id).features, runtime.get(l.id).at || Date.now());
+      src.setData(motionGeoJSON(l));
+    } else src.setData(toGeoJSON(runtime.get(l.id).features));
+  }
   renderChrome();
 }
 
@@ -440,7 +553,7 @@ async function loadMore() {
   const { l, p, coords } = current;
   // Aktuelle Position aus den Live-Daten, falls sich das Objekt bewegt hat
   const live = runtime.get(l.id).features.find((f) => f.id === p.id);
-  const pos = live ? [live.lon, live.lat] : coords;
+  const pos = currentPos(l, p.id) || (live ? [live.lon, live.lat] : coords);
   const ctrl = new AbortController();
   try {
     const r = await l.more(live ? { ...p, ...live.props, id: live.id } : p, pos, (url) => getJSON(url, ctrl.signal));
@@ -658,7 +771,7 @@ function installAll() {
 /** Objekte aus den geladenen Vektorkacheln übernehmen (für Zähler, Suche und Detail-Aktualisierung). */
 function countTiles() {
   for (const l of LAYERS) {
-    if (!l.tiles || !active.has(l.id) || !map.getSource(srcId(l))) continue;
+    if (!l.tiles || !active.has(l.id) || !map.getSource(srcId(l)) || runtime.get(l.id).liveOn) continue;
     const byId = new Map();
     for (const f of map.querySourceFeatures(srcId(l), { sourceLayer: l.tiles.layer })) {
       const p = f.properties;

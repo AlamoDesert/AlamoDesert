@@ -84,7 +84,9 @@ export function parseReadsb(json: unknown): Feature[] {
         alt_ft: alt,
         ground: a.alt_baro === 'ground' ? 1 : 0,
         speed_kt: num(a.gs),
-        squawk: str(a.squawk)
+        squawk: str(a.squawk),
+        // Sekunden seit der Positionsmeldung: die App rechnet damit die Position bis „jetzt“ weiter
+        age_s: num(a.seen_pos)
       }
     });
   }

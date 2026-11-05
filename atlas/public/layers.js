@@ -267,6 +267,12 @@ export const LAYERS = [
   },
   {
     id: 'flights',
+    /** Für die flüssige Darstellung: Geschwindigkeit (km/h), Kurs und Zeitpunkt der Position. */
+    motion(f, at) {
+      const p = f.props;
+      if (p.ground || typeof p.speed_kt !== 'number' || typeof f.heading !== 'number') return null;
+      return { kmh: p.speed_kt * 1.852, course: f.heading, t0: at - (typeof p.age_s === 'number' ? p.age_s * 1000 : 0), max: 90_000 };
+    },
     name: 'Flugzeuge',
     short: 'Flüge',
     color: COLORS.accent,
@@ -365,13 +371,36 @@ export const LAYERS = [
     tiles: { url: 'https://ais.openwaters.io/v1/vessels/tiles/{z}/{x}/{y}', layer: 'vessels', maxzoom: 14 },
     refresh: 60_000,
     minzoom: 0,
-    viewport: false,
+    viewport: true, // Ausschnitt-Liste beim Verschieben neu holen
     requests() { return { queries: [] }; },
+    /** Ab dieser Zoomstufe die genaue Liste des Ausschnitts (bewegt sich flüssig), darunter die Kacheln (Übersicht). */
+    live: {
+      minzoom: 7,
+      refresh: 15_000,
+      maxArea: 100, // Quadratgrad, Grenze von Open Waters ohne Schlüssel
+      url: ([w, s, e, n]) => `https://ais.openwaters.io/v1/vessels?bbox=${s.toFixed(3)},${w.toFixed(3)},${n.toFixed(3)},${e.toFixed(3)}&max_age=30m`,
+      parse(fc) {
+        const now = Date.now();
+        return (fc.features || []).filter((f) => f.properties?.kind === 'vessel' && f.geometry?.type === 'Point').map((f) => {
+          const p = f.properties;
+          const seen = Date.parse(p.seen) || now;
+          const hdg = typeof p.heading === 'number' && p.heading < 360 ? p.heading : typeof p.cog === 'number' && p.cog < 360 ? p.cog : null;
+          const [lon, lat] = f.geometry.coordinates;
+          return { id: String(p.mmsi), lon, lat, heading: hdg, label: p.name || `MMSI ${p.mmsi}`,
+            props: { mmsi: p.mmsi, name: p.name ?? null, type: p.type ?? null, sog: p.sog ?? null, cog: p.cog ?? null, hdg, flag: p.flag ?? null,
+              length: p.length ?? null, beam: p.beam ?? null, kind: 'vessel', destination: p.destination ?? null, seen, age_s: Math.round((now - seen) / 1000) } };
+        });
+      }
+    },
+    motion(f) {
+      const p = f.props;
+      if (typeof p.sog !== 'number' || p.sog < 0.5 || p.sog > 60 || typeof p.cog !== 'number' || p.cog >= 360) return null;
+      return { kmh: p.sog * 1.852, course: p.cog, t0: p.seen, max: 15 * 60_000 };
+    },
     install(map, src) {
       if (!map.hasImage('lk-ship')) map.addImage('lk-ship', shipImage(), { sdf: true, pixelRatio: 2 });
       const type = ['coalesce', ['get', 'type'], 0];
-      map.addLayer({
-        id: `${src}-sym`, type: 'symbol', source: src, 'source-layer': 'vessels', filter: ['==', ['get', 'kind'], 'vessel'],
+      const look = {
         layout: {
           'icon-image': 'lk-ship',
           'icon-size': ['interpolate', ['linear'], ['zoom'], 3, 0.38, 8, 0.6, 12, 0.9],
@@ -396,7 +425,9 @@ export const LAYERS = [
           'icon-halo-color': 'rgba(0,0,0,.7)',
           'icon-halo-width': 1
         }
-      });
+      };
+      map.addLayer({ id: `${src}-sym`, type: 'symbol', source: src, 'source-layer': 'vessels', filter: ['==', ['get', 'kind'], 'vessel'], ...look });
+      map.addLayer({ id: `${src}-live-sym`, type: 'symbol', source: `${src}-live`, ...look });
     },
     detail(p) {
       const moving = typeof p.sog === 'number' && p.sog >= 0.5;
