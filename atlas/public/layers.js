@@ -355,7 +355,7 @@ export const LAYERS = [
         + (path.length > 1 ? row('Weg seit Start', `${fmt(path.reduce((s, x, i) => (i ? s + distKm(path[i - 1], x) : 0), 0))} km`) : '');
       return {
         summary: o || d
-          ? `${airportName(o) || '?'} → ${airportName(d) || '?'}${plausible ? ` · noch ${fmt(distKm(pos, [d.lon, d.lat]))} km` : ' (laut Datenbank, unsicher)'}`
+          ? `${airportName(o) || '?'} → ${airportName(d) || '?'}${plausible ? ` · noch ${fmt(distKm(pos, [d.lon, d.lat]))} km Luftlinie` : ' (laut Datenbank, unsicher)'}`
           : path.length > 1 ? `Route unbekannt · ${fmt(path.reduce((s, x, i) => (i ? s + distKm(path[i - 1], x) : 0), 0))} km seit Start` : null,
         html: photoHtml(a.photo, a.photo_by, a.photo_link, a.photo_link?.includes('planespotters') ? 'planespotters.net' : null) + (rows ? `<dl>${rows}</dl>` : ''),
         overlay: feats,
@@ -370,7 +370,7 @@ export const LAYERS = [
     short: 'Schiffe',
     color: '#7fe3c4',
     icon: '<path d="M4 14.5h16l-2.2 4.5H6.2z"/><path d="M7 14.5V9.5h8l2 5"/><path d="M10 9.5V6.5h3v3"/>',
-    attribution: 'Schiffe: <a href="https://openwaters.io/ais/#license" target="_blank" rel="noopener">Open Waters AIS</a> (AISHub, aisstream.io, BarentsWatch/Kystverket NLOD u. a.) · Fotos <a href="https://www.wikidata.org" target="_blank" rel="noopener">Wikidata</a>/Commons',
+    attribution: 'Schiffe: <a href="https://openwaters.io/ais/#license" target="_blank" rel="noopener">Open Waters AIS</a> (AISHub, aisstream.io, BarentsWatch/Kystverket NLOD u. a.) · Fotos <a href="https://www.wikidata.org" target="_blank" rel="noopener">Wikidata</a>/Commons · Seewege <a href="https://github.com/eurostat/searoute" target="_blank" rel="noopener">Eurostat searoute</a> (EUPL-1.2) · Häfen UN/LOCODE',
     desc: 'AIS weltweit, wo Empfänger in der Nähe sind',
     // Vektorkacheln direkt von Open Waters (frei für private Nutzung, CORS offen): lädt nur den sichtbaren Ausschnitt,
     // auch bei Zehntausenden Schiffen. Neu laden = Kacheln mit neuem Zeitstempel anfordern.
@@ -467,7 +467,20 @@ export const LAYERS = [
       if (path.length > 1) feats.push(line([...path, now], 'track'));
       const sog = typeof v.sog === 'number' ? v.sog : p.sog;
       const cog = typeof v.cog === 'number' ? v.cog : p.cog;
-      if (typeof sog === 'number' && sog >= 0.5 && typeof cog === 'number' && cog < 360) feats.push(line([now, ahead(now, cog, sog * 1.852)], 'route'));
+      // Geplante restliche Route: Seeweg zum AIS-Zielhafen (Netz von Eurostat), sonst nur der Kurs der nächsten Stunde.
+      let sea = null, port = null;
+      if (v.destination) {
+        try {
+          const { findPort, seaRoute } = await import('./searoute.js');
+          port = await findPort(v.destination, now);
+          if (port && distKm(now, [port.lon, port.lat]) > 2) sea = await seaRoute(now, [port.lon, port.lat]);
+        } catch { sea = null; }
+      }
+      if (sea) {
+        feats.push(line(sea.path, 'route'), spot([port.lon, port.lat], 'airport', port.name));
+      } else if (typeof sog === 'number' && sog >= 0.5 && typeof cog === 'number' && cog < 360) {
+        feats.push(line([now, ahead(now, cog, sog * 1.852)], 'route'));
+      }
       let photo = '';
       if (v.imo) {
         try {
@@ -478,11 +491,13 @@ export const LAYERS = [
       const rows = row('Ziel (AIS)', esc(v.destination)) + row('Ankunft (ETA)', esc(v.eta)) + row('In der Nähe von', esc(v.near))
         + row('Tiefgang', typeof v.draught === 'number' && v.draught ? `${fmt(v.draught, 1)} m` : null)
         + row('Rufzeichen', esc(v.callsign)) + row('IMO', v.imo ? esc(v.imo) : null)
+        + (sea ? row('Route (berechnet)', `${esc(port.name)} (${esc(port.code)}) · ${fmt(sea.km)} km${typeof sog === 'number' && sog >= 0.5 ? ` · ca. ${fmt(sea.km / (sog * 1.852), 1)} h` : ''}`) : '')
         + (path.length > 1 ? row('Weg (letzte Stunden)', `${fmt(path.reduce((s, x, i) => (i ? s + distKm(path[i - 1], x) : 0), 0), 1)} km`) : '');
-      const note = feats.length ? '<p class="hint-line">Durchgezogen = bisheriger Weg · gestrichelt = Kurs der nächsten Stunde</p>' : '';
+      const note = feats.length ? `<p class="hint-line">Durchgezogen = bisheriger Weg · gestrichelt = ${sea ? 'berechneter Seeweg zum AIS-Ziel (Schätzung, keine Navigation)' : 'Kurs der nächsten Stunde'}</p>` : '';
       const km = path.length > 1 ? path.reduce((s, x, i) => (i ? s + distKm(path[i - 1], x) : 0), 0) : 0;
-      const summary = [v.destination ? `Ziel ${esc(v.destination)}` : 'Ziel unbekannt', v.eta ? `ETA ${esc(v.eta)}` : null,
-        km ? `${fmt(km, 1)} km gefahren` : null].filter(Boolean).join(' · ');
+      const summary = sea
+        ? `→ ${esc(port.name)} · noch ${fmt(sea.km)} km${typeof sog === 'number' && sog >= 0.5 ? ` · ca. ${fmt(sea.km / (sog * 1.852), 1)} h` : ''}${km ? ` · ${fmt(km, 1)} km gefahren` : ''}`
+        : [v.destination ? `Ziel ${esc(v.destination)}` : 'Ziel unbekannt', v.eta ? `ETA ${esc(v.eta)}` : null, km ? `${fmt(km, 1)} km gefahren` : null].filter(Boolean).join(' · ');
       return { html: photo + (rows ? `<dl>${rows}</dl>` : '') + note, overlay: feats, summary, every: 60_000 };
     }
   },
