@@ -102,7 +102,19 @@
   .d-body { padding: 12px 14px 14px; }
   /* Kompakt: nur Titel, Zusammenfassung und Knöpfe – die Karte mit der Route bleibt frei. */
   #detail.compact .d-body > :not(.d-title):not(.d-sum) { display: none; }
-  #detail.compact .d-title { margin-bottom: 6px; }
+  #detail.compact .d-head { padding: 5px 6px 5px 12px; }
+  #detail.compact .d-head .ic { width: 28px; height: 28px; font-size: 15px; }
+  #detail.compact .d-body { padding: 8px 12px 10px; }
+  #detail.compact .d-title { margin-bottom: 4px; }
+  #detail.compact .d-title h2 { font-size: 16px; }
+  #detail.compact .d-sum .sum { margin-bottom: 8px; font-size: 12px; line-height: 1.4; }
+  #detail.compact .d-act .btn { height: 30px; }
+  /* Eingeklappt: nur die Kopfzeile mit dem Namen. */
+  .d-mint { display: none; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 650; }
+  #detail.min .d-body { display: none; }
+  #detail.min .d-head { border-bottom: 0; cursor: pointer; }
+  #detail.min .d-head .caps { display: none; }
+  #detail.min .d-mint { display: block; }
   .d-sum .sum { margin: 0 0 10px; font-family: var(--mono); font-size: 12.5px; color: var(--text); line-height: 1.5; }
   .d-sum .sum:empty { display: none; }
   .d-act { display: flex; gap: 8px; }

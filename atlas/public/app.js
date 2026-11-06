@@ -605,11 +605,13 @@ function showDetail(l, props, coords) {
   // Flugzeuge/Schiffe: erst kompakt (Name, eine Zeile, Route/Details), damit die Karte mit der Route sichtbar bleibt.
   const sum = l.compact ? `<div class="d-sum"><p class="sum">${d.summary || ''}</p><div class="d-act">
       <button class="btn" data-act="route">Route</button><button class="btn ghost" data-act="expand">Details ▾</button></div></div>` : '';
-  $('#detail').innerHTML = `<div class="d-head"><span class="caps">${d.kicker || esc(l.name)}</span>${fav}
+  $('#detail').innerHTML = `<div class="d-head"><span class="caps">${d.kicker || esc(l.name)}</span><b class="d-mint">${d.title}</b>${fav}
+      <button class="ic" data-act="min" aria-label="Einklappen" title="Einklappen">▾</button>
       <button class="ic" data-act="close" aria-label="Schließen">×</button></div>
     <div class="d-body"><div class="d-title"><h2>${d.title}</h2>${d.chip ? `<span class="chip ${d.chip.cls}">${d.chip.text}</span>` : ''}</div>${sum}${d.body}
     ${coords ? `<div class="coords"><span>${lat.toFixed(4)}° N · ${lon.toFixed(4)}° E</span><span>${esc(l.name)}</span></div>` : ''}</div>`;
   $('#detail').classList.toggle('compact', Boolean(l.compact));
+  $('#detail').classList.remove('min');
   $('#detail').hidden = false;
   $('#panel').hidden = true;
   startImages($('#detail'));
@@ -648,6 +650,13 @@ function closeDetail() {
   $('#detail').innerHTML = ''; // laufendes Video beenden
 }
 
+function setMin(min) {
+  const box = $('#detail');
+  box.classList.toggle('min', min);
+  const btn = box.querySelector('[data-act="min"]');
+  if (btn) { btn.textContent = min ? '▴' : '▾'; const t = min ? 'Aufklappen' : 'Einklappen'; btn.title = t; btn.setAttribute('aria-label', t); }
+}
+
 function toggleFav(btn) {
   if (!current) return;
   const { l, p, coords } = current;
@@ -664,6 +673,8 @@ function toggleFav(btn) {
 $('#detail').addEventListener('click', (e) => {
   const act = e.target.closest('[data-act]')?.dataset.act;
   if (act === 'close') return closeDetail();
+  // Einklappen auf die Kopfzeile; im eingeklappten Zustand klappt ein Tipp auf die Kopfzeile wieder auf.
+  if (act === 'min' || (!act && $('#detail').classList.contains('min') && e.target.closest('.d-head'))) return setMin(!$('#detail').classList.contains('min'));
   if (act === 'route') return fitRoute();
   if (act === 'expand') {
     const open = $('#detail').classList.toggle('compact') === false;
