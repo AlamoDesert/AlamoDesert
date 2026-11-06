@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createProxy } from '../netlify/functions/feed/core.mts';
-import { parseReadsb, parseUsgs, cellCenter, CELL, parseTrace, parseAircraftInfo, parseFotoWebcam, parseShipPhoto } from '../netlify/functions/feed/sources.mts';
+import { parseReadsb, parseUsgs, cellCenter, CELL, parseTrace, parseAircraftInfo, parseFotoWebcam, parseShipPhoto, parseDwdWarnings, parseAurora, AURORA_MIN, parseGdacs, parseEonet, parsePegel, parseOdl } from '../netlify/functions/feed/sources.mts';
 
 const okJson = (body) => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
 const READSB = {
@@ -232,4 +232,107 @@ test('Detailabfragen prüfen ihre Parameter', async () => {
   assert.equal((await get('/api/feed/aircraft?hex=3c6444&cs=..')).status, 400);
   assert.equal((await get('/api/feed/track?hex=3c64')).status, 400);
   assert.equal((await get('/api/feed/shipphoto?imo=123')).status, 400);
+});
+
+test('parseDwdWarnings: Fläche gerundet, Farbe, doppelte Kennungen nummeriert', () => {
+  const poly = { type: 'Polygon', coordinates: [[[8.123456, 50.0], [8.5, 50.0], [8.5, 50.4], [8.123456, 50.0]]] };
+  const f = parseDwdWarnings({ type: 'FeatureCollection', features: [
+    { geometry: { type: 'MultiPolygon', coordinates: [poly.coordinates] }, properties: { IDENTIFIER: 'A1', EVENT: 'FROST', HEADLINE: 'Amtliche WARNUNG vor FROST', DESCRIPTION: 'Frost', INSTRUCTION: 'Schutz', SEVERITY: 'Minor', ONSET: '2026-11-06T20:00:00Z', EXPIRES: '2026-11-07T09:00:00Z', EC_AREA_COLOR: '255 235 59', AREADESC: 'Kreis X' } },
+    { geometry: poly, properties: { IDENTIFIER: 'A1', EVENT: 'FROST', HEADLINE: 'Zweites Gebiet', SEVERITY: 'Severe', EC_AREA_COLOR: 'kaputt' } },
+    { geometry: { type: 'Point', coordinates: [1, 2] }, properties: { IDENTIFIER: 'P' } },
+    'Müll'
+  ] });
+  assert.equal(f.length, 2);
+  assert.deepEqual(f.map((x) => x.id), ['A1', 'A1#1']);
+  assert.equal(f[0].label, 'Amtliche WARNUNG vor FROST');
+  assert.equal(f[0].props.color, '#ffeb3b');
+  assert.equal(f[0].props.area, 'Kreis X');
+  assert.equal(f[0].props.severity, 'Minor');
+  assert.equal(f[1].props.color, null);
+  assert.equal(f[1].props.instruction, null);
+  assert.equal(f[0].geometry.type, 'MultiPolygon');
+  assert.deepEqual(f[0].geometry.coordinates[0][0][0], [8.123, 50]);
+  // Stellvertreterpunkt: Mittel der drei Eckpunkte (Schlusspunkt zählt nicht doppelt)
+  assert.equal(f[1].lon, 8.374);
+  assert.equal(f[1].lat, 50.133);
+  assert.throws(() => parseDwdWarnings({}), /features fehlt/);
+});
+
+test('parseAurora: nur ab AURORA_MIN %, Länge nach -180..180', () => {
+  const f = parseAurora({ 'Forecast Time': '2026-11-06T18:13:00Z', coordinates: [[0, 65, 9], [190, 70, 8], [359, 60, 7], [10, 61, 'x'], [350, 62, 30], 'Müll'] });
+  assert.equal(AURORA_MIN, 8);
+  assert.deepEqual(f.map((x) => x.id), ['0,65', '-170,70', '-10,62']);
+  assert.equal(f[1].lon, -170);
+  assert.equal(f[2].label, '30 %');
+  assert.deepEqual(f[0].props, { p: 9, forecast: '2026-11-06T18:13:00Z' });
+  assert.throws(() => parseAurora([]), /coordinates fehlt/);
+});
+
+const gd = (eventtype, eventid, over = {}, geom = [10, 20]) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: geom },
+  properties: { eventtype, eventid, name: `Ereignis ${eventid}`, alertlevel: 'Orange', country: 'Japan', fromdate: '2026-11-01T00:00:00', todate: '2026-11-06T00:00:00', iscurrent: 'true', Class: 'Point_Centroid', severitydata: { severitytext: 'Windstärke 185 km/h' }, ...over } });
+
+test('parseGdacs: nur Mittelpunkte laufender Ereignisse, Teile dürfen fehlen', () => {
+  const tc = { features: [gd('TC', 1), gd('TC', 1, { Class: 'Poly_Green' }), gd('TC', 2, { iscurrent: 'false' }), gd('TC', 3, { severitydata: "{'severity': 1, 'severitytext': 'Magnitude 6 ', 'severityunit': ''}" })] };
+  const fl = { features: [gd('FL', 9, { Class: 'Point_Affected' }), gd('FL', 10, { alertlevel: 'Red' }, [-89.4, -0.8])] };
+  const f = parseGdacs([tc, fl, null, null, null]);
+  assert.deepEqual(f.map((x) => x.id), ['TC-1', 'TC-3', 'FL-10']);
+  assert.equal(f[0].props.severity, 'Windstärke 185 km/h');
+  assert.equal(f[1].props.severity, 'Magnitude 6');
+  assert.equal(f[2].props.alert, 'Red');
+  assert.equal(f[0].props.link, 'https://www.gdacs.org/report.aspx?eventid=1&eventtype=TC');
+  assert.equal(f[0].label, 'Ereignis 1');
+  assert.deepEqual(parseGdacs([null, null]), []);
+  assert.throws(() => parseGdacs({}), /Teile fehlen/);
+});
+
+test('gdacs über den Proxy: ausgefallener Teil (404) lässt die anderen stehen', async () => {
+  const { get, calls } = setup((url) => {
+    const t = new URL(url).searchParams.get('eventtype');
+    if (t === 'VO') return new Response('{}', { status: 404 });
+    return okJson({ features: t === 'TC' ? [gd('TC', 5)] : [] });
+  });
+  const r = await get('/api/feed/gdacs');
+  assert.equal(r.status, 200);
+  assert.equal(calls.length, 5);
+  assert.deepEqual(r.body.features.map((x) => x.id), ['TC-5']);
+  assert.match(r.headers.get('netlify-cdn-cache-control'), /s-maxage=900/);
+});
+
+test('parseEonet: Punkte und Linien (letzte Koordinate), nur Brände, Stürme, Vulkane', () => {
+  const ev = (id, cat, geometry, extra = {}) => ({ type: 'Feature', geometry, properties: { id, title: `T ${id}`, link: `https://eonet/${id}`, date: '2026-11-02T07:58:00Z', categories: [{ id: cat }], ...extra } });
+  const f = parseEonet({ features: [
+    ev('E1', 'wildfires', { type: 'Point', coordinates: [-71, 44] }, { magnitudeValue: 982, magnitudeUnit: 'acres', sources: [{ url: 'https://irwin/1' }] }),
+    ev('E2', 'severeStorms', { type: 'LineString', coordinates: [[1, 2], [3, 4], [5, 6]] }),
+    ev('E3', 'seaLakeIce', { type: 'Point', coordinates: [0, 0] }),
+    ev('E4', 'volcanoes', { type: 'Polygon', coordinates: [] }),
+    { properties: {} }
+  ] });
+  assert.deepEqual(f.map((x) => x.id), ['E1', 'E2']);
+  assert.deepEqual(f[0].props, { title: 'T E1', category: 'wildfires', date: '2026-11-02T07:58:00Z', magnitude: 982, unit: 'acres', link: 'https://irwin/1' });
+  assert.equal(f[1].lon, 5);
+  assert.equal(f[1].lat, 6);
+  assert.equal(f[1].props.link, 'https://eonet/E2');
+  assert.equal(f[1].props.magnitude, null);
+  assert.throws(() => parseEonet(null), /features fehlt/);
+});
+
+test('parsePegel: nur Stationen mit Position und aktuellem Wasserstand', () => {
+  const st = (uuid, over = {}) => ({ uuid, number: '1', longname: `PEGEL ${uuid}`, km: 1.7, agency: 'VERDEN', longitude: 10, latitude: 52, water: { longname: 'ALLER' },
+    timeseries: [{ shortname: 'W', unit: 'cm', currentMeasurement: { timestamp: '2026-11-06T18:00:00+01:00', value: 120, stateMnwMhw: 'normal' } }], ...over });
+  const f = parsePegel([st('a'), st('b', { latitude: undefined }), st('c', { timeseries: [{ shortname: 'W' }] }), st('d', { timeseries: [{ shortname: 'Q', currentMeasurement: { value: 3 } }] }), st('e', { water: undefined }), 'Müll']);
+  assert.deepEqual(f.map((x) => x.id), ['a', 'e']);
+  assert.equal(f[0].label, 'PEGEL a · ALLER');
+  assert.equal(f[1].label, 'PEGEL e');
+  assert.deepEqual(f[0].props, { name: 'PEGEL a', water: 'ALLER', value: 120, unit: 'cm', state: 'normal', time: '2026-11-06T18:00:00+01:00', number: '1', agency: 'VERDEN', km: 1.7 });
+  assert.throws(() => parsePegel({}), /Liste erwartet/);
+});
+
+test('parseOdl: nur Messstellen in Betrieb mit Zahlenwert', () => {
+  const o = (id, over = {}) => ({ geometry: { type: 'Point', coordinates: [7.81, 51.91] }, properties: { id, plz: '48351', name: `Ort ${id}`, site_status: 1, height_above_sea: 60, end_measure: '2026-11-06T16:00:00Z', value: 0.087, value_cosmic: 0.043, value_terrestrial: 0.044, unit: 'µSv/h', ...over } });
+  const f = parseOdl({ features: [o('DEZ1'), o('DEZ2', { site_status: 2 }), o('DEZ3', { value: null }), o('DEZ4', { value: '0.1' }), 'Müll'] });
+  assert.equal(f.length, 1);
+  assert.equal(f[0].id, 'DEZ1');
+  assert.equal(f[0].label, 'Ort DEZ1 · 0.087 µSv/h');
+  assert.deepEqual(f[0].props, { name: 'Ort DEZ1', plz: '48351', value: 0.087, cosmic: 0.043, terrestrial: 0.044, unit: 'µSv/h', end: '2026-11-06T16:00:00Z', height: 60 });
+  assert.throws(() => parseOdl({}), /features fehlt/);
 });

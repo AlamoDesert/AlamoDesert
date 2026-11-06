@@ -11,6 +11,8 @@ export interface Feature {
   heading: number | null;
   label: string;
   props: Props;
+  /** Flächen (Warngebiete): GeoJSON-Geometrie in WGS84 (lon/lat), auf 3 Nachkommastellen gerundet. lon/lat = Stellvertreterpunkt. */
+  geometry?: { type: string; coordinates: unknown };
 }
 
 export interface Source {
@@ -318,6 +320,223 @@ export function parseShipPhoto(json: unknown, key: string): Feature[] {
   } }];
 }
 
+/** Rundet alle Zahlen in verschachtelten Koordinatenlisten auf 3 Nachkommastellen (≈ 100 m) – hält die Antworten klein. */
+function roundCoords(c: unknown): unknown {
+  if (typeof c === 'number') return Math.round(c * 1000) / 1000;
+  return Array.isArray(c) ? c.map(roundCoords) : c;
+}
+
+/** Stellvertreterpunkt einer Fläche: Mittel der Eckpunkte des ersten Rings (ohne den doppelten Schlusspunkt). */
+function areaPoint(type: string, coords: unknown): [number, number] | null {
+  let ring: unknown = null;
+  if (type === 'Polygon' && Array.isArray(coords)) ring = coords[0];
+  else if (type === 'MultiPolygon' && Array.isArray(coords) && Array.isArray(coords[0])) ring = coords[0][0];
+  if (!Array.isArray(ring) || !ring.length) return null;
+  const pts = ring.filter((p): p is number[] => Array.isArray(p) && num(p[0]) !== null && num(p[1]) !== null);
+  if (pts.length > 1 && pts[0][0] === pts[pts.length - 1][0] && pts[0][1] === pts[pts.length - 1][1]) pts.pop();
+  if (!pts.length) return null;
+  const lon = pts.reduce((a, p) => a + p[0], 0) / pts.length;
+  const lat = pts.reduce((a, p) => a + p[1], 0) / pts.length;
+  return [Math.round(lon * 1000) / 1000, Math.round(lat * 1000) / 1000];
+}
+
+/** DWD-Wetterwarnungen (WFS, GeoJSON): eine Fläche je Warnung; EC_AREA_COLOR "255 235 59" → "#ffeb3b". */
+export function parseDwdWarnings(json: unknown): Feature[] {
+  if (!isRecord(json) || !Array.isArray(json.features)) throw new Error('Unerwartetes Format: features fehlt');
+  const out: Feature[] = [];
+  const seen = new Map<string, number>();
+  json.features.forEach((f, index) => {
+    if (!isRecord(f) || !isRecord(f.geometry) || !isRecord(f.properties)) return;
+    const type = str(f.geometry.type);
+    if (type !== 'Polygon' && type !== 'MultiPolygon') return;
+    const mid = areaPoint(type, f.geometry.coordinates);
+    if (!mid) return;
+    const p = f.properties;
+    // Dieselbe Meldung gilt für viele Gebiete und steht dann mehrfach da → Nummer anhängen.
+    const base = str(p.IDENTIFIER) ?? str(f.id) ?? `w${index}`;
+    const n = seen.get(base) ?? 0;
+    seen.set(base, n + 1);
+    const rgb = (str(p.EC_AREA_COLOR) ?? '').split(/\s+/).map(Number);
+    const color = rgb.length === 3 && rgb.every((v) => Number.isInteger(v) && v >= 0 && v <= 255)
+      ? '#' + rgb.map((v) => v.toString(16).padStart(2, '0')).join('') : null;
+    out.push({
+      id: n === 0 ? base : `${base}#${n}`,
+      lon: mid[0], lat: mid[1], heading: null,
+      label: str(p.HEADLINE) ?? str(p.EVENT) ?? 'Warnung',
+      props: {
+        event: str(p.EVENT),
+        headline: str(p.HEADLINE),
+        description: str(p.DESCRIPTION),
+        instruction: str(p.INSTRUCTION),
+        severity: str(p.SEVERITY),
+        onset: str(p.ONSET),
+        expires: str(p.EXPIRES),
+        color,
+        area: str(p.AREADESC)
+      },
+      geometry: { type, coordinates: roundCoords(f.geometry.coordinates) }
+    });
+  });
+  return out;
+}
+
+/** NOAA OVATION Aurora: { "Forecast Time", coordinates: [[lon 0..359, lat, Wahrscheinlichkeit %]] }. Nur Werte ab AURORA_MIN %
+    (ab 3 % wären es ~10.000 Punkte, über 1 MB). */
+export const AURORA_MIN = 8;
+
+export function parseAurora(json: unknown): Feature[] {
+  if (!isRecord(json) || !Array.isArray(json.coordinates)) throw new Error('Unerwartetes Format: coordinates fehlt');
+  const forecast = str(json['Forecast Time']);
+  const out: Feature[] = [];
+  for (const c of json.coordinates) {
+    if (!Array.isArray(c)) continue;
+    const l = num(c[0]);
+    const lat = num(c[1]);
+    const v = num(c[2]);
+    if (l === null || lat === null || v === null || v < AURORA_MIN) continue;
+    const lon = l > 180 ? l - 360 : l; // 0..359 → -180..180
+    out.push({ id: `${lon},${lat}`, lon, lat, heading: null, label: `${v} %`, props: { p: v, forecast } });
+  }
+  return out;
+}
+
+/** GDACS-Ereignisse (je Ereignisart eine Teilabfrage TC, FL, DR, WF, VO). Nur der Mittelpunkt je Ereignis und nur laufende. */
+export function parseGdacs(parts: unknown): Feature[] {
+  if (!Array.isArray(parts)) throw new Error('Unerwartetes Format: Teile fehlen');
+  const out: Feature[] = [];
+  for (const part of parts) {
+    if (!isRecord(part) || !Array.isArray(part.features)) continue; // Teil fehlt (z. B. VO ohne Ereignisse = 404)
+    for (const f of part.features) {
+      if (!isRecord(f) || !isRecord(f.geometry) || !isRecord(f.properties)) continue;
+      const p = f.properties;
+      if (p.Class !== 'Point_Centroid' || p.iscurrent === 'false') continue;
+      const c = f.geometry.coordinates;
+      const lon = Array.isArray(c) ? num(c[0]) : null;
+      const lat = Array.isArray(c) ? num(c[1]) : null;
+      const type = str(p.eventtype);
+      const eventid = num(p.eventid) ?? str(p.eventid);
+      if (lon === null || lat === null || !type || eventid === null) continue;
+      // severitydata ist ein Objekt (laut Doku früher ein Python-Text "{'severitytext': '…'}") – beides lesen.
+      let severity: string | null = null;
+      if (isRecord(p.severitydata)) severity = str(p.severitydata.severitytext);
+      else if (typeof p.severitydata === 'string') severity = /['"]severitytext['"]\s*:\s*['"]([^'"]*)['"]/.exec(p.severitydata)?.[1]?.trim() || null;
+      const name = str(p.name) ?? str(p.eventname) ?? `${type} ${eventid}`;
+      out.push({
+        id: `${type}-${eventid}`, lon, lat, heading: null, label: name,
+        props: {
+          type, name,
+          alert: str(p.alertlevel),
+          country: str(p.country),
+          from: str(p.fromdate),
+          to: str(p.todate),
+          severity,
+          link: `https://www.gdacs.org/report.aspx?eventid=${eventid}&eventtype=${type}`
+        }
+      });
+    }
+  }
+  return out;
+}
+
+const EONET_CATEGORIES = ['wildfires', 'severeStorms', 'volcanoes'];
+
+/** NASA EONET (GeoJSON, offene Ereignisse): Punkte, bei Linien die letzte Koordinate = jüngste Position. Nur Brände, Stürme, Vulkane. */
+export function parseEonet(json: unknown): Feature[] {
+  if (!isRecord(json) || !Array.isArray(json.features)) throw new Error('Unerwartetes Format: features fehlt');
+  const out: Feature[] = [];
+  for (const f of json.features) {
+    if (!isRecord(f) || !isRecord(f.geometry) || !isRecord(f.properties)) continue;
+    const p = f.properties;
+    const cat = Array.isArray(p.categories) && isRecord(p.categories[0]) ? str(p.categories[0].id) : null;
+    if (!cat || !EONET_CATEGORIES.includes(cat)) continue;
+    let c: unknown = f.geometry.coordinates;
+    if (f.geometry.type === 'LineString' && Array.isArray(c)) c = c[c.length - 1];
+    else if (f.geometry.type !== 'Point') continue;
+    const lon = Array.isArray(c) ? num(c[0]) : null;
+    const lat = Array.isArray(c) ? num(c[1]) : null;
+    const id = str(p.id);
+    const title = str(p.title);
+    if (lon === null || lat === null || !id || !title) continue;
+    const src = Array.isArray(p.sources) && isRecord(p.sources[0]) ? str(p.sources[0].url) : null;
+    out.push({
+      id, lon, lat, heading: null, label: title,
+      props: {
+        title, category: cat,
+        date: str(p.date),
+        magnitude: num(p.magnitudeValue),
+        unit: str(p.magnitudeUnit),
+        link: src ?? str(p.link)
+      }
+    });
+  }
+  return out;
+}
+
+/** Pegelonline (WSV): Liste der Stationen mit Zeitreihe W (Wasserstand in cm) und aktuellem Messwert. */
+export function parsePegel(json: unknown): Feature[] {
+  if (!Array.isArray(json)) throw new Error('Unerwartetes Format: Liste erwartet');
+  const out: Feature[] = [];
+  for (const s of json) {
+    if (!isRecord(s) || !Array.isArray(s.timeseries)) continue;
+    const lon = num(s.longitude);
+    const lat = num(s.latitude);
+    const id = str(s.uuid);
+    if (lon === null || lat === null || !id) continue;
+    const w = s.timeseries.find((t) => isRecord(t) && t.shortname === 'W');
+    const m = isRecord(w) && isRecord(w.currentMeasurement) ? w.currentMeasurement : null;
+    const value = m ? num(m.value) : null;
+    if (!m || value === null || !isRecord(w)) continue;
+    const name = str(s.longname) ?? str(s.shortname) ?? id;
+    const water = isRecord(s.water) ? str(s.water.longname) : null;
+    out.push({
+      id, lon, lat, heading: null,
+      label: water ? `${name} · ${water}` : name,
+      props: {
+        name, water, value,
+        unit: str(w.unit) ?? 'cm',
+        state: str(m.stateMnwMhw),
+        time: str(m.timestamp),
+        number: str(s.number),
+        agency: str(s.agency),
+        km: num(s.km)
+      }
+    });
+  }
+  return out;
+}
+
+/** BfS ODL-Messnetz (WFS, GeoJSON): Ortsdosisleistung der letzten Stunde; nur Messstellen in Betrieb mit Messwert. */
+export function parseOdl(json: unknown): Feature[] {
+  if (!isRecord(json) || !Array.isArray(json.features)) throw new Error('Unerwartetes Format: features fehlt');
+  const out: Feature[] = [];
+  for (const f of json.features) {
+    if (!isRecord(f) || !isRecord(f.geometry) || !isRecord(f.properties)) continue;
+    const p = f.properties;
+    const c = f.geometry.coordinates;
+    const lon = Array.isArray(c) ? num(c[0]) : null;
+    const lat = Array.isArray(c) ? num(c[1]) : null;
+    const id = str(p.id);
+    const value = num(p.value);
+    if (p.site_status !== 1 || lon === null || lat === null || !id || value === null) continue;
+    const name = str(p.name) ?? id;
+    out.push({
+      id, lon, lat, heading: null,
+      label: `${name} · ${value} µSv/h`,
+      props: {
+        name,
+        plz: str(p.plz),
+        value,
+        cosmic: num(p.value_cosmic),
+        terrestrial: num(p.value_terrestrial),
+        unit: str(p.unit) ?? 'µSv/h',
+        end: str(p.end_measure),
+        height: num(p.height_above_sea)
+      }
+    });
+  }
+  return out;
+}
+
 export const SOURCES: Record<string, Source> = {
   aircraft: {
     id: 'aircraft',
@@ -397,5 +616,51 @@ export const SOURCES: Record<string, Source> = {
     },
     urls(key) { return [CAM_PROVIDERS[key].url]; },
     parse(json, key) { return CAM_PROVIDERS[key].parse(json, key); }
+  },
+  warn: {
+    id: 'warn',
+    ttl: 300,
+    key() { return 'all'; },
+    urls() { return ['https://maps.dwd.de/geoserver/dwd/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=dwd:Warnungen_Gemeinden_vereinigt&outputFormat=application/json']; },
+    parse: parseDwdWarnings
+  },
+  aurora: {
+    id: 'aurora',
+    ttl: 600,
+    key() { return 'all'; },
+    urls() { return ['https://services.swpc.noaa.gov/json/ovation_aurora_latest.json']; },
+    parse: parseAurora
+  },
+  gdacs: {
+    id: 'gdacs',
+    ttl: 900,
+    parts: true, // nur eine Ereignisart je Abfrage; fällt eine aus (VO: 404 ohne Ereignisse), bleiben die übrigen
+    key() { return 'all'; },
+    urls() {
+      return ['TC', 'FL', 'DR', 'WF', 'VO'].map((t) => `https://www.gdacs.org/gdacsapi/api/events/geteventlist/MAP?eventtype=${t}`);
+    },
+    parse: parseGdacs
+  },
+  eonet: {
+    id: 'eonet',
+    ttl: 900,
+    key() { return 'all'; },
+    // Die Kategorie-Auswahl filtert schon bei NASA (Eisberge allein sind > 400 Punkte); der Parser prüft zur Sicherheit nochmals.
+    urls() { return ['https://eonet.gsfc.nasa.gov/api/v3/events/geojson?status=open&days=30&category=wildfires,severeStorms,volcanoes']; },
+    parse: parseEonet
+  },
+  pegel: {
+    id: 'pegel',
+    ttl: 300,
+    key() { return 'all'; },
+    urls() { return ['https://www.pegelonline.wsv.de/webservices/rest-api/v2/stations.json?includeTimeseries=true&includeCurrentMeasurement=true&timeseries=W']; },
+    parse: parsePegel
+  },
+  odl: {
+    id: 'odl',
+    ttl: 900,
+    key() { return 'all'; },
+    urls() { return ['https://www.imis.bfs.de/ogc/opendata/ows?service=WFS&version=1.1.0&request=GetFeature&typeName=opendata:odlinfo_odl_1h_latest&outputFormat=application/json']; },
+    parse: parseOdl
   }
 };

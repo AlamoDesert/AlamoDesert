@@ -17,10 +17,11 @@ function save() {
   try { localStorage.setItem(STORE, JSON.stringify(prefs)); } catch { /* privater Modus: gilt nur bis zum Neuladen */ }
 }
 
-const active = new Set(Array.isArray(prefs.layers) ? prefs.layers.filter((id) => LAYERS.some((l) => l.id === id)) : LAYERS.map((l) => l.id));
+// Ebenen mit `off: true` (Zusatzebenen in „Wetter“/„Sonstige“) starten ausgeschaltet.
+const active = new Set(Array.isArray(prefs.layers) ? prefs.layers.filter((id) => LAYERS.some((l) => l.id === id)) : LAYERS.filter((l) => !l.off).map((l) => l.id));
 // Neu hinzugekommene Ebenen einmal von selbst einschalten, auch wenn schon eine Auswahl gespeichert ist.
 const seen = new Set(Array.isArray(prefs.seen) ? prefs.seen : Array.isArray(prefs.layers) ? ['flights', 'quakes', 'cams', 'live'] : []);
-for (const l of LAYERS) if (!seen.has(l.id)) active.add(l.id);
+for (const l of LAYERS) if (!seen.has(l.id) && !l.off) active.add(l.id);
 prefs.seen = LAYERS.map((l) => l.id);
 prefs.layers = [...active];
 const runtime = new Map(LAYERS.map((l) => [l.id, { features: [], at: null, error: null, hint: null, stale: false, timer: 0, ctrl: null }]));
@@ -99,7 +100,7 @@ function toGeoJSON(features) {
     type: 'FeatureCollection',
     features: features.map((f) => ({
       type: 'Feature',
-      geometry: { type: 'Point', coordinates: [f.lon, f.lat] },
+      geometry: f.geometry || { type: 'Point', coordinates: [f.lon, f.lat] }, // Flächen (Warnungen, Nacht) bringen ihre Geometrie mit
       properties: { ...f.props, id: f.id, label: f.label, heading: f.heading }
     }))
   };
@@ -150,14 +151,22 @@ function selfMarker() {
 
 function ensureInstalled(l) {
   if (map.getSource(srcId(l))) return;
+  if (l.raster) {
+    // Rasterkacheln (Regenradar): erst einhängen, wenn die aktuelle Kachel-Adresse bekannt ist (refresh).
+    const url = runtime.get(l.id).rasterUrl;
+    if (!url) return;
+    map.addSource(srcId(l), { type: 'raster', tiles: [url], tileSize: 256, maxzoom: l.raster.maxzoom, attribution: l.attribution });
+    map.addLayer({ id: `${srcId(l)}-raster`, type: 'raster', source: srcId(l), paint: { 'raster-opacity': l.raster.opacity, 'raster-fade-duration': 0 } }, below());
+    return;
+  }
   // Quellennachweis hängt an der Quelle: MapLibre zeigt ihn nur, solange die Ebene sichtbar ist.
   if (l.tiles) map.addSource(srcId(l), { type: 'vector', tiles: [l.tiles.url], maxzoom: l.tiles.maxzoom, attribution: l.attribution });
   else map.addSource(srcId(l), { type: 'geojson', data: toGeoJSON(runtime.get(l.id).features), attribution: l.attribution, ...(l.sourceOptions || {}) });
   // Genaue Liste des Ausschnitts (bewegt sich flüssig), zusätzlich zu den Übersichtskacheln
   if (l.live) map.addSource(`${srcId(l)}-live`, { type: 'geojson', data: toGeoJSON([]) });
-  l.install(map, srcId(l));
+  l.install(map, srcId(l), below());
   // Ebenen-Handler überleben setStyle; nur einmal binden, sonst öffnet ein Klick die Details mehrfach.
-  if (bound.has(l.id)) return;
+  if (bound.has(l.id) || l.noclick) return;
   bound.add(l.id);
   for (const id of layerIds(l)) {
     if (id.endsWith('-glow')) continue;
@@ -172,12 +181,20 @@ function ensureInstalled(l) {
         } catch { map.easeTo({ center: f.geometry.coordinates, zoom: map.getZoom() + 2 }); }
         return;
       }
-      // Vektorkacheln tragen die Kennung am Feature, nicht in den Properties.
-      showDetail(l, { ...f.properties, id: f.properties.id ?? f.id ?? f.properties.mmsi }, f.geometry.coordinates);
+      // Fläche (Warngebiet) unter einem Punkt (Flugzeug, Kamera …): der Punkt hat Vorrang, sonst öffnen beide nacheinander.
+      if (f.geometry.type !== 'Point' && map.queryRenderedFeatures(e.point).some((x) => x.geometry.type === 'Point' && LAYERS.some((o) => !o.noclick && srcId(o) === x.source.replace(/-live$/, '')))) return;
+      // Vektorkacheln tragen die Kennung am Feature, nicht in den Properties. Flächen: Koordinaten der angetippten Stelle.
+      const at = f.geometry.type === 'Point' ? f.geometry.coordinates : [e.lngLat.lng, e.lngLat.lat];
+      showDetail(l, { ...f.properties, id: f.properties.id ?? f.id ?? f.properties.mmsi }, at);
     });
     map.on('mouseenter', id, () => { map.getCanvas().style.cursor = 'pointer'; });
     map.on('mouseleave', id, () => { map.getCanvas().style.cursor = ''; });
   }
+}
+
+/** Flächen und Raster unter Punkte und Routen legen: vor die erste eigene Punkt-/Linienebene. */
+function below() {
+  return map.getLayer('lk-overlay-glow') ? 'lk-overlay-glow' : undefined;
 }
 
 function layerIds(l) {
@@ -315,6 +332,36 @@ async function refresh(l) {
   // Hintergrund-Tab: nichts abfragen, beim Zurückkehren sofort aktualisieren (visibilitychange).
   if (document.hidden) return;
 
+  if (l.raster) {
+    try {
+      const { url, at } = await l.raster.url();
+      if (!active.has(l.id)) return;
+      if (url !== rt.rasterUrl) {
+        rt.rasterUrl = url;
+        const src = map.getSource(srcId(l));
+        if (src) src.setTiles([url]);
+        else { ensureInstalled(l); setVisible(l, true); }
+      }
+      rt.at = at;
+      rt.error = null;
+    } catch (e) {
+      rt.error = !navigator.onLine ? 'Keine Internetverbindung' : `Quelle nicht erreichbar: ${e.message}`;
+    }
+    renderChrome();
+    if (active.has(l.id)) rt.timer = setTimeout(() => refresh(l), l.refresh);
+    return;
+  }
+
+  if (l.compute) {
+    // Lokal berechnet (Tag/Nacht): kein Netz nötig.
+    rt.features = l.compute(new Date());
+    rt.at = Date.now();
+    rt.error = null;
+    render(l);
+    rt.timer = setTimeout(() => refresh(l), l.refresh);
+    return;
+  }
+
   if (l.tiles) {
     const now = Date.now();
     // Kacheln mit neuem Zeitstempel anfordern (die Quelle cached nur kurz), Zählen übernimmt countTiles.
@@ -423,36 +470,56 @@ function status(l) {
 }
 
 /** Dock-Tasten in Ebenen-Reihenfolge: eine Ebene samt ihrer Gruppenmitglieder (Livestreams unter „Kameras“)
-    oder eine reine Gruppe aus DOCK_GROUPS (Erdbeben unter „Sonstige“). */
+    oder ein Menü aus DOCK_GROUPS („Wetter“, „Sonstige“), das seine Ebenen im Panel zum einzelnen Schalten zeigt. */
 const DOCK = [];
 for (const l of LAYERS) {
   if (!l.group) DOCK.push({ lead: l, members: [l, ...LAYERS.filter((x) => x.group === l.id)] });
   else if (DOCK_GROUPS[l.group] && !DOCK.some((g) => g.lead.id === l.group)) {
-    DOCK.push({ lead: DOCK_GROUPS[l.group], members: LAYERS.filter((x) => x.group === l.group) });
+    DOCK.push({ lead: DOCK_GROUPS[l.group], members: LAYERS.filter((x) => x.group === l.group), menu: true });
   }
 }
-// Gruppen ans Ende des Dock (vor „Ebenen“/„Wand“)
-DOCK.sort((a, b) => Number(Boolean(DOCK_GROUPS[a.lead.id])) - Number(Boolean(DOCK_GROUPS[b.lead.id])));
+// Menüs ans Ende des Dock (vor „Ebenen“/„Wand“), in der Reihenfolge von DOCK_GROUPS
+const menuRank = (g) => (g.menu ? 1 + Object.keys(DOCK_GROUPS).indexOf(g.lead.id) : 0);
+DOCK.sort((a, b) => menuRank(a) - menuRank(b));
 const groupOn = (g) => g.members.some((l) => active.has(l.id));
+let panelGroup = null; // null = alle Ebenen, sonst id eines Menüs
+
+const count = (l) => runtime.get(l.id).features.length;
+const short = (n) => (n > 999 ? `${Math.round(n / 1000)}k` : n);
+
+function dockButton(g) {
+  const l = g.lead;
+  const mine = g.members.filter((x) => active.has(x.id));
+  const rts = mine.map((x) => runtime.get(x.id));
+  const err = rts.some((rt) => rt.error);
+  if (g.menu) {
+    // Menü: Zahl = eingeschaltete Ebenen; „an“, sobald eine läuft.
+    const open = !$('#panel').hidden && panelGroup === l.id;
+    return `<button class="dk ${mine.length || open ? 'on' : ''}" style="--c:${l.color}" data-menu="${l.id}" aria-expanded="${open}" title="${esc(`${l.name}: ${g.members.map((x) => x.name).join(', ')}`)}">
+      ${svg(l.icon)}<span>${esc(l.short)}</span><i class="n ${err ? 'err' : ''}">${mine.length}</i></button>`;
+  }
+  const on = mine.length > 0;
+  const n = mine.reduce((s, x) => s + count(x), 0);
+  const badge = !on ? 0 : rts.every((rt) => rt.error && !rt.at) ? '!' : rts.every((rt) => rt.hint) ? '–' : short(n);
+  return `<button class="dk ${on ? 'on' : ''}" style="--c:${l.color}" data-group="${l.id}" aria-pressed="${on}" title="${esc(g.members.length > 1 ? 'Kameras: Live-Video und Standbilder' : l.name)}">
+      ${svg(l.icon)}<span>${esc(l.short)}</span><i class="n ${err ? 'err' : ''}">${badge}</i></button>`;
+}
+
+function layerRow(l) {
+  const s = status(l);
+  const cnt = !active.has(l.id) ? 'aus' : l.nocount ? 'an' : num(count(l));
+  return `<button class="layer ${active.has(l.id) ? 'on' : ''}" style="--c:${l.color}" data-layer="${l.id}" aria-pressed="${active.has(l.id)}">
+          <i class="bar"></i><span><b>${esc(l.name)}</b><small class="${s.cls}">${esc(s.text)}</small></span>
+          <span class="cnt">${cnt}</span></button>`;
+}
 
 function renderChrome() {
-  const count = (l) => runtime.get(l.id).features.length;
-  $('#dock').innerHTML = DOCK.map((g) => {
-    const on = groupOn(g);
-    const mine = g.members.filter((l) => active.has(l.id));
-    const rts = mine.map((l) => runtime.get(l.id));
-    const n = mine.reduce((s, l) => s + count(l), 0);
-    const err = rts.some((rt) => rt.error);
-    const badge = !on ? 0 : rts.every((rt) => rt.error && !rt.at) ? '!' : rts.every((rt) => rt.hint) ? '–' : n > 999 ? `${Math.round(n / 1000)}k` : n;
-    const l = g.lead;
-    return `<button class="dk ${on ? 'on' : ''}" style="--c:${l.color}" data-group="${l.id}" aria-pressed="${on}" title="${esc(DOCK_GROUPS[l.id] ? `${l.name}: ${g.members.map((x) => x.name).join(', ')}` : g.members.length > 1 ? 'Kameras: Live-Video und Standbilder' : l.name)}">
-      ${svg(l.icon)}<span>${esc(l.short)}</span><i class="n ${err ? 'err' : ''}">${badge}</i></button>`;
-  }).join('') + '<div class="dk-sep"></div>'
-    + `<button class="dk ${$('#panel').hidden ? '' : 'on'}" data-act="panel" title="Ebenen und Karte">${svg(ICON_LAYERS)}<span>Ebenen</span></button>`
+  $('#dock').innerHTML = DOCK.map(dockButton).join('') + '<div class="dk-sep"></div>'
+    + `<button class="dk ${!$('#panel').hidden && !panelGroup ? 'on' : ''}" data-act="panel" title="Ebenen und Karte">${svg(ICON_LAYERS)}<span>Ebenen</span></button>`
     + `<button class="dk ${favs.size ? 'on' : ''}" style="--c:var(--warn)" data-act="wall" title="Favoriten-Wand">${svg(ICON_WALL)}<span>Wand</span><i class="n">${favs.size}</i></button>`;
 
-  // Kopfzeilen-Zähler: Kameras zusammen, „Sonstige“ einzeln (verschiedene Dinge lassen sich nicht addieren).
-  $('#stats').innerHTML = DOCK.flatMap((g) => (DOCK_GROUPS[g.lead.id] ? g.members.map((l) => ({ lead: l, members: [l] })) : [g])).map((g) => {
+  // Kopfzeilen-Zähler nur für die Hauptebenen (Kameras zusammen); Menü-Ebenen zählt ihr Panel.
+  $('#stats').innerHTML = DOCK.filter((g) => !g.menu).map((g) => {
     const mine = g.members.filter((l) => active.has(l.id) && (runtime.get(l.id).at || runtime.get(l.id).hint));
     if (!mine.length) return '';
     const hint = mine.every((l) => runtime.get(l.id).hint) ? runtime.get(mine[0].id).hint : '';
@@ -461,15 +528,12 @@ function renderChrome() {
   }).join('');
 
   if (!$('#panel').hidden) {
-    $('#panel').innerHTML = `<div class="p-head"><span class="caps">Ebenen</span><button class="ic" data-act="panel" aria-label="Schließen">×</button></div>`
-      + LAYERS.map((l) => {
-        const s = status(l);
-        return `<button class="layer ${active.has(l.id) ? 'on' : ''}" style="--c:${l.color}" data-layer="${l.id}" aria-pressed="${active.has(l.id)}">
-          <i class="bar"></i><span><b>${esc(l.name)}</b><small class="${s.cls}">${esc(s.text)}</small></span>
-          <span class="cnt">${active.has(l.id) ? num(count(l)) : 'aus'}</span></button>`;
-      }).join('')
-      + `<div class="p-sub caps">Karte</div><div class="seg">
-        <button data-base="dark" class="${base === 'dark' ? 'on' : ''}">Dunkel</button><button data-base="sat" class="${base === 'sat' ? 'on' : ''}">Satellit</button></div>`;
+    const menu = panelGroup && DOCK.find((g) => g.menu && g.lead.id === panelGroup);
+    $('#panel').innerHTML = `<div class="p-head"><span class="caps">${esc(menu ? menu.lead.name : 'Ebenen')}</span><button class="ic" data-act="panel-close" aria-label="Schließen">×</button></div>`
+      + (menu ? menu.members.map(layerRow).join('')
+        : LAYERS.map(layerRow).join('')
+          + `<div class="p-sub caps">Karte</div><div class="seg">
+        <button data-base="dark" class="${base === 'dark' ? 'on' : ''}">Dunkel</button><button data-base="sat" class="${base === 'sat' ? 'on' : ''}">Satellit</button></div>`);
   }
 
   const errors = LAYERS.filter((l) => active.has(l.id) && runtime.get(l.id).error);
@@ -515,13 +579,24 @@ async function setBase(kind) {
   renderChrome();
 }
 
+/** Panel öffnen (alle Ebenen oder ein Menü); dieselbe Taste noch einmal schließt es. */
+function openPanel(group) {
+  const same = !$('#panel').hidden && panelGroup === group;
+  panelGroup = group;
+  $('#panel').hidden = same;
+  if (!same) closeDetail();
+  renderChrome();
+}
+
 function onChromeClick(e) {
-  const t = e.target.closest('[data-layer],[data-group],[data-act],[data-base]');
+  const t = e.target.closest('[data-layer],[data-group],[data-menu],[data-act],[data-base]');
   if (!t) return;
   if (t.dataset.group) toggleGroup(t.dataset.group);
+  else if (t.dataset.menu) openPanel(t.dataset.menu);
   else if (t.dataset.layer) toggleLayer(t.dataset.layer);
   else if (t.dataset.base) setBase(t.dataset.base);
-  else if (t.dataset.act === 'panel') { $('#panel').hidden = !$('#panel').hidden; if (!$('#panel').hidden) closeDetail(); renderChrome(); }
+  else if (t.dataset.act === 'panel') openPanel(null);
+  else if (t.dataset.act === 'panel-close') { $('#panel').hidden = true; renderChrome(); }
   else if (t.dataset.act === 'wall') openWall();
 }
 $('#dock').addEventListener('click', onChromeClick);
@@ -793,7 +868,7 @@ let sel = 0;
 
 function searchText(l, f) {
   const p = f.props;
-  return fold([f.label, p.name, p.channel, p.area, p.place, p.callsign, p.reg, p.type, f.id].filter(Boolean).join(' '));
+  return fold([f.label, p.name, p.channel, p.area, p.place, p.callsign, p.reg, p.type, p.title, p.headline, p.event, p.water, p.country, f.id].filter(Boolean).join(' '));
 }
 
 function runSearch() {
@@ -802,7 +877,7 @@ function runSearch() {
   hits = [];
   if (terms.length) {
     for (const l of LAYERS) {
-      if (!active.has(l.id)) continue;
+      if (!active.has(l.id) || l.nocount) continue; // Nacht/Polarlicht: nichts zum Suchen
       for (const f of runtime.get(l.id).features) {
         const t = searchText(l, f);
         if (terms.every((w) => t.includes(w))) hits.push({ l, f, starts: fold(f.label).startsWith(terms[0]) });
