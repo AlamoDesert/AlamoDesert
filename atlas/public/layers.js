@@ -267,6 +267,7 @@ export const LAYERS = [
   },
   {
     id: 'flights',
+    compact: true,
     /** Für die flüssige Darstellung: Geschwindigkeit (km/h), Kurs und Zeitpunkt der Position. */
     motion(f, at) {
       const p = f.props;
@@ -315,6 +316,7 @@ export const LAYERS = [
       return {
         title: esc(p.callsign || p.reg || p.id.toUpperCase()),
         kicker: `Flugzeug${p.type ? ` · ${esc(p.type)}` : ''}`,
+        summary: p.ground ? 'am Boden' : [p.alt_ft === null ? null : `${fmt(p.alt_ft)} ft`, p.speed_kt === null ? null : `${fmt(p.speed_kt * 1.852)} km/h`].filter(Boolean).join(' · '),
         chip: { text: p.squawk && /^7[5-7]00$/.test(p.squawk) ? `Notfall ${esc(p.squawk)}` : 'ADS-B', cls: p.squawk && /^7[5-7]00$/.test(p.squawk) ? 'live' : 'acc' },
         body: '<div class="more">Lädt Foto und Route …</div>'
           + `<dl>${row('Kennzeichen', esc(p.reg))}${row('Typ', esc(p.type))}`
@@ -352,6 +354,9 @@ export const LAYERS = [
         + (plausible ? row('Noch bis Ziel', `${fmt(distKm(pos, [d.lon, d.lat]))} km`) : '')
         + (path.length > 1 ? row('Weg seit Start', `${fmt(path.reduce((s, x, i) => (i ? s + distKm(path[i - 1], x) : 0), 0))} km`) : '');
       return {
+        summary: o || d
+          ? `${airportName(o) || '?'} → ${airportName(d) || '?'}${plausible ? ` · noch ${fmt(distKm(pos, [d.lon, d.lat]))} km` : ' (laut Datenbank, unsicher)'}`
+          : path.length > 1 ? `Route unbekannt · ${fmt(path.reduce((s, x, i) => (i ? s + distKm(path[i - 1], x) : 0), 0))} km seit Start` : null,
         html: photoHtml(a.photo, a.photo_by, a.photo_link, a.photo_link?.includes('planespotters') ? 'planespotters.net' : null) + (rows ? `<dl>${rows}</dl>` : ''),
         overlay: feats,
         every: 30_000
@@ -360,6 +365,7 @@ export const LAYERS = [
   },
   {
     id: 'ships',
+    compact: true,
     name: 'Schiffe',
     short: 'Schiffe',
     color: '#7fe3c4',
@@ -435,6 +441,7 @@ export const LAYERS = [
       return {
         title: esc(p.name || `MMSI ${p.mmsi}`),
         kicker: `Schiff${kind ? ` · ${esc(kind)}` : ''}${p.flag ? ` · ${esc(p.flag)}` : ''}`,
+        summary: [esc(kind), moving ? `${fmt(p.sog, 1)} kn` : 'liegt'].filter(Boolean).join(' · '),
         chip: { text: moving ? `${fmt(p.sog, 1)} kn` : 'liegt', cls: moving ? 'acc' : 'warn' },
         fav: false,
         body: '<div class="more">Lädt Foto, Ziel und Route …</div>'
@@ -473,7 +480,10 @@ export const LAYERS = [
         + row('Rufzeichen', esc(v.callsign)) + row('IMO', v.imo ? esc(v.imo) : null)
         + (path.length > 1 ? row('Weg (letzte Stunden)', `${fmt(path.reduce((s, x, i) => (i ? s + distKm(path[i - 1], x) : 0), 0), 1)} km`) : '');
       const note = feats.length ? '<p class="hint-line">Durchgezogen = bisheriger Weg · gestrichelt = Kurs der nächsten Stunde</p>' : '';
-      return { html: photo + (rows ? `<dl>${rows}</dl>` : '') + note, overlay: feats, every: 60_000 };
+      const km = path.length > 1 ? path.reduce((s, x, i) => (i ? s + distKm(path[i - 1], x) : 0), 0) : 0;
+      const summary = [v.destination ? `Ziel ${esc(v.destination)}` : 'Ziel unbekannt', v.eta ? `ETA ${esc(v.eta)}` : null,
+        km ? `${fmt(km, 1)} km gefahren` : null].filter(Boolean).join(' · ');
+      return { html: photo + (rows ? `<dl>${rows}</dl>` : '') + note, overlay: feats, summary, every: 60_000 };
     }
   },
   {

@@ -119,6 +119,13 @@ function ensureOverlay() {
     paint: { 'line-color': '#dfeef2', 'line-width': 1.6, 'line-opacity': 0.75, 'line-dasharray': [2, 2.5] } });
   map.addLayer({ id: 'lk-overlay-airport', type: 'circle', source: 'lk-overlay', filter: ['==', ['get', 'role'], 'airport'],
     paint: { 'circle-radius': 5, 'circle-color': '#05080c', 'circle-stroke-color': '#19d6e8', 'circle-stroke-width': 2 } });
+  // Das angetippte Objekt selbst: immer sichtbar (auch wenn die Ebene beim Herauszoomen nichts mehr lädt), hervorgehoben.
+  map.addLayer({ id: 'lk-overlay-self-ring', type: 'circle', source: 'lk-overlay', filter: ['==', ['get', 'role'], 'self'],
+    paint: { 'circle-radius': 17, 'circle-color': 'rgba(25,214,232,.12)', 'circle-stroke-color': '#19d6e8', 'circle-stroke-width': 1.5 } });
+  map.addLayer({ id: 'lk-overlay-self', type: 'symbol', source: 'lk-overlay', filter: ['==', ['get', 'role'], 'self'],
+    layout: { 'icon-image': ['get', 'icon'], 'icon-size': 1, 'icon-rotate': ['coalesce', ['get', 'heading'], 0], 'icon-rotation-alignment': 'map',
+      'icon-allow-overlap': true, 'icon-ignore-placement': true },
+    paint: { 'icon-color': '#ffffff', 'icon-halo-color': '#19d6e8', 'icon-halo-width': 2 } });
   if (map.getStyle()?.glyphs) {
     map.addLayer({ id: 'lk-overlay-label', type: 'symbol', source: 'lk-overlay', filter: ['==', ['get', 'role'], 'airport'],
       layout: { 'text-field': ['get', 'label'], 'text-size': 12, 'text-offset': [0, 1.2], 'text-font': ['Noto Sans Bold'], 'text-allow-overlap': true },
@@ -127,7 +134,18 @@ function ensureOverlay() {
 }
 
 function setOverlay(features) {
-  map.getSource('lk-overlay')?.setData({ type: 'FeatureCollection', features });
+  map.getSource('lk-overlay')?.setData({ type: 'FeatureCollection', features: [...features, ...selfMarker()] });
+}
+
+/** Markierung des angetippten Flugzeugs/Schiffs an der hochgerechneten Position. */
+function selfMarker() {
+  if (!current?.l.compact) return [];
+  const pos = currentPos(current.l, current.p.id) || current.pos || current.coords;
+  if (!pos) return [];
+  const st = motion.get(current.l.id)?.get(current.p.id);
+  const heading = st?.f.heading ?? current.p.heading ?? current.p.hdg ?? current.p.cog ?? 0;
+  return [{ type: 'Feature', geometry: { type: 'Point', coordinates: pos },
+    properties: { role: 'self', icon: current.l.id === 'flights' ? 'lk-plane' : 'lk-ship', heading: Number(heading) || 0 } }];
 }
 
 function ensureInstalled(l) {
@@ -239,6 +257,7 @@ function tick(ts) {
   const total = LAYERS.reduce((n, l) => n + (active.has(l.id) && l.motion ? motion.get(l.id)?.size || 0 : 0), 0);
   if (ts - lastFrame < (total > 4000 ? 300 : total > 1500 ? 180 : 110)) return;
   lastFrame = ts;
+  if (current?.l.compact && map.isSourceLoaded('lk-overlay')) setOverlay(current.overlay || []);
   for (const l of LAYERS) {
     if (!l.motion || !active.has(l.id) || !motion.get(l.id)?.size) continue;
     if (l.live && !runtime.get(l.id).liveOn) continue;
@@ -560,7 +579,12 @@ async function loadMore() {
     if (run !== moreRun || !current) return;
     const box = $('#detail .more');
     if (box && r.html !== undefined) box.innerHTML = r.html;
+    if (r.summary) { const el = $('#detail .sum'); if (el) el.innerHTML = r.summary; }
     setOverlay(r.overlay || []);
+    current.overlay = r.overlay || [];
+    current.pos = pos;
+    // Beim ersten Laden die ganze Route ins Bild holen
+    if (!current.fitted && current.overlay.length) { current.fitted = true; fitRoute(); }
     if (r.every) moreTimer = setTimeout(loadMore, r.every);
   } catch {
     if (run === moreRun) { const box = $('#detail .more'); if (box) box.innerHTML = '<p class="noimg">Details gerade nicht abrufbar</p>'; }
@@ -578,16 +602,40 @@ function showDetail(l, props, coords) {
   current = { l, p, coords };
   const fav = d.fav ? `<button class="ic fav ${favs.has(favKey(l, p)) ? 'on' : ''}" data-act="fav" aria-label="Favorit" title="Auf die Wand legen">★</button>` : '';
   const [lon, lat] = coords || [];
+  // Flugzeuge/Schiffe: erst kompakt (Name, eine Zeile, Route/Details), damit die Karte mit der Route sichtbar bleibt.
+  const sum = l.compact ? `<div class="d-sum"><p class="sum">${d.summary || ''}</p><div class="d-act">
+      <button class="btn" data-act="route">Route</button><button class="btn ghost" data-act="expand">Details ▾</button></div></div>` : '';
   $('#detail').innerHTML = `<div class="d-head"><span class="caps">${d.kicker || esc(l.name)}</span>${fav}
       <button class="ic" data-act="close" aria-label="Schließen">×</button></div>
-    <div class="d-body"><div class="d-title"><h2>${d.title}</h2>${d.chip ? `<span class="chip ${d.chip.cls}">${d.chip.text}</span>` : ''}</div>${d.body}
+    <div class="d-body"><div class="d-title"><h2>${d.title}</h2>${d.chip ? `<span class="chip ${d.chip.cls}">${d.chip.text}</span>` : ''}</div>${sum}${d.body}
     ${coords ? `<div class="coords"><span>${lat.toFixed(4)}° N · ${lon.toFixed(4)}° E</span><span>${esc(l.name)}</span></div>` : ''}</div>`;
+  $('#detail').classList.toggle('compact', Boolean(l.compact));
   $('#detail').hidden = false;
   $('#panel').hidden = true;
   startImages($('#detail'));
   setOverlay([]);
   loadMore();
   renderChrome();
+}
+
+/** Ausschnitt so wählen, dass Weg und Route ganz zu sehen sind – neben bzw. über der Infokarte, nicht darunter. */
+function fitRoute() {
+  if (!current) return;
+  const pts = [current.pos || current.coords];
+  for (const f of current.overlay || []) {
+    if (f.geometry.type === 'Point') pts.push(f.geometry.coordinates);
+    else pts.push(...f.geometry.coordinates);
+  }
+  const ok = pts.filter((c) => Array.isArray(c) && Number.isFinite(c[0]) && Number.isFinite(c[1]));
+  if (!ok.length) return;
+  const b = new maplibregl.LngLatBounds(ok[0], ok[0]);
+  for (const c of ok) b.extend(c);
+  const r = $('#detail').getBoundingClientRect();
+  const mobile = innerWidth <= 760;
+  const pad = mobile
+    ? { top: 76, left: 30, right: 30, bottom: Math.max(90, innerHeight - r.top + 24) }
+    : { top: 76, bottom: 50, right: 100, left: Math.min(innerWidth / 2, r.right + 30) };
+  map.fitBounds(b, { padding: pad, maxZoom: 11, duration: 900 });
 }
 
 function closeDetail() {
@@ -616,6 +664,12 @@ function toggleFav(btn) {
 $('#detail').addEventListener('click', (e) => {
   const act = e.target.closest('[data-act]')?.dataset.act;
   if (act === 'close') return closeDetail();
+  if (act === 'route') return fitRoute();
+  if (act === 'expand') {
+    const open = $('#detail').classList.toggle('compact') === false;
+    e.target.closest('[data-act]').textContent = open ? 'Weniger ▴' : 'Details ▾';
+    return;
+  }
   if (act === 'fav') return toggleFav(e.target.closest('[data-act]'));
   const btn = e.target.closest('button.player');
   if (btn) playVideo(btn);
