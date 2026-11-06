@@ -190,6 +190,17 @@ function pointLayers(map, src, color, { radius = [5, 5, 14, 8] } = {}) {
   });
 }
 
+/** Dock-Tasten ohne eigene Ebene: Ebenen mit `group: '<id>'` laufen darunter (Zähler addiert, Taste schaltet alle). */
+export const DOCK_GROUPS = {
+  misc: {
+    id: 'misc',
+    name: 'Sonstige Ebenen',
+    short: 'Sonstige',
+    color: '#a7b4c2',
+    icon: '<circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/>'
+  }
+};
+
 export const LAYERS = [
   {
     id: 'live',
@@ -515,6 +526,7 @@ export const LAYERS = [
   },
   {
     id: 'quakes',
+    group: 'misc',
     name: 'Erdbeben',
     short: 'Beben',
     color: '#ffb02e',

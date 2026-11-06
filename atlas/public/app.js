@@ -1,5 +1,5 @@
 /* Live Karten – Oberfläche: Karte, Ebenen-Leiste, Abfragetakt, Detailkarte, Suche, Favoriten-Wand. */
-import { LAYERS, EMBED_HOSTS, esc } from './layers.js';
+import { LAYERS, DOCK_GROUPS, EMBED_HOSTS, esc } from './layers.js';
 
 const STORE = 'livekarten.v1';
 const OFM = '<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
@@ -422,8 +422,17 @@ function status(l) {
   return { text: rt.note ? `${ago(rt.at)} · ${rt.note}` : ago(rt.at), cls: rt.note ? 'hint' : '' };
 }
 
-/** Dock-Gruppen: Ebenen mit `group` laufen unter der Ebene mit dieser id (Livestreams unter „Kameras“). */
-const DOCK = LAYERS.filter((l) => !l.group).map((l) => ({ lead: l, members: [l, ...LAYERS.filter((x) => x.group === l.id)] }));
+/** Dock-Tasten in Ebenen-Reihenfolge: eine Ebene samt ihrer Gruppenmitglieder (Livestreams unter „Kameras“)
+    oder eine reine Gruppe aus DOCK_GROUPS (Erdbeben unter „Sonstige“). */
+const DOCK = [];
+for (const l of LAYERS) {
+  if (!l.group) DOCK.push({ lead: l, members: [l, ...LAYERS.filter((x) => x.group === l.id)] });
+  else if (DOCK_GROUPS[l.group] && !DOCK.some((g) => g.lead.id === l.group)) {
+    DOCK.push({ lead: DOCK_GROUPS[l.group], members: LAYERS.filter((x) => x.group === l.group) });
+  }
+}
+// Gruppen ans Ende des Dock (vor „Ebenen“/„Wand“)
+DOCK.sort((a, b) => Number(Boolean(DOCK_GROUPS[a.lead.id])) - Number(Boolean(DOCK_GROUPS[b.lead.id])));
 const groupOn = (g) => g.members.some((l) => active.has(l.id));
 
 function renderChrome() {
@@ -436,13 +445,14 @@ function renderChrome() {
     const err = rts.some((rt) => rt.error);
     const badge = !on ? 0 : rts.every((rt) => rt.error && !rt.at) ? '!' : rts.every((rt) => rt.hint) ? '–' : n > 999 ? `${Math.round(n / 1000)}k` : n;
     const l = g.lead;
-    return `<button class="dk ${on ? 'on' : ''}" style="--c:${l.color}" data-group="${l.id}" aria-pressed="${on}" title="${esc(g.members.length > 1 ? 'Kameras: Live-Video und Standbilder' : l.name)}">
+    return `<button class="dk ${on ? 'on' : ''}" style="--c:${l.color}" data-group="${l.id}" aria-pressed="${on}" title="${esc(DOCK_GROUPS[l.id] ? `${l.name}: ${g.members.map((x) => x.name).join(', ')}` : g.members.length > 1 ? 'Kameras: Live-Video und Standbilder' : l.name)}">
       ${svg(l.icon)}<span>${esc(l.short)}</span><i class="n ${err ? 'err' : ''}">${badge}</i></button>`;
   }).join('') + '<div class="dk-sep"></div>'
     + `<button class="dk ${$('#panel').hidden ? '' : 'on'}" data-act="panel" title="Ebenen und Karte">${svg(ICON_LAYERS)}<span>Ebenen</span></button>`
     + `<button class="dk ${favs.size ? 'on' : ''}" style="--c:var(--warn)" data-act="wall" title="Favoriten-Wand">${svg(ICON_WALL)}<span>Wand</span><i class="n">${favs.size}</i></button>`;
 
-  $('#stats').innerHTML = DOCK.map((g) => {
+  // Kopfzeilen-Zähler: Kameras zusammen, „Sonstige“ einzeln (verschiedene Dinge lassen sich nicht addieren).
+  $('#stats').innerHTML = DOCK.flatMap((g) => (DOCK_GROUPS[g.lead.id] ? g.members.map((l) => ({ lead: l, members: [l] })) : [g])).map((g) => {
     const mine = g.members.filter((l) => active.has(l.id) && (runtime.get(l.id).at || runtime.get(l.id).hint));
     if (!mine.length) return '';
     const hint = mine.every((l) => runtime.get(l.id).hint) ? runtime.get(mine[0].id).hint : '';
