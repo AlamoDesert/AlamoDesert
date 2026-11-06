@@ -3,7 +3,10 @@
 
 // Muss zu CELL in netlify/functions/feed/sources.mts passen.
 const CELL = 4;
-const MAX_CELLS = 16;
+// Bis FULL_CELLS Zellen wird der ganze Ausschnitt alle 10 s geladen; weiter herausgezoomt die MAX_CELLS Zellen
+// um die Kartenmitte, seltener – sonst zu viele Abfragen bei den freien Quellen.
+const FULL_CELLS = 16;
+const MAX_CELLS = 48;
 
 export const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const safeUrl = (u) => (typeof u === 'string' && /^https:\/\//.test(u) ? u : null);
@@ -13,22 +16,27 @@ function row(label, value) {
   return value === null || value === undefined || value === '' ? '' : `<dt>${esc(label)}</dt><dd>${value}</dd>`;
 }
 
-/** Zellmittelpunkte (4°-Gitter), die den Kartenausschnitt abdecken; null, wenn es zu viele wären. */
+/** Zellmittelpunkte (4°-Gitter), die den Kartenausschnitt abdecken, die Mitte zuerst; höchstens MAX_CELLS.
+    `partial` = Ausschnitt größer, nur die Zellen um die Mitte. */
 export function cellsFor(bounds) {
   const south = Math.max(-88, bounds.getSouth());
   const north = Math.min(88, bounds.getNorth());
   let west = bounds.getWest();
   let east = bounds.getEast();
   if (east - west >= 360) { west = -180; east = 180; }
-  const cells = new Set();
+  const midLat = (south + north) / 2, midLon = (west + east) / 2;
+  const cells = new Map();
   for (let la = Math.floor(south / CELL) * CELL; la < north; la += CELL) {
     for (let lo = Math.floor(west / CELL) * CELL; lo < east; lo += CELL) {
       const lon = ((((lo + CELL / 2) + 180) % 360) + 360) % 360 - 180; // über die Datumsgrenze hinweg normalisieren
-      cells.add(`${la + CELL / 2},${lon}`);
-      if (cells.size > MAX_CELLS) return null;
+      const key = `${la + CELL / 2},${lon}`;
+      // Abstand zur Mitte in Grad, Längengrade mit dem Breitengrad gestaucht
+      const d = Math.hypot(la + CELL / 2 - midLat, (lo + CELL / 2 - midLon) * Math.cos((la + CELL / 2) * Math.PI / 180));
+      if (!cells.has(key) || cells.get(key) > d) cells.set(key, d);
     }
   }
-  return [...cells];
+  const sorted = [...cells].sort((a, b) => a[1] - b[1]).map(([k]) => k);
+  return { cells: sorted.slice(0, MAX_CELLS), partial: sorted.length > MAX_CELLS, full: sorted.length <= FULL_CELLS };
 }
 
 /** Flugzeug-Symbol als SDF-Bild (einfärbbar über icon-color), Nase zeigt nach oben = Norden. */
@@ -185,7 +193,8 @@ function pointLayers(map, src, color, { radius = [5, 5, 14, 8] } = {}) {
 export const LAYERS = [
   {
     id: 'live',
-    name: 'Livestreams',
+    group: 'cams', // läuft im Dock unter „Kameras“
+    name: 'Kameras · Video',
     short: 'Live',
     color: COLORS.live,
     icon: '<path d="M3.5 7.5h11v9h-11z"/><path d="M14.5 10.5 20.5 7v10l-6-3.5"/>',
@@ -227,7 +236,7 @@ export const LAYERS = [
   },
   {
     id: 'cams',
-    name: 'Kameras',
+    name: 'Kameras · Standbild',
     short: 'Kameras',
     color: COLORS.image,
     icon: '<path d="M4 8.5h3.2l1.8-2.5h6l1.8 2.5H20v10H4z"/><circle cx="12" cy="13.3" r="3.2"/>',
@@ -281,13 +290,16 @@ export const LAYERS = [
     attribution: 'Flugdaten: <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a> (ODbL) / <a href="https://airplanes.live" target="_blank" rel="noopener">airplanes.live</a>',
     desc: 'ADS-B-Positionen, alle 10 s',
     refresh: 10_000,
-    minzoom: 5,
+    minzoom: 3,
     viewport: true,
     requests(map) {
       if (map.getZoom() < this.minzoom) return { hint: 'Zum Anzeigen näher heranzoomen' };
-      const cells = cellsFor(map.getBounds());
-      if (!cells) return { hint: 'Ausschnitt zu groß – näher heranzoomen' };
-      return { queries: cells.map((c) => `cell=${c}`) };
+      const { cells, partial, full } = cellsFor(map.getBounds());
+      return {
+        queries: cells.map((c) => `cell=${c}`),
+        every: full ? this.refresh : 30_000,
+        note: partial ? 'nur um die Kartenmitte – für alles näher heranzoomen' : null
+      };
     },
     install(map, src) {
       if (!map.hasImage('lk-plane')) map.addImage('lk-plane', planeImage(), { sdf: true, pixelRatio: 2 });
@@ -295,7 +307,7 @@ export const LAYERS = [
         id: `${src}-sym`, type: 'symbol', source: src,
         layout: {
           'icon-image': 'lk-plane',
-          'icon-size': ['interpolate', ['linear'], ['zoom'], 5, 0.55, 10, 0.9],
+          'icon-size': ['interpolate', ['linear'], ['zoom'], 3, 0.4, 5, 0.55, 10, 0.9],
           'icon-rotate': ['coalesce', ['get', 'heading'], 0],
           'icon-rotation-alignment': 'map',
           'icon-allow-overlap': true,

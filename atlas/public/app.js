@@ -4,7 +4,7 @@ import { LAYERS, EMBED_HOSTS, esc } from './layers.js';
 const STORE = 'livekarten.v1';
 const OFM = '<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
 const ESRI = 'Satellit: <a href="https://www.esri.com" target="_blank" rel="noopener">Esri</a>, Maxar, Earthstar Geographics, GIS User Community';
-const CONCURRENCY = 4;
+const CONCURRENCY = 6;
 const FETCH_TIMEOUT = 15_000;
 
 const $ = (s) => document.querySelector(s);
@@ -330,6 +330,8 @@ async function refresh(l) {
 
   const plan = l.requests(map);
   rt.hint = plan.hint || null;
+  rt.note = plan.note || null;
+  const every = plan.every || l.refresh;
   if (!plan.queries) {
     rt.features = [];
     rt.error = null;
@@ -358,7 +360,7 @@ async function refresh(l) {
       : `${failed.length === results.length ? 'Quelle nicht erreichbar' : `${failed.length} von ${results.length} Bereichen fehlen`}: ${failed[0].error.message}`
     : null;
   render(l);
-  rt.timer = setTimeout(() => refresh(l), l.refresh);
+  rt.timer = setTimeout(() => refresh(l), every);
 }
 
 /** Genaue Liste des Ausschnitts holen, wenn nah genug herangezoomt; sonst zeigen die Kacheln die Übersicht. */
@@ -416,21 +418,37 @@ function status(l) {
   // Feste Listen: Stand der letzten Prüfung statt „vor n h“.
   if (l.fixed) return { text: `geprüft am ${new Date(rt.at).toLocaleDateString('de-DE')}`, cls: '' };
   if (rt.error) return { text: `${ago(rt.at)} · ${rt.error}`, cls: 'err' };
-  return { text: rt.stale ? `${ago(rt.at)} · Quelle hängt, ältere Daten` : ago(rt.at), cls: rt.stale ? 'hint' : '' };
+  if (rt.stale) return { text: `${ago(rt.at)} · Quelle hängt, ältere Daten`, cls: 'hint' };
+  return { text: rt.note ? `${ago(rt.at)} · ${rt.note}` : ago(rt.at), cls: rt.note ? 'hint' : '' };
 }
+
+/** Dock-Gruppen: Ebenen mit `group` laufen unter der Ebene mit dieser id (Livestreams unter „Kameras“). */
+const DOCK = LAYERS.filter((l) => !l.group).map((l) => ({ lead: l, members: [l, ...LAYERS.filter((x) => x.group === l.id)] }));
+const groupOn = (g) => g.members.some((l) => active.has(l.id));
 
 function renderChrome() {
   const count = (l) => runtime.get(l.id).features.length;
-  $('#dock').innerHTML = LAYERS.map((l) => {
-    const rt = runtime.get(l.id);
-    return `<button class="dk ${active.has(l.id) ? 'on' : ''}" style="--c:${l.color}" data-layer="${l.id}" aria-pressed="${active.has(l.id)}" title="${esc(l.name)}">
-      ${svg(l.icon)}<span>${esc(l.short)}</span><i class="n ${rt.error ? 'err' : ''}">${rt.error && !rt.at ? '!' : rt.hint ? '–' : count(l) > 999 ? `${Math.round(count(l) / 1000)}k` : count(l)}</i></button>`;
+  $('#dock').innerHTML = DOCK.map((g) => {
+    const on = groupOn(g);
+    const mine = g.members.filter((l) => active.has(l.id));
+    const rts = mine.map((l) => runtime.get(l.id));
+    const n = mine.reduce((s, l) => s + count(l), 0);
+    const err = rts.some((rt) => rt.error);
+    const badge = !on ? 0 : rts.every((rt) => rt.error && !rt.at) ? '!' : rts.every((rt) => rt.hint) ? '–' : n > 999 ? `${Math.round(n / 1000)}k` : n;
+    const l = g.lead;
+    return `<button class="dk ${on ? 'on' : ''}" style="--c:${l.color}" data-group="${l.id}" aria-pressed="${on}" title="${esc(g.members.length > 1 ? 'Kameras: Live-Video und Standbilder' : l.name)}">
+      ${svg(l.icon)}<span>${esc(l.short)}</span><i class="n ${err ? 'err' : ''}">${badge}</i></button>`;
   }).join('') + '<div class="dk-sep"></div>'
     + `<button class="dk ${$('#panel').hidden ? '' : 'on'}" data-act="panel" title="Ebenen und Karte">${svg(ICON_LAYERS)}<span>Ebenen</span></button>`
     + `<button class="dk ${favs.size ? 'on' : ''}" style="--c:var(--warn)" data-act="wall" title="Favoriten-Wand">${svg(ICON_WALL)}<span>Wand</span><i class="n">${favs.size}</i></button>`;
 
-  $('#stats').innerHTML = LAYERS.filter((l) => active.has(l.id) && (runtime.get(l.id).at || runtime.get(l.id).hint))
-    .map((l) => `<div class="stat glass" style="--c:${l.color}" title="${esc(runtime.get(l.id).hint || '')}"><b>${runtime.get(l.id).hint ? '–' : num(count(l))}</b><span><i></i>${esc(l.name)}</span></div>`).join('');
+  $('#stats').innerHTML = DOCK.map((g) => {
+    const mine = g.members.filter((l) => active.has(l.id) && (runtime.get(l.id).at || runtime.get(l.id).hint));
+    if (!mine.length) return '';
+    const hint = mine.every((l) => runtime.get(l.id).hint) ? runtime.get(mine[0].id).hint : '';
+    const label = g.members.length > 1 ? g.lead.short : g.lead.name;
+    return `<div class="stat glass" style="--c:${g.lead.color}" title="${esc(hint)}"><b>${hint ? '–' : num(mine.reduce((s, l) => s + count(l), 0))}</b><span><i></i>${esc(label)}</span></div>`;
+  }).join('');
 
   if (!$('#panel').hidden) {
     $('#panel').innerHTML = `<div class="p-head"><span class="caps">Ebenen</span><button class="ic" data-act="panel" aria-label="Schließen">×</button></div>`
@@ -449,15 +467,30 @@ function renderChrome() {
   $('#sys').textContent = !navigator.onLine ? 'Offline' : errors.length ? `${errors.length} Quelle${errors.length > 1 ? 'n' : ''} gestört` : 'System online';
 }
 
+function setLayer(l, on) {
+  if (on === active.has(l.id)) return;
+  if (on) active.add(l.id); else active.delete(l.id);
+  setVisible(l, on);
+  if (on) refresh(l); else { clearTimeout(runtime.get(l.id).timer); runtime.get(l.id).ctrl?.abort(); }
+}
+
 function toggleLayer(id) {
   const l = LAYERS.find((x) => x.id === id);
   if (!l) return;
-  const on = !active.has(id);
-  if (on) active.add(id); else active.delete(id);
+  setLayer(l, !active.has(id));
   prefs.layers = [...active];
   save();
-  setVisible(l, on);
-  if (on) refresh(l); else { clearTimeout(runtime.get(id).timer); runtime.get(id).ctrl?.abort(); }
+  renderChrome();
+}
+
+/** Dock-Taste: alle Ebenen der Gruppe gemeinsam an bzw. aus (an, sobald eine aus ist und keine läuft). */
+function toggleGroup(id) {
+  const g = DOCK.find((x) => x.lead.id === id);
+  if (!g) return;
+  const on = !groupOn(g);
+  for (const l of g.members) setLayer(l, on);
+  prefs.layers = [...active];
+  save();
   renderChrome();
 }
 
@@ -473,9 +506,10 @@ async function setBase(kind) {
 }
 
 function onChromeClick(e) {
-  const t = e.target.closest('[data-layer],[data-act],[data-base]');
+  const t = e.target.closest('[data-layer],[data-group],[data-act],[data-base]');
   if (!t) return;
-  if (t.dataset.layer) toggleLayer(t.dataset.layer);
+  if (t.dataset.group) toggleGroup(t.dataset.group);
+  else if (t.dataset.layer) toggleLayer(t.dataset.layer);
   else if (t.dataset.base) setBase(t.dataset.base);
   else if (t.dataset.act === 'panel') { $('#panel').hidden = !$('#panel').hidden; if (!$('#panel').hidden) closeDetail(); renderChrome(); }
   else if (t.dataset.act === 'wall') openWall();
