@@ -480,6 +480,28 @@ export const SOURCES: Record<string, Source> = {
     urls(key) { return [CAM_PROVIDERS[key].url]; },
     parse(json, key) { return CAM_PROVIDERS[key].parse(json, key); }
   },
+  // Flug weltweit finden: genaues Rufzeichen oder Kennzeichen (adsb.lol kennt keine Teilsuche). Beide Abfragen zugleich.
+  find: {
+    id: 'find',
+    ttl: 10,
+    parts: true,
+    key(params) {
+      const q = (params.get('q') || '').trim().toUpperCase();
+      if (!/^[A-Z0-9][A-Z0-9-]{1,9}$/.test(q)) throw new ParamError('q muss ein Rufzeichen oder Kennzeichen sein (2–10 Zeichen A–Z, 0–9, -)');
+      return q;
+    },
+    urls(q) {
+      return [`https://api.adsb.lol/v2/callsign/${encodeURIComponent(q)}`, `https://api.adsb.lol/v2/reg/${encodeURIComponent(q)}`];
+    },
+    parse(parts) {
+      const byId = new Map<string, Feature>();
+      for (const part of Array.isArray(parts) ? parts : []) {
+        if (part === null) continue;
+        for (const f of parseReadsb(part)) byId.set(f.id, f);
+      }
+      return [...byId.values()];
+    }
+  },
   warn: {
     id: 'warn',
     ttl: 300,

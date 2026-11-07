@@ -1102,36 +1102,114 @@ function searchText(l, f) {
   return fold([f.label, p.name, p.channel, p.area, p.place, p.callsign, p.reg, p.type, p.title, p.headline, p.event, p.water, p.country, f.id].filter(Boolean).join(' '));
 }
 
-function runSearch() {
-  const q = fold($('#q').value.trim());
-  const terms = q.split(/\s+/).filter(Boolean);
-  hits = [];
-  if (terms.length) {
-    for (const l of LAYERS) {
-      if (!active.has(l.id) || l.nocount) continue; // Nacht/Polarlicht: nichts zum Suchen
-      for (const f of runtime.get(l.id).features) {
-        const t = searchText(l, f);
-        if (terms.every((w) => t.includes(w))) hits.push({ l, f, starts: fold(f.label).startsWith(terms[0]) });
-        if (hits.length > 400) break;
-      }
+/* Suche: zuerst was geladen ist (sofort), dann weltweit nachgeladen – Schiffe nach Namen/MMSI (Open Waters),
+   Flüge nach genauem Rufzeichen/Kennzeichen (adsb.lol über den Proxy) und Orte (Photon/OpenStreetMap). */
+let searchRun = 0;
+let searchTimer = 0;
+let searchCtrl = null;
+let remote = { ships: [], flights: [], places: [], busy: false };
+
+function localHits(terms) {
+  const out = [];
+  for (const l of LAYERS) {
+    if (!active.has(l.id) || l.nocount) continue; // Polarlicht: nichts zum Suchen
+    for (const f of runtime.get(l.id).features) {
+      const t = searchText(l, f);
+      if (terms.every((w) => t.includes(w))) out.push({ l, f, starts: fold(f.label).startsWith(terms[0]) });
+      if (out.length > 400) break;
     }
-    hits.sort((a, b) => (b.starts - a.starts) || LAYERS.indexOf(a.l) - LAYERS.indexOf(b.l) || a.f.label.localeCompare(b.f.label, 'de'));
-    hits = hits.slice(0, 40);
   }
+  out.sort((a, b) => (b.starts - a.starts) || LAYERS.indexOf(a.l) - LAYERS.indexOf(b.l) || a.f.label.localeCompare(b.f.label, 'de'));
+  return out.slice(0, 30);
+}
+
+async function remoteSearch(raw, run) {
+  const L = (id) => LAYERS.find((l) => l.id === id);
+  const c = map.getCenter();
+  searchCtrl?.abort();
+  const ctrl = new AbortController();
+  searchCtrl = ctrl;
+  const json = async (url) => {
+    const res = await fetch(url, { signal: ctrl.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  };
+  const ships = raw.length >= 2
+    ? json(`https://ais.openwaters.io/v1/vessels?q=${encodeURIComponent(raw)}&around=${c.lat.toFixed(2)},${c.lng.toFixed(2)}`)
+      // Nur Schiffsstationen (MMSI 2xx–7xx), keine Rettungsboote/Funkbaken (97x/98x/99x)
+      .then((fc) => L('ships').live.parse(fc).filter((f) => /^[2-7]\d{8}$/.test(String(f.props.mmsi))).slice(0, 15)).catch(() => [])
+    : Promise.resolve([]);
+  const flights = /^[a-z0-9][a-z0-9-]{1,9}$/i.test(raw)
+    ? json(`/api/feed/find?q=${encodeURIComponent(raw)}`).then((r) => r.features || []).catch(() => [])
+    : Promise.resolve([]);
+  // Orte nur für Wörter – bei Rufzeichen/MMSI liefert der Ortsdienst nur Zufallstreffer
+  const places = raw.length >= 3 && !/\d/.test(raw)
+    ? json(`https://photon.komoot.io/api/?q=${encodeURIComponent(raw)}&limit=5&lang=de&lat=${c.lat.toFixed(2)}&lon=${c.lng.toFixed(2)}`)
+      .then((fc) => (fc.features || []).filter((f) => f.geometry?.type === 'Point').map((f) => {
+        const p = f.properties || {};
+        return { name: p.name || p.street || raw, sub: [p.city !== p.name ? p.city : null, p.state, p.country].filter(Boolean).join(', '),
+          center: f.geometry.coordinates, extent: Array.isArray(p.extent) ? p.extent : null };
+      })).catch(() => [])
+    : Promise.resolve([]);
+  remote.busy = true;
+  const [s, f, pl] = await Promise.all([ships, flights, places]);
+  if (run !== searchRun) return;
+  remote = { ships: s, flights: f, places: pl, busy: false };
+  renderSearch();
+}
+
+function runSearch() {
+  const raw = $('#q').value.trim();
+  const run = ++searchRun;
+  remote = { ships: [], flights: [], places: [], busy: raw.length >= 2 };
+  clearTimeout(searchTimer);
+  searchCtrl?.abort();
+  if (raw.length >= 2) searchTimer = setTimeout(() => remoteSearch(raw, run), 300);
+  renderSearch();
+}
+
+function renderSearch() {
+  const raw = $('#q').value.trim();
+  const terms = fold(raw).split(/\s+/).filter(Boolean);
+  const L = (id) => LAYERS.find((l) => l.id === id);
+  const local = terms.length ? localHits(terms) : [];
+  const seen = new Set(local.map((h) => `${h.l.id}:${h.f.id}`));
+  const world = [
+    ...remote.flights.map((f) => ({ l: L('flights'), f, world: true })),
+    ...remote.ships.map((f) => ({ l: L('ships'), f, world: true }))
+  ].filter((h) => !seen.has(`${h.l.id}:${h.f.id}`));
+  // Eine Liste: Name beginnt mit dem Suchwort zuerst (AIDA-Schiffe vor dem Kennzeichen D-AIDA), dann Geladenes vor Weltweitem
+  const score = (h) => (fold(h.f.label).startsWith(terms[0] || '') ? 2 : 0) + (h.world ? 0 : 1);
+  const things = [...local, ...world].map((h, n) => ({ h, n, sc: score(h) })).sort((a, b) => b.sc - a.sc || a.n - b.n).map((x) => x.h).slice(0, 40);
+  hits = [...things, ...remote.places.map((p) => ({ place: p }))];
   sel = 0;
+  const row = (h, i) => h.place
+    ? `<button class="r" style="--c:var(--muted)" data-i="${i}"><i></i><span>${esc(h.place.name)}<small>${esc(h.place.sub)}</small></span><em>Ort</em></button>`
+    : `<button class="r" style="--c:${h.l.color}" data-i="${i}"><i></i>
+        <span>${esc(h.f.label)}${h.world ? ' <b class="r-w">weltweit</b>' : ''}<small>${esc(h.f.props.channel || h.f.props.area || h.f.props.place || h.f.props.destination || (typeof h.f.props.type === 'string' ? h.f.props.type : '') || (h.f.props.mmsi ? `MMSI ${h.f.props.mmsi}` : ''))}</small></span><em>${esc(h.l.short)}</em></button>`;
+  const head = (t) => `<div class="r-head">${t}</div>`;
+  let i = 0;
+  const block = (title, list) => (list.length ? head(title) + list.map((h) => row(h, i++)).join('') : '');
+  const html = block('Treffer', things) + block('Orte', hits.filter((h) => h.place));
   $('#results').innerHTML = !terms.length
-    ? '<p class="r-empty">Sucht in allen eingeschalteten Ebenen: Livestreams, Kameras, Flüge (Rufzeichen, Kennzeichen), Erdbeben.</p>'
-    : hits.length
-      ? hits.map((h, i) => `<button class="r ${i === sel ? 'sel' : ''}" style="--c:${h.l.color}" data-i="${i}"><i></i>
-          <span>${esc(h.f.label)}<small>${esc(h.f.props.channel || h.f.props.area || h.f.props.place || (typeof h.f.props.type === 'string' ? h.f.props.type : '') || (h.f.props.mmsi ? `MMSI ${h.f.props.mmsi}` : ''))}</small></span><em>${esc(h.l.short)}</em></button>`).join('')
-      : '<p class="r-empty">Nichts gefunden – nur eingeschaltete Ebenen werden durchsucht.</p>';
+    ? '<p class="r-empty">Schiffe (Name, MMSI), Flüge (Rufzeichen wie DLH4AB, Kennzeichen wie D-AIBA), Kameras, Livestreams und Orte.</p>'
+    : html + (remote.busy ? '<p class="r-empty">Sucht weltweit …</p>' : html ? '' : '<p class="r-empty">Nichts gefunden.</p>');
+  $('#results').querySelector('.r')?.classList.add('sel');
 }
 
 function pick(i) {
   const h = hits[i];
   if (!h) return;
   closeSearch();
-  map.flyTo({ center: [h.f.lon, h.f.lat], zoom: Math.max(map.getZoom(), h.l.id === 'flights' ? 9 : 13), speed: 1.6 });
+  if (h.place) {
+    const e = h.place.extent;
+    if (e && e[0] !== e[2]) map.fitBounds([[e[0], e[3]], [e[2], e[1]]], { padding: 40, maxZoom: 14, speed: 1.6 });
+    else map.flyTo({ center: h.place.center, zoom: Math.max(map.getZoom(), 13), speed: 1.6 });
+    return;
+  }
+  // Treffer aus der weltweiten Suche: Ebene dafür einschalten
+  if (!active.has(h.l.id)) { setLayer(h.l, true); prefs.layers = [...active]; save(); renderChrome(); }
+  map.flyTo({ center: [h.f.lon, h.f.lat], zoom: Math.max(map.getZoom(), h.l.id === 'flights' ? 8 : h.l.id === 'ships' ? 10 : 13), speed: 1.6 });
   showDetail(h.l, { ...h.f.props, id: h.f.id, label: h.f.label, heading: h.f.heading }, [h.f.lon, h.f.lat]);
 }
 

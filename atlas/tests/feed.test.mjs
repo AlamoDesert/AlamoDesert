@@ -269,3 +269,14 @@ test('parsePegel: nur Stationen mit Position und aktuellem Wasserstand', () => {
   assert.throws(() => parsePegel({}), /Liste erwartet/);
 });
 
+
+test('Flugsuche: Rufzeichen und Kennzeichen zugleich, Treffer zusammengeführt, nur gültige Eingaben', async () => {
+  const { get, calls } = setup((url) => okJson(url.includes('/callsign/') ? READSB : { ac: [READSB.ac[0]] }));
+  assert.equal((await get('/api/feed/find?q=a')).status, 400);
+  assert.equal((await get('/api/feed/find?q=DLH%2F1')).status, 400);
+  assert.equal(calls.length, 0);
+  const r = await get('/api/feed/find?q=dlh4ab');
+  assert.equal(r.status, 200);
+  assert.deepEqual(calls, ['https://api.adsb.lol/v2/callsign/DLH4AB', 'https://api.adsb.lol/v2/reg/DLH4AB']);
+  assert.equal(r.body.features.length, 2, 'doppeltes Flugzeug nur einmal');
+});
