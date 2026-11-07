@@ -543,7 +543,11 @@ export const LAYERS = [
       const summary = sea
         ? `→ ${esc(port.name)} · noch ${fmt(sea.km)} km${typeof sog === 'number' && sog >= 0.5 ? ` · ca. ${fmt(sea.km / (sog * 1.852), 1)} h` : ''}${km ? ` · ${fmt(km, 1)} km gefahren` : ''}`
         : [v.destination ? `Ziel ${esc(v.destination)}` : 'Ziel unbekannt', v.eta ? `ETA ${esc(v.eta)}` : null, km ? `${fmt(km, 1)} km gefahren` : null].filter(Boolean).join(' · ');
-      return { html: photo + (rows ? `<dl>${rows}</dl>` : '') + note, overlay: feats, summary, every: 60_000 };
+      // Zum Hochrechnen zwischen den Abfragen (Weg und Route folgen dem Schiff, auch ohne Live-Liste)
+      const t0 = Date.parse(v.seen) || Date.now();
+      const at = typeof sog === 'number' && sog >= 0.5 && sog < 60 && typeof cog === 'number' && cog < 360
+        ? { pos: now, kmh: sog * 1.852, course: cog, t0, max: 15 * 60_000 } : null;
+      return { html: photo + (rows ? `<dl>${rows}</dl>` : '') + note, overlay: feats, summary, every: 60_000, at };
     }
   },
   /* ---------- Wetter ---------- */

@@ -153,7 +153,7 @@ function setOverlay(features) {
     hochgerechneten Position von jetzt – sonst klaffen sie bis zum nächsten Nachladen (30–60 s) auseinander. */
 function follow(features) {
   if (!current?.l.compact || !features.length) return features;
-  const pos = currentPos(current.l, current.p.id);
+  const pos = objPos();
   if (!pos) return features;
   return features.map((f) => {
     const c = f.geometry.type === 'LineString' ? f.geometry.coordinates : null;
@@ -176,9 +176,18 @@ function trimPassed(c, pos) {
 }
 
 /** Markierung des angetippten Flugzeugs/Schiffs an der hochgerechneten Position. */
+/** Position des angetippten Objekts jetzt: aus den Live-Daten (flüssige Bewegung) oder – wenn die Ebene es gerade
+    nicht bewegt, etwa Schiffe aus den Übersichtskacheln – hochgerechnet aus der zuletzt nachgeladenen Meldung. */
+function objPos() {
+  const live = currentPos(current.l, current.p.id);
+  if (live) return live;
+  if (current.at) return posOf({ lon: current.at.pos[0], lat: current.at.pos[1], m: current.at }, Date.now());
+  return current.pos || current.coords || null;
+}
+
 function selfMarker() {
   if (!current?.l.compact) return [];
-  const pos = currentPos(current.l, current.p.id) || current.pos || current.coords;
+  const pos = objPos();
   if (!pos) return [];
   const st = motion.get(current.l.id)?.get(current.p.id);
   const heading = st?.f.heading ?? current.p.heading ?? current.p.hdg ?? current.p.cog ?? 0;
@@ -749,9 +758,11 @@ async function loadMore() {
     const box = $('#detail .more');
     if (box && r.html !== undefined) box.innerHTML = r.html;
     if (r.summary) { const el = $('#detail .sum'); if (el) el.innerHTML = r.summary; }
+    current.at = r.at || null;
     setOverlay(r.overlay || []);
     current.overlay = r.overlay || [];
     current.pos = pos;
+    current.at = r.at || null; // Meldung zum Hochrechnen (Schiffe)
     // Beim ersten Laden die ganze Route ins Bild holen
     if (!current.fitted && current.overlay.length) { current.fitted = true; fitRoute(); }
     if (r.every) moreTimer = setTimeout(loadMore, r.every);
