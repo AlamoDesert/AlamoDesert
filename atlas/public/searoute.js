@@ -72,6 +72,9 @@ export async function findPort(destination, [lon, lat]) {
   const { byCode, byName } = await loadPorts();
   const last = norm(destination).split('>').pop().trim();
   if (!last) return null;
+  // „ESBCN-ESPMI“ / „DEHAM DEBRV“: mehrere Hafencodes = Route, das Ziel ist der letzte
+  const codes = last.split(' ').filter((w) => /^[A-Z]{2}[A-Z0-9]{3}$/.test(w) && byCode.has(w));
+  if (codes.length > 1) return byCode.get(codes.at(-1));
   const compact = last.replace(/ /g, '');
   const code = [compact.slice(0, 5), last.split(' ')[0]].find((c) => /^[A-Z]{2}[A-Z0-9]{3}$/.test(c) && byCode.has(c));
   if (code) return byCode.get(code);

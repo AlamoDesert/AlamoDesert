@@ -193,7 +193,10 @@ export async function forecast(lon, lat) {
     latitude: lat.toFixed(3), longitude: lon.toFixed(3), timezone: 'auto', forecast_days: '16',
     daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max'
   });
-  const res = await fetch(`https://api.open-meteo.com/v1/forecast?${q}`);
+  // Bei 429 (Tageslimit pro Adresse) fehlen die CORS-Header – der Browser meldet dann nur „Failed to fetch“.
+  const res = await fetch(`https://api.open-meteo.com/v1/forecast?${q}`).catch(() => {
+    throw new Error('Open-Meteo nicht erreichbar (keine Verbindung oder Tageslimit erreicht)');
+  });
   if (res.status === 429) throw new Error('Tageslimit bei Open-Meteo erreicht, später noch einmal versuchen');
   if (!res.ok) throw new Error(`Open-Meteo: HTTP ${res.status}`);
   const j = await res.json();

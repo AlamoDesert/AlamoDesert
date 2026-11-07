@@ -437,7 +437,9 @@ async function refresh(l) {
     const now = Date.now();
     // Kacheln mit neuem Zeitstempel anfordern (die Quelle cached nur kurz), Zählen übernimmt countTiles.
     if (!rt.tilesAt) rt.tilesAt = now;
-    else if (now - rt.tilesAt >= l.refresh) { map.getSource(srcId(l))?.setTiles([`${l.tiles.url}?t=${now}`]); rt.tilesAt = now; }
+    // Neu anfordern über einen geänderten Fragment-Teil (#…): MapLibre lädt neu, der Server sieht ihn nicht –
+    // Open Waters lehnt jeden unbekannten Parameter (?t=…) mit 400 ab, dann verschwinden alle Schiffe.
+    else if (now - rt.tilesAt >= l.refresh) { map.getSource(srcId(l))?.setTiles([`${l.tiles.url}#${now}`]); rt.tilesAt = now; }
     rt.at = now;
     rt.error = null;
     if (l.live) await refreshLive(l, rt);
@@ -1425,7 +1427,7 @@ map.on('error', (e) => {
   tileRetry = setTimeout(() => {
     const rt = runtime.get(l.id);
     rt.tilesAt = Date.now();
-    map.getSource(srcId(l))?.setTiles([`${l.tiles.url}?t=${rt.tilesAt}`]);
+    map.getSource(srcId(l))?.setTiles([`${l.tiles.url}#${rt.tilesAt}`]);
   }, 5000);
 });
 
