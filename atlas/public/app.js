@@ -851,8 +851,8 @@ function closeDetail() {
   stopMedia();
   clearTimeout(moreTimer);
   moreRun++;
+  current = null; // erst die Auswahl löschen, sonst zeichnet setOverlay den Ring des Objekts gleich wieder
   setOverlay([]);
-  current = null;
   $('#detail').hidden = true;
   $('#detail').innerHTML = ''; // laufendes Video beenden
 }
