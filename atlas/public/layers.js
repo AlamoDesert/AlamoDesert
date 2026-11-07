@@ -415,7 +415,7 @@ export const LAYERS = [
     short: 'Schiffe',
     color: '#7fe3c4',
     icon: '<path d="M4 14.5h16l-2.2 4.5H6.2z"/><path d="M7 14.5V9.5h8l2 5"/><path d="M10 9.5V6.5h3v3"/>',
-    attribution: 'Schiffe: <a href="https://openwaters.io/ais/#license" target="_blank" rel="noopener">Open Waters AIS</a> (AISHub, aisstream.io, BarentsWatch/Kystverket NLOD u. a.) · Fotos <a href="https://www.wikidata.org" target="_blank" rel="noopener">Wikidata</a>/Commons · Seewege <a href="https://github.com/eurostat/searoute" target="_blank" rel="noopener">Eurostat searoute</a> (EUPL-1.2) · Häfen UN/LOCODE',
+    attribution: 'Schiffe: <a href="https://openwaters.io/ais/#license" target="_blank" rel="noopener">Open Waters AIS</a> (AISHub, aisstream.io, BarentsWatch/Kystverket NLOD u. a.) · Fotos <a href="https://www.wikidata.org" target="_blank" rel="noopener">Wikidata</a>/Commons · Seewege <a href="https://github.com/eurostat/searoute" target="_blank" rel="noopener">Eurostat searoute</a> (EUPL-1.2) · Häfen UN/LOCODE (<a href="https://github.com/geoapify/un-locode" target="_blank" rel="noopener">@geoapify/un-locode</a>, MIT)',
     desc: 'AIS weltweit, wo Empfänger in der Nähe sind',
     // Vektorkacheln direkt von Open Waters (frei für private Nutzung, CORS offen): lädt nur den sichtbaren Ausschnitt,
     // auch bei Zehntausenden Schiffen. Neu laden = Kacheln mit neuem Zeitstempel anfordern.

@@ -1,6 +1,6 @@
 """Erzeugt public/data/seaways.bin (Seewege-Netz) und public/data/ports.json (Häfen) für searoute.js.
 Quellen: Eurostat searoute „marnet_plus_10km.gpkg“ (EUPL-1.2, github.com/eurostat/searoute) und
-UN/LOCODE code-list.csv (github.com/datasets/un-locode). Aufruf: python3 tools/seaways.py <marnet.gpkg> <code-list.csv>"""
+UN/LOCODE code-list.csv (github.com/datasets/un-locode). Aufruf: python3 tools/seaways.py <marnet.gpkg> (Häfen: node tools/ports.mjs)"""
 import csv, json, re, sqlite3, struct, sys
 
 def lines(path):
@@ -52,4 +52,7 @@ def ports(path, dst):
 
 if __name__ == '__main__':
     graph(sys.argv[1], 'public/data/seaways.bin')
-    ports(sys.argv[2], 'public/data/ports.json')
+    # Häfen erzeugt inzwischen tools/ports.mjs (UN/LOCODE mit nachgetragenen Koordinaten); die offizielle Liste
+    # allein hat für viele große Häfen keine Koordinaten (Danzig, Southampton, Bremen …).
+    if len(sys.argv) > 2 and sys.argv[2] == '--alte-haefen':
+        ports(sys.argv[3], 'public/data/ports.json')

@@ -54,6 +54,17 @@ function loadPorts() {
   return portsP;
 }
 
+/** Häufige englische/abgekürzte Schreibweisen in AIS-Zielen → Name in UN/LOCODE (ohne Leerzeichen). */
+const ALIAS = {
+  GENOA: 'GENOVA', LEGHORN: 'LIVORNO', NAPLES: 'NAPOLI', VENICE: 'VENEZIA', LISBON: 'LISBOA', ANTWERP: 'ANTWERPEN',
+  GOTHENBURG: 'GOTEBORG', COPENHAGEN: 'KOBENHAVN', FUJAIRAH: 'ALFUJAYRAH', BREMENHAVEN: 'BREMERHAVEN', ADAM: 'AMSTERDAM',
+  RDAM: 'ROTTERDAM', ROTTERDAMEUROPOORT: 'ROTTERDAM', EUROPOORT: 'ROTTERDAM', FLUSHING: 'VLISSINGEN', HELSINGOR: 'HELSINGOR',
+  GDANSKPORT: 'GDANSK', DANZIG: 'GDANSK', STETTIN: 'SZCZECIN', KIELCANAL: 'KIEL', NOK: 'BRUNSBUTTEL', DUNKIRK: 'DUNKERQUE',
+  CORUNNA: 'LACORUNA', SEVILLE: 'SEVILLA', ALGIERS: 'ALGER', PIRAEUS: 'PIRAIEUS', MOSCOW: 'MOSKVA'
+};
+/** Varianten eines Namensschlüssels: Alias und Umlaut-Umschreibungen (WARNEMUENDE → WARNEMUNDE). */
+const variants = (k) => [k, ALIAS[k], k.replace(/UE/g, 'U').replace(/OE/g, 'O').replace(/AE/g, 'A')].filter(Boolean);
+
 const GENERIC = new Set(['FOR', 'ORDER', 'ORDERS', 'PILOT', 'PILOTS', 'ANCHORAGE', 'ANCH', 'SEA', 'FISHING', 'FISHERY', 'OFFSHORE', 'TRIAL', 'TRIALS']);
 
 /** AIS-Ziel (Freitext) → Hafen: zuerst UN/LOCODE (z. B. „DEBKE“, „NL RTM“, „NLRTM>DEHAM“), sonst Name; bei mehreren der nächste. */
@@ -67,8 +78,9 @@ export async function findPort(destination, [lon, lat]) {
   const words = last.split(' ').filter((x) => x && !GENERIC.has(x));
   for (let k = words.length; k >= 1; k--) {
     const key = words.slice(0, k).join('');
-    // Abkürzungen wie „ST PETERSBURG“ → „SAINT…/SANKT…“
-    const hits = byName.get(key) || (/^ST/.test(key) && (byName.get(`SAINT${key.slice(2)}`) || byName.get(`SANKT${key.slice(2)}`)));
+    // Abkürzungen wie „ST PETERSBURG“ → „SAINT…/SANKT…“, dazu Aliase und Umlaut-Umschreibungen
+    const hits = variants(key).map((x) => byName.get(x)).find((h) => h?.length)
+      || (/^ST/.test(key) && (byName.get(`SAINT${key.slice(2)}`) || byName.get(`SANKT${key.slice(2)}`)));
     if (hits?.length) return hits.reduce((a, b) => (km(lon, lat, a.lon, a.lat) <= km(lon, lat, b.lon, b.lat) ? a : b));
   }
   return null;
