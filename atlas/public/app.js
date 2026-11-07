@@ -146,7 +146,33 @@ function ensureOverlay() {
 }
 
 function setOverlay(features) {
-  map.getSource('lk-overlay')?.setData({ type: 'FeatureCollection', features: [...features, ...selfMarker()] });
+  map.getSource('lk-overlay')?.setData({ type: 'FeatureCollection', features: [...follow(features), ...selfMarker()] });
+}
+
+/** Weg und Route hängen am angetippten Objekt: der bisherige Weg endet und die geplante Route beginnt an der
+    hochgerechneten Position von jetzt – sonst klaffen sie bis zum nächsten Nachladen (30–60 s) auseinander. */
+function follow(features) {
+  if (!current?.l.compact || !features.length) return features;
+  const pos = currentPos(current.l, current.p.id);
+  if (!pos) return features;
+  return features.map((f) => {
+    const c = f.geometry.type === 'LineString' ? f.geometry.coordinates : null;
+    if (!c || c.length < 2) return f;
+    const role = f.properties.role;
+    if (role === 'track') return { ...f, geometry: { type: 'LineString', coordinates: [...c.slice(0, -1), pos] } };
+    if (role === 'route') return { ...f, geometry: { type: 'LineString', coordinates: [pos, ...trimPassed(c, pos)] } };
+    return f;
+  });
+}
+
+/** Routenpunkte, die schon hinter dem Objekt liegen, weglassen (der nächste Punkt der Route, dann der Rest). */
+function trimPassed(c, pos) {
+  let best = 0, bd = Infinity;
+  for (let i = 0; i < Math.min(c.length, 60); i++) {
+    const d = (c[i][0] - pos[0]) ** 2 + (c[i][1] - pos[1]) ** 2;
+    if (d < bd) { bd = d; best = i; }
+  }
+  return c.slice(best + 1).length ? c.slice(best + 1) : c.slice(-1);
 }
 
 /** Markierung des angetippten Flugzeugs/Schiffs an der hochgerechneten Position. */
