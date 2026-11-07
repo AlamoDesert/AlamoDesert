@@ -1,10 +1,12 @@
 /* Live Karten – Wetterkarte mit Zeitleiste und 16-Tage-Vorhersage für einen Ort.
-   Karten: Regenradar der letzten 2 h (RainViewer, weltweit) und Modellvorhersagen des DWD als WMS
-   (ICON-EU stündlich für Europa, ICON weltweit bis ~7 Tage). Ort: Open-Meteo, 16 Tage.
+   Karten: DWD-WMS – Radarkomposit Deutschland (1 km, letzte 2 h + Kurzfristvorhersage 2 h), ICON-EU (Europa,
+   stündlich ~3 Tage), ICON (weltweit bis ~7 Tage). Die App holt pro Zeitpunkt EIN Bild in Bildschirmauflösung für den
+   sichtbaren Ausschnitt (scharf statt hochskalierter Kacheln, flüssig per Vorausladen). Ort: Open-Meteo, 16 Tage.
    Alle Quellen ohne Schlüssel, CORS offen – der Browser lädt direkt, ohne Proxy. */
 
 const DWD = 'https://maps.dwd.de/geoserver/dwd';
 const HOUR = 3_600_000;
+const MIN = 60_000;
 
 /** Wetterkarten-Arten: Reihenfolge der Quellen = Reihenfolge auf der Zeitleiste. */
 export const KINDS = {
@@ -12,9 +14,10 @@ export const KINDS = {
     name: 'Niederschlag',
     short: 'Regen',
     opacity: 0.8,
-    radar: true,
-    // ICON-EU: Niederschlag der jeweils letzten Stunde (Europa, ~3 Tage); danach ICON weltweit (6-h-Summen, alle 3 h).
     layers: [
+      // Radar: gemessen bis jetzt, danach Kurzfristvorhersage (Nowcast) bis +2 h; alle 10 min.
+      { wms: 'Radar_wn-product_1x1km_ger', model: 'Radar', what: 'Radar Deutschland, 1 km', radar: true, back: 2 * HOUR, stepMin: 10 },
+      // ICON-EU: Niederschlag der jeweils letzten Stunde (Europa, ~3 Tage); danach ICON weltweit (6-h-Summen, alle 3 h).
       { wms: 'Icon-eu_reg00625_fd_sl_TOTPREC01H', model: 'ICON-EU', what: 'Niederschlag der letzten Stunde' },
       { wms: 'Icon_reg025_fd_sl_TOTPREC06H', model: 'ICON', what: 'Niederschlag der letzten 6 Stunden', every: 3 }
     ]
@@ -24,36 +27,33 @@ export const KINDS = {
     short: 'Temperatur',
     opacity: 0.55,
     layers: [{ wms: 'Icon_reg025_fd_sl_T2M', model: 'ICON', what: 'Lufttemperatur in 2 m' }]
-  },
-  wind: {
-    name: 'Wind',
-    short: 'Wind',
-    opacity: 0.9,
-    // Windpfeile (schwarz) – auf dunkler Karte und Satellit färbt die App sie weiß (tint). Die flächige ICON-EPS-Karte
-    // zeigt Wahrscheinlichkeiten in %, keine Geschwindigkeit, und eignet sich deshalb nicht.
-    tint: true,
-    legendText: 'Windpfeile (Knoten): Der Pfeil zeigt, woher der Wind kommt. Kurzer Strich = 5 kn, langer Strich = 10 kn, Dreieck = 50 kn. Kreis = Windstille. 10 kn ≈ 19 km/h.',
-    layers: [{ wms: 'Icon_reg025_fd_sl_UV10M', model: 'ICON', what: 'Wind in 10 m', every: 3 }]
   }
 };
 
-const ATTR_DWD = 'Vorhersage: <a href="https://www.dwd.de" target="_blank" rel="noopener">Deutscher Wetterdienst</a> (ICON, GeoNutzV)';
-const ATTR_RV = 'Radar: <a href="https://www.rainviewer.com" target="_blank" rel="noopener">RainViewer</a>';
-
-const wmsUrl = (layer, time) => `${DWD}/wms?service=WMS&version=1.1.1&request=GetMap&layers=dwd:${layer}&styles=&format=image/png&transparent=true`
-  + `&srs=EPSG:3857&width=256&height=256&bbox={bbox-epsg-3857}&time=${encodeURIComponent(new Date(time).toISOString())}`;
 export const legendUrl = (layer) => `${DWD}/wms?service=WMS&version=1.3.0&request=GetLegendGraphic&format=image/png&layer=dwd:${layer}`;
+
+const R = 6378137;
+const mercX = (lon) => (R * lon * Math.PI) / 180;
+const mercY = (lat) => R * Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
+
+/** Ein WMS-Bild für einen Ausschnitt (lon/lat-Grenzen) in Pixelgröße w×h, Web-Mercator. */
+export function imageUrl(layer, time, { w, s, e, n }, width, height, ref = null) {
+  const bbox = [mercX(w), mercY(s), mercX(e), mercY(n)].map((v) => v.toFixed(0)).join(',');
+  return `${DWD}/wms?service=WMS&version=1.1.1&request=GetMap&layers=dwd:${layer}&styles=&format=image/png&transparent=true`
+    + `&srs=EPSG:3857&width=${width}&height=${height}&bbox=${bbox}&time=${encodeURIComponent(new Date(time).toISOString())}`
+    + (ref ? `&DIM_REFERENCE_TIME=${encodeURIComponent(ref)}` : '');
+}
 
 /** Zeitangaben eines WMS-Layers: "start/ende/PT1H" (Intervall) oder Liste von Zeitpunkten → ms-Zeitstempel. */
 export function parseTimes(text) {
   const out = [];
-  for (const part of String(text || '').split(',').map((s) => s.trim()).filter(Boolean)) {
+  for (const part of String(text || '').split(',').map((x) => x.trim()).filter(Boolean)) {
     const iv = part.split('/');
     if (iv.length === 3) {
       const start = Date.parse(iv[0]);
       const end = Date.parse(iv[1]);
       const m = /^PT(?:(\d+)H)?(?:(\d+)M)?$/.exec(iv[2]);
-      const step = m ? ((Number(m[1]) || 0) * 60 + (Number(m[2]) || 0)) * 60_000 : 0;
+      const step = m ? ((Number(m[1]) || 0) * 60 + (Number(m[2]) || 0)) * MIN : 0;
       if (!Number.isFinite(start) || !Number.isFinite(end) || step <= 0) continue;
       for (let t = start; t <= end && out.length < 2000; t += step) out.push(t);
     } else {
@@ -64,58 +64,80 @@ export function parseTimes(text) {
   return [...new Set(out)].sort((a, b) => a - b);
 }
 
-const capsCache = new Map(); // Layer → { at, times }
+const capsCache = new Map(); // Layer → { at, info }
 
-async function layerTimes(layer) {
+/** Modellläufe: Der DWD kündigt einen neuen Lauf (REFERENCE_TIME) an, bevor alle Zeitpunkte gerechnet sind – dann
+    liefert er für die Vorhersage nur Fehlermeldungen. Deshalb mit einem 8×8-Bild prüfen, ob der neueste Lauf den
+    Zeitpunkt `probe` schon hat; sonst den vorherigen Lauf nehmen (per DIM_REFERENCE_TIME). */
+async function pickRun(layer, refs, probe) {
+  for (const ref of refs.slice(-2).reverse()) {
+    const url = imageUrl(layer, probe, { w: 9, s: 50, e: 10, n: 51 }, 8, 8, ref);
+    try {
+      const res = await fetch(url);
+      if (res.ok && (res.headers.get('content-type') || '').startsWith('image/')) return ref;
+    } catch { /* nächster Lauf */ }
+  }
+  return refs.at(-2) || refs.at(-1) || null;
+}
+
+async function layerInfo(layer, now = Date.now()) {
   const hit = capsCache.get(layer);
-  if (hit && Date.now() - hit.at < 30 * 60_000) return hit.times;
+  if (hit && Date.now() - hit.at < 10 * MIN) return hit.info;
   // Capabilities nur für diesen Layer (~12 KB statt ~1 MB für den ganzen Dienst)
   const res = await fetch(`${DWD}/${layer}/ows?service=WMS&version=1.3.0&request=GetCapabilities`);
   if (!res.ok) throw new Error(`DWD: HTTP ${res.status}`);
   const xml = new DOMParser().parseFromString(await res.text(), 'text/xml');
-  const dim = [...xml.getElementsByTagName('Dimension')].find((d) => d.getAttribute('name') === 'time');
-  const times = parseTimes(dim?.textContent);
+  const dims = [...xml.getElementsByTagName('Dimension')];
+  const times = parseTimes(dims.find((d) => d.getAttribute('name') === 'time')?.textContent);
   if (!times.length) throw new Error('DWD: keine Zeitangaben');
-  capsCache.set(layer, { at: Date.now(), times });
-  return times;
+  const refs = parseTimes(dims.find((d) => /^reference_time$/i.test(d.getAttribute('name') || ''))?.textContent).map((t) => new Date(t).toISOString());
+  // Prüfzeitpunkt: zwei Tage voraus (bzw. das Ende), auf dem Raster der Zeitangaben
+  const probe = times.find((t) => t >= now + 48 * HOUR) ?? times.at(-1);
+  const ref = refs.length ? await pickRun(layer, refs, probe) : null;
+  const info = { times, ref };
+  capsCache.set(layer, { at: Date.now(), info });
+  return info;
 }
 
-async function radarFrames() {
-  const res = await fetch('https://api.rainviewer.com/public/weather-maps.json', { cache: 'no-store' });
-  if (!res.ok) throw new Error(`RainViewer: HTTP ${res.status}`);
-  const j = await res.json();
-  if (typeof j.host !== 'string' || !/^https:\/\//.test(j.host) || !Array.isArray(j?.radar?.past)) throw new Error('RainViewer: Unerwartetes Format');
-  return j.radar.past.filter((f) => f?.path && Number.isFinite(f.time))
-    .map((f) => ({ t: f.time * 1000, url: `${j.host}${f.path}/256/{z}/{x}/{y}/2/1_1.png`, src: 'Radar', what: 'Gemessener Niederschlag', attr: ATTR_RV }));
-}
-
-/** Schritte der Zeitleiste für eine Art: [{ t, url, src, what, legend }] in zeitlicher Reihenfolge, ab „jetzt“ (Radar davor). */
-export async function buildSteps(kind, now = Date.now()) {
-  const k = KINDS[kind];
+/** Schritte der Zeitleiste aus den Zeitangaben der Layer: [{ t, layer, ref, src, what }] in zeitlicher Reihenfolge.
+    `timesByLayer[layer]` ist eine Liste von Zeitpunkten oder { times, ref } (ref = gewählter Modelllauf). */
+export function stepsFrom(kind, timesByLayer, now = Date.now()) {
   const steps = [];
-  if (k.radar) {
-    try { steps.push(...await radarFrames()); } catch { /* ohne Radar nur Vorhersage */ }
-  }
-  const from = Math.floor(now / HOUR) * HOUR;
-  let after = steps.length ? steps.at(-1).t : from - 1;
-  const errors = [];
-  for (const l of k.layers) {
-    let times;
-    try { times = await layerTimes(l.wms); } catch (e) { errors.push(e.message); continue; }
+  const fromHour = Math.floor(now / HOUR) * HOUR;
+  let after = -Infinity;
+  for (const l of KINDS[kind].layers) {
+    const entry = timesByLayer[l.wms];
+    if (!entry) continue;
+    const times = Array.isArray(entry) ? entry : entry.times;
+    const ref = Array.isArray(entry) ? null : entry.ref;
+    const from = l.back ? now - l.back : fromHour;
     for (const t of times) {
       if (t <= after || t < from) continue;
       if (l.every && new Date(t).getUTCHours() % l.every) continue;
-      steps.push({ t, url: wmsUrl(l.wms, t), src: l.model, what: l.what, legend: l.wms, attr: ATTR_DWD });
+      if (l.stepMin && Math.round(t / MIN) % l.stepMin) continue;
+      const src = l.radar ? (t <= now ? 'Radar' : 'Radar-Vorhersage') : l.model;
+      steps.push({ t, layer: l.wms, ref, src, what: l.what });
     }
     if (steps.length) after = steps.at(-1).t;
   }
+  return steps;
+}
+
+/** `only`: nur die ersten n Quellen (z. B. erst das Radar zeigen, die Vorhersage kommt nach). */
+export async function buildSteps(kind, now = Date.now(), only = Infinity) {
+  const timesByLayer = {};
+  const errors = [];
+  await Promise.all(KINDS[kind].layers.slice(0, only).map(async (l) => {
+    try { timesByLayer[l.wms] = await layerInfo(l.wms, now); } catch (e) { errors.push(e.message); }
+  }));
+  const steps = stepsFrom(kind, timesByLayer, now);
   if (!steps.length) throw new Error(errors[0] || 'Keine Wetterdaten');
   return steps;
 }
 
 /** Index des Schritts, der „jetzt“ am nächsten liegt; gibt es ein Radarbild, das neueste (gemessen schlägt berechnet). */
 export function nowIndex(steps, now = Date.now()) {
-  const radar = steps.findLastIndex((s) => s.src === 'Radar');
+  const radar = steps.findLastIndex((x) => x.src === 'Radar');
   if (radar >= 0 && now - steps[radar].t < 30 * 60_000) return radar;
   let best = 0;
   for (let i = 0; i < steps.length; i++) if (Math.abs(steps[i].t - now) < Math.abs(steps[best].t - now)) best = i;

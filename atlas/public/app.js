@@ -1,6 +1,6 @@
 /* Live Karten – Oberfläche: Karte, Dock, Abfragetakt, Detailkarte, Suche, Favoriten, Wetterkarte mit Zeitleiste. */
 import { LAYERS, DOCK_GROUPS, EMBED_HOSTS, esc } from './layers.js';
-import { KINDS, buildSteps, nowIndex, nearestStep, stepLabel, dayTicks, legendUrl, forecast, forecastHtml } from './weather.js';
+import { KINDS, buildSteps, nowIndex, nearestStep, stepLabel, dayTicks, legendUrl, imageUrl, forecast, forecastHtml } from './weather.js';
 
 const STORE = 'livekarten.v1';
 const OFM = '<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
@@ -527,7 +527,7 @@ function layerRow(l) {
 
 function renderChrome() {
   $('#dock').innerHTML = DOCK.map(dockButton).join('') + '<div class="dk-sep"></div>'
-    + `<button class="dk ${!$('#panel').hidden && panelGroup === 'opts' ? 'on' : ''}" data-act="opts" title="Kartenstil und Ebenen">${svg(ICON_OPTS)}<span>Optionen</span></button>`
+    + `<button class="dk ${!$('#panel').hidden && panelGroup === 'opts' ? 'on' : ''}" data-act="opts" title="Kartenstil">${svg(ICON_OPTS)}<span>Optionen</span></button>`
     + `<button class="dk ${favs.size ? 'on' : ''}" style="--c:var(--warn)" data-act="wall" title="Favoriten">${svg(ICON_FAV)}<span>Favoriten</span><i class="n">${favs.size}</i></button>`;
 
   // Kopfzeilen-Zähler nur für die Hauptebenen (Kameras zusammen); Menü-Ebenen zählt ihr Panel.
@@ -545,8 +545,7 @@ function renderChrome() {
     if (panelGroup === 'opts') {
       $('#panel').innerHTML = head('Optionen')
         + `<div class="p-sub">Kartenstil</div><div class="seg">
-          ${[['dark', 'Dunkel'], ['light', 'Hell'], ['sat', 'Satellit']].map(([k, n]) => `<button data-base="${k}" class="${base === k ? 'on' : ''}">${n}</button>`).join('')}</div>`
-        + `<div class="p-sub">Ebenen</div>${LAYERS.map(layerRow).join('')}`;
+          ${[['dark', 'Dunkel'], ['light', 'Hell'], ['sat', 'Satellit']].map(([k, n]) => `<button data-base="${k}" class="${base === k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
     } else if (menu && menu.lead.id === 'wx') {
       $('#panel').innerHTML = head('Wetter')
         + `<div class="p-sub">Wetterkarte mit Zeitleiste</div><div class="seg">
@@ -831,47 +830,111 @@ $('#detail').addEventListener('click', (e) => {
 });
 
 /* ---------- Wetterkarte mit Zeitleiste ----------
-   Zwei Rasterquellen im Wechsel: die neue Zeit lädt unsichtbar, erst wenn ihre Kacheln da sind, wird überblendet –
-   so flackert die Karte beim Abspielen nicht. */
+   Pro Zeitpunkt EIN Bild in Bildschirmauflösung für den sichtbaren Ausschnitt (MapLibre-Bildquelle) statt vieler
+   hochskalierter Kacheln: scharf und nur eine Abfrage. Zwei Bildquellen im Wechsel: das neue Bild lädt vorab
+   (Image-Cache des Browsers), dann wird überblendet; die nächsten Zeitpunkte lädt die App im Voraus. */
 
 const WX_BUF = ['lk-wx-a', 'lk-wx-b'];
 const wxSources = new Set(); // eingehängte Puffer (nach setStyle leer)
 let wxFront = 0;
+const wxImgs = new Map(); // URL → Promise (Bild geladen)
 
-function wxPut(buf, url) {
+/** Ausschnitt plus 20 % Rand je Seite (beim Verschieben bleibt Wetter sichtbar, bis das neue Bild da ist),
+    begrenzt auf ±180°/±85°, und Bildgröße in Gerätepixeln (Faktor höchstens 1,5, Kante höchstens 2048). */
+function wxView() {
+  const c = map.getCanvas();
+  const W = c.clientWidth, H = c.clientHeight, pad = 0.2;
+  const a = map.unproject([-W * pad, -H * pad]), z = map.unproject([W * (1 + pad), H * (1 + pad)]);
+  const v = { w: Math.max(-180, a.lng), e: Math.min(180, z.lng), s: Math.max(-85, z.lat), n: Math.min(85, a.lat) };
+  if (!(v.e > v.w) || !(v.n > v.s)) Object.assign(v, { w: -180, e: 180, s: -85, n: 85 });
+  const nw = map.project([v.w, v.n]), se = map.project([v.e, v.s]);
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  let width = Math.max(64, (se.x - nw.x) * dpr), height = Math.max(64, (se.y - nw.y) * dpr);
+  const k = Math.min(1, 2048 / Math.max(width, height));
+  width = Math.round(width * k); height = Math.round(height * k);
+  return { box: v, width, height, coords: [[v.w, v.n], [v.e, v.n], [v.e, v.s], [v.w, v.s]] };
+}
+
+function wxUrl(step, view) {
+  return imageUrl(step.layer, step.t, view.box, view.width, view.height, step.ref);
+}
+
+/** Bild vorab laden (einmal je URL) und als blob:-Adresse merken – der DWD sendet keine Cache-Header, der Browser
+    würde das Bild sonst für die Kartenquelle ein zweites Mal holen. Fehler → null (Zeitleiste hängt nicht). */
+function wxPreload(url) {
+  if (!wxImgs.has(url)) {
+    while (wxImgs.size > 60) {
+      const [old, p] = wxImgs.entries().next().value;
+      wxImgs.delete(old);
+      p.then((u) => u && setTimeout(() => URL.revokeObjectURL(u), 10_000));
+    }
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 25_000);
+    wxImgs.set(url, fetch(url, { signal: ctrl.signal })
+      .then((r) => (r.ok && (r.headers.get('content-type') || '').startsWith('image/') ? r.blob() : null))
+      .then((blob) => (blob ? URL.createObjectURL(blob) : null))
+      .catch(() => null)
+      .finally(() => clearTimeout(timer)));
+  }
+  return wxImgs.get(url);
+}
+
+function wxPut(buf, url, coords) {
   const id = WX_BUF[buf];
-  if (map.getSource(id)) { map.getSource(id).setTiles([url]); return; }
-  map.addSource(id, { type: 'raster', tiles: [url], tileSize: 256, maxzoom: 7,
-    attribution: 'Wetter: <a href="https://www.dwd.de" target="_blank" rel="noopener">DWD</a> · <a href="https://www.rainviewer.com" target="_blank" rel="noopener">RainViewer</a>' });
-  // Schwarze Windpfeile auf dunkler Karte weiß einfärben (Helligkeit auf 1, Transparenz bleibt)
-  const tint = KINDS[wx.kind]?.tint && base !== 'light' ? { 'raster-brightness-min': 1, 'raster-brightness-max': 1 } : {};
-  map.addLayer({ id: `${id}-r`, type: 'raster', source: id, paint: { 'raster-opacity': 0, 'raster-opacity-transition': { duration: 250 }, 'raster-fade-duration': 0, ...tint } }, below());
+  const src = map.getSource(id);
+  if (src) { src.updateImage({ url, coordinates: coords }); return; }
+  // Bildquellen kennen kein „attribution“ (MapLibre lehnt die Quelle sonst still ab) – Nachweis steht in der Legende.
+  map.addSource(id, { type: 'image', url, coordinates: coords });
+  map.addLayer({ id: `${id}-r`, type: 'raster', source: id, paint: { 'raster-opacity': 0, 'raster-opacity-transition': { duration: 200 }, 'raster-fade-duration': 0 } }, below());
   wxSources.add(id);
 }
 
-function wxLoaded(id, ms = 6000) {
+/** Warten, bis die Bildquelle ihr neues Bild übernommen hat. isSourceLoaded() gibt bei Bildquellen nichts
+    Brauchbares zurück, daher auf das „sourcedata“-Ereignis hören; das Bild liegt schon als blob: vor (schnell). */
+function wxLoaded(id, ms = 800) {
   return new Promise((done) => {
-    const t0 = Date.now();
-    const check = () => (map.getSource(id) && map.isSourceLoaded(id)) || Date.now() - t0 > ms ? done() : setTimeout(check, 100);
-    setTimeout(check, 80);
+    const finish = () => { clearTimeout(t); map.off('sourcedata', on); done(); };
+    const on = (e) => { if (e.sourceId === id && e.dataType === 'source') requestAnimationFrame(finish); };
+    const t = setTimeout(finish, ms);
+    map.on('sourcedata', on);
   });
 }
 
-/** Schritt i zeigen: in den hinteren Puffer laden, dann überblenden. */
+/** Nächste Zeitpunkte im Voraus laden (beim Abspielen mehr). */
+function wxPrefetch(view, count) {
+  for (let k = 1; k <= count; k++) {
+    const st = wx.steps[(wx.idx + k) % wx.steps.length];
+    if (st) wxPreload(wxUrl(st, view));
+  }
+}
+
+/** Schritt i zeigen: Bild für den aktuellen Ausschnitt laden, in den hinteren Puffer, dann überblenden. */
 async function showStep(i, instant = false) {
   if (!wx.steps.length) return;
   wx.idx = Math.max(0, Math.min(wx.steps.length - 1, i));
   renderWxBar();
   const run = ++wx.run;
+  const view = wxView();
+  const blob = await wxPreload(wxUrl(wx.steps[wx.idx], view));
+  if (run !== wx.run || !wx.kind) return;
+  if (!blob) { wxPrefetch(view, 2); return; } // Bild fehlt (DWD gerade nicht erreichbar): altes Bild stehen lassen
   const back = instant ? wxFront : 1 - wxFront;
-  wxPut(back, wx.steps[wx.idx].url);
+  wxPut(back, blob, view.coords);
   await wxLoaded(WX_BUF[back]);
   if (run !== wx.run || !wx.kind) return;
-  const op = KINDS[wx.kind].opacity;
-  map.setPaintProperty(`${WX_BUF[back]}-r`, 'raster-opacity', op);
+  map.setPaintProperty(`${WX_BUF[back]}-r`, 'raster-opacity', KINDS[wx.kind].opacity);
   if (back !== wxFront && map.getLayer(`${WX_BUF[wxFront]}-r`)) map.setPaintProperty(`${WX_BUF[wxFront]}-r`, 'raster-opacity', 0);
   wxFront = back;
+  wxPrefetch(view, wx.playing ? 8 : 3);
 }
+
+// Ausschnitt geändert: aktuelles Bild für den neuen Ausschnitt nachladen
+let wxMove = 0;
+map.on('moveend', () => {
+  if (!wx.kind || !wx.steps.length) return;
+  clearTimeout(wxMove);
+  wxMove = setTimeout(() => { if (!wx.playing) showStep(wx.idx); }, 250);
+});
 
 function wxRemove() {
   for (const id of WX_BUF) {
@@ -897,11 +960,19 @@ async function setWxKind(kind) {
   if (!wx.kind) return;
   const kindNow = wx.kind;
   try {
+    // Regen: das Radar (eine schnelle Quelle) sofort zeigen, die Modellvorhersage hängt sich danach an
+    if (KINDS[kindNow].layers[0].radar) {
+      const first = await buildSteps(kindNow, Date.now(), 1).catch(() => null);
+      if (wx.kind !== kindNow) return;
+      if (first) { wx.steps = first; showStep(nowIndex(first)); }
+    }
     const steps = await buildSteps(kindNow);
     if (wx.kind !== kindNow) return;
+    const t = wx.steps[wx.idx]?.t;
     wx.steps = steps;
     wx.loadedAt = Date.now();
-    await showStep(nowIndex(steps));
+    if (t === undefined) await showStep(nowIndex(steps));
+    else { wx.idx = nearestStep(steps, t); renderWxBar(); }
   } catch (e) {
     if (wx.kind !== kindNow) return;
     wx.error = !navigator.onLine ? 'Keine Internetverbindung' : e.message;
@@ -932,7 +1003,7 @@ function togglePlay() {
   const next = async () => {
     if (!wx.playing || !wx.steps.length) return;
     await showStep(wx.idx >= wx.steps.length - 1 ? 0 : wx.idx + 1);
-    if (wx.playing) wx.timer = setTimeout(next, 650);
+    if (wx.playing) wx.timer = setTimeout(next, 450);
   };
   next();
 }
@@ -947,7 +1018,7 @@ function renderWxBar() {
   const lab = step ? stepLabel(step.t) : null;
   const when = wx.error ? `<b>${esc(k.name)}</b><span class="err">${esc(wx.error)}</span>`
     : !step ? `<b>${esc(k.name)}</b><span>Lädt …</span>`
-      : `<b>${esc(lab.day)}, ${esc(lab.time)}</b><span>${esc(lab.rel)} · ${esc(step.src === 'Radar' ? 'Radar, gemessen' : `Vorhersage ${step.src}`)}</span>`;
+      : `<b>${esc(lab.day)}, ${esc(lab.time)}</b><span>${esc(lab.rel)} · ${esc(step.src === 'Radar' ? 'Radar, gemessen' : step.src === 'Radar-Vorhersage' ? 'Radar-Vorhersage' : `Vorhersage ${step.src}`)}</span>`;
   // Regler und Tagesmarken nur neu bauen, wenn sich die Schritte geändert haben (sonst springt der Daumen beim Ziehen)
   const sig = `${wx.kind}|${wx.steps.length}|${wx.steps[0]?.t}`;
   if (bar.dataset.sig !== sig) {
@@ -978,10 +1049,8 @@ function renderWxBar() {
   const leg = bar.querySelector('.wx-legend');
   leg.hidden = !wx.legend;
   if (wx.legend) {
-    const layer = step?.legend || k.layers[0].wms;
-    leg.innerHTML = k.legendText ? `<p>${esc(k.legendText)}</p>`
-      : step?.src === 'Radar' ? '<p>Radar: blau = schwach, gelb/rot = stark. Die Farben der Vorhersage zeigt die Legende ab „jetzt“.</p>'
-        : `<img alt="Legende ${esc(k.name)}" src="${esc(legendUrl(layer))}">`;
+    const layer = step?.layer || k.layers[0].wms;
+    leg.innerHTML = `<img alt="Legende ${esc(k.name)}" src="${esc(legendUrl(layer))}"><p>Daten: <a href="https://www.dwd.de" target="_blank" rel="noopener">Deutscher Wetterdienst</a> (Radar, ICON, GeoNutzV)</p>`;
   }
 }
 
@@ -1209,7 +1278,10 @@ function pick(i) {
   }
   // Treffer aus der weltweiten Suche: Ebene dafür einschalten
   if (!active.has(h.l.id)) { setLayer(h.l, true); prefs.layers = [...active]; save(); renderChrome(); }
-  map.flyTo({ center: [h.f.lon, h.f.lat], zoom: Math.max(map.getZoom(), h.l.id === 'flights' ? 8 : h.l.id === 'ships' ? 10 : 13), speed: 1.6 });
+  // Schiffe/Flüge: direkt hinspringen statt zu fliegen – ein Flug über halb Europa lädt Hunderte Zwischenkacheln,
+  // die dann abbrechen (Open Waters erlaubt 600 Kacheln/min); den Ausschnitt mit Route stellt danach fitRoute ein.
+  const target = { center: [h.f.lon, h.f.lat], zoom: Math.max(map.getZoom(), h.l.id === 'flights' ? 8 : h.l.id === 'ships' ? 10 : 13) };
+  if (h.l.compact) map.jumpTo(target); else map.flyTo({ ...target, speed: 1.6 });
   showDetail(h.l, { ...h.f.props, id: h.f.id, label: h.f.label, heading: h.f.heading }, [h.f.lon, h.f.lat]);
 }
 
@@ -1281,6 +1353,20 @@ function countTiles() {
   }
   renderChrome();
 }
+// Schiffskacheln, die nicht geladen werden konnten (abgebrochen, Limit erreicht), bleiben sonst bis zum nächsten
+// Takt (60 s) leer: nach einem Fehler die Kacheln mit neuem Zeitstempel bald noch einmal anfordern.
+let tileRetry = 0;
+map.on('error', (e) => {
+  const l = LAYERS.find((x) => x.tiles && srcId(x) === e.sourceId);
+  if (!l || !active.has(l.id)) return;
+  clearTimeout(tileRetry);
+  tileRetry = setTimeout(() => {
+    const rt = runtime.get(l.id);
+    rt.tilesAt = Date.now();
+    map.getSource(srcId(l))?.setTiles([`${l.tiles.url}?t=${rt.tilesAt}`]);
+  }, 5000);
+});
+
 let idleTimer = 0;
 const recount = () => { clearTimeout(idleTimer); idleTimer = setTimeout(countTiles, 400); };
 map.on('idle', recount);

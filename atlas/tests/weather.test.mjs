@@ -39,3 +39,24 @@ test('forecastHtml: Wochen-Zusammenfassung und eine Zeile je Tag, HTML-sicher', 
   assert.equal((html.split('<tbody>')[1].match(/<tr>/g) || []).length, 14);
   assert.doesNotMatch(forecastHtml([{ day: '2026-11-07', code: '<b>', max: null }]), /<b>x/);
 });
+
+test('stepsFrom: Radar (2 h zurück, 10-min-Schritte, danach Radar-Vorhersage), dann ICON-EU, dann ICON alle 3 h', async () => {
+  const { stepsFrom } = await import('../public/weather.js');
+  const now = Date.parse('2026-11-07T08:33:00Z');
+  const iv = (a, b, step) => parseTimes(`${a}/${b}/${step}`);
+  const steps = stepsFrom('rain', {
+    'Radar_wn-product_1x1km_ger': iv('2026-11-07T00:00:00Z', '2026-11-07T10:30:00Z', 'PT5M'),
+    'Icon-eu_reg00625_fd_sl_TOTPREC01H': iv('2026-11-07T00:00:00Z', '2026-11-08T00:00:00Z', 'PT1H'),
+    Icon_reg025_fd_sl_TOTPREC06H: iv('2026-11-07T00:00:00Z', '2026-11-09T00:00:00Z', 'PT3H')
+  }, now);
+  const radar = steps.filter((s) => s.src === 'Radar');
+  assert.equal(new Date(radar[0].t).toISOString(), '2026-11-07T06:40:00.000Z');
+  assert.equal(new Date(radar.at(-1).t).toISOString(), '2026-11-07T08:30:00.000Z');
+  assert.equal(new Date(steps.find((s) => s.src === 'Radar-Vorhersage').t).toISOString(), '2026-11-07T08:40:00.000Z');
+  const eu = steps.filter((s) => s.src === 'ICON-EU');
+  assert.equal(new Date(eu[0].t).toISOString(), '2026-11-07T11:00:00.000Z', 'ICON-EU erst nach dem Radar');
+  const icon = steps.filter((s) => s.src === 'ICON');
+  assert.equal(new Date(icon[0].t).toISOString(), '2026-11-08T03:00:00.000Z');
+  assert.ok(steps.every((s, i) => !i || s.t > steps[i - 1].t), 'streng aufsteigend');
+  assert.equal(nowIndex(steps, now), steps.indexOf(radar.at(-1)));
+});
