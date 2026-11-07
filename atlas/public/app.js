@@ -1,5 +1,6 @@
-/* Live Karten – Oberfläche: Karte, Ebenen-Leiste, Abfragetakt, Detailkarte, Suche, Favoriten-Wand. */
+/* Live Karten – Oberfläche: Karte, Dock, Abfragetakt, Detailkarte, Suche, Favoriten, Wetterkarte mit Zeitleiste. */
 import { LAYERS, DOCK_GROUPS, EMBED_HOSTS, esc } from './layers.js';
+import { KINDS, buildSteps, nowIndex, nearestStep, stepLabel, dayTicks, legendUrl, forecast, forecastHtml } from './weather.js';
 
 const STORE = 'livekarten.v1';
 const OFM = '<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
@@ -20,15 +21,22 @@ function save() {
 // Ebenen mit `off: true` (Zusatzebenen in „Wetter“/„Sonstige“) starten ausgeschaltet.
 const active = new Set(Array.isArray(prefs.layers) ? prefs.layers.filter((id) => LAYERS.some((l) => l.id === id)) : LAYERS.filter((l) => !l.off).map((l) => l.id));
 // Neu hinzugekommene Ebenen einmal von selbst einschalten, auch wenn schon eine Auswahl gespeichert ist.
-const seen = new Set(Array.isArray(prefs.seen) ? prefs.seen : Array.isArray(prefs.layers) ? ['flights', 'quakes', 'cams', 'live'] : []);
+const seen = new Set(Array.isArray(prefs.seen) ? prefs.seen : Array.isArray(prefs.layers) ? ['flights', 'cams', 'live'] : []);
 for (const l of LAYERS) if (!seen.has(l.id) && !l.off) active.add(l.id);
 prefs.seen = LAYERS.map((l) => l.id);
 prefs.layers = [...active];
 const runtime = new Map(LAYERS.map((l) => [l.id, { features: [], at: null, error: null, hint: null, stale: false, timer: 0, ctrl: null }]));
-let base = prefs.base === 'sat' ? 'sat' : 'dark';
+let base = ['sat', 'light'].includes(prefs.base) ? prefs.base : 'dark';
+const applyTheme = () => {
+  document.documentElement.dataset.theme = base === 'light' ? 'light' : 'dark';
+  document.querySelector('meta[name=theme-color]')?.setAttribute('content', base === 'light' ? '#f4f5f7' : '#121417');
+};
+applyTheme();
 const favs = new Map((Array.isArray(prefs.favs) ? prefs.favs : []).map((f) => [f.key, f]));
+// Wetterkarte: Art (rain/temp/wind oder null), Schritte der Zeitleiste, aktueller Schritt, Wiedergabe
+const wx = { kind: KINDS[prefs.wx] ? prefs.wx : null, steps: [], idx: 0, playing: false, error: null, legend: false, run: 0, timer: 0 };
 
-/* ---------- Grundkarte: dunkel (OpenFreeMap) oder Satellit (Esri) ---------- */
+/* ---------- Grundkarte: dunkel, hell (OpenFreeMap) oder Satellit (Esri) ---------- */
 
 /** Satellit als Rasterstil, leicht abgedunkelt; Schriften von OpenFreeMap für die Zahlen in den Gruppen. */
 const SAT_STYLE = {
@@ -41,7 +49,7 @@ const SAT_STYLE = {
       tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}'] }
   },
   layers: [
-    { id: 'bg', type: 'background', paint: { 'background-color': '#05080c' } },
+    { id: 'bg', type: 'background', paint: { 'background-color': '#121417' } },
     { id: 'sat', type: 'raster', source: 'sat', paint: { 'raster-brightness-max': 0.82, 'raster-saturation': -0.15, 'raster-contrast': 0.08 } },
     { id: 'names', type: 'raster', source: 'names', paint: { 'raster-opacity': 0.85 } }
   ]
@@ -50,19 +58,22 @@ const SAT_STYLE = {
 /** Stil vorab laden: ohne erreichbare Grundkarte feuert MapLibre nie „load“ – dann leere Fläche statt Stillstand. */
 async function fetchStyle(kind) {
   if (kind === 'sat') return SAT_STYLE;
+  const light = kind === 'light';
   try {
-    const res = await fetch('https://tiles.openfreemap.org/styles/dark', { signal: AbortSignal.timeout(8000) });
+    const res = await fetch(`https://tiles.openfreemap.org/styles/${light ? 'positron' : 'dark'}`, { signal: AbortSignal.timeout(8000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const style = await res.json();
-    // Etwas tiefer ins Schwarz ziehen, damit die Live-Punkte leuchten.
-    for (const l of style.layers) {
-      if (l.type === 'background') l.paint = { ...l.paint, 'background-color': '#070b10' };
-      if (l.id === 'water') l.paint = { ...l.paint, 'fill-color': '#0a1a24' };
+    // Dunkel: neutrales Anthrazit statt Blauschwarz, Wasser gedämpft.
+    if (!light) {
+      for (const l of style.layers) {
+        if (l.type === 'background') l.paint = { ...l.paint, 'background-color': '#16191d' };
+        if (l.id === 'water') l.paint = { ...l.paint, 'fill-color': '#1d2630' };
+      }
     }
     return style;
   } catch {
     toast('Grundkarte nicht erreichbar – Live-Daten laufen trotzdem.');
-    return { version: 8, sources: {}, layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#070b10' } }] };
+    return { version: 8, sources: {}, layers: [{ id: 'bg', type: 'background', paint: { 'background-color': light ? '#eceef1' : '#16191d' } }] };
   }
 }
 
@@ -113,24 +124,24 @@ function ensureOverlay() {
   if (map.getSource('lk-overlay')) return;
   map.addSource('lk-overlay', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addLayer({ id: 'lk-overlay-glow', type: 'line', source: 'lk-overlay', filter: ['==', ['get', 'role'], 'track'],
-    layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#19d6e8', 'line-width': 7, 'line-opacity': 0.18, 'line-blur': 3 } });
+    layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#4cc3d9', 'line-width': 7, 'line-opacity': 0.12, 'line-blur': 2 } });
   map.addLayer({ id: 'lk-overlay-track', type: 'line', source: 'lk-overlay', filter: ['==', ['get', 'role'], 'track'],
-    layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#19d6e8', 'line-width': 2.2 } });
+    layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#4cc3d9', 'line-width': 2.2 } });
   map.addLayer({ id: 'lk-overlay-route', type: 'line', source: 'lk-overlay', filter: ['==', ['get', 'role'], 'route'],
     paint: { 'line-color': '#dfeef2', 'line-width': 1.6, 'line-opacity': 0.75, 'line-dasharray': [2, 2.5] } });
   map.addLayer({ id: 'lk-overlay-airport', type: 'circle', source: 'lk-overlay', filter: ['==', ['get', 'role'], 'airport'],
-    paint: { 'circle-radius': 5, 'circle-color': '#05080c', 'circle-stroke-color': '#19d6e8', 'circle-stroke-width': 2 } });
+    paint: { 'circle-radius': 5, 'circle-color': '#16191d', 'circle-stroke-color': '#4cc3d9', 'circle-stroke-width': 2 } });
   // Das angetippte Objekt selbst: immer sichtbar (auch wenn die Ebene beim Herauszoomen nichts mehr lädt), hervorgehoben.
   map.addLayer({ id: 'lk-overlay-self-ring', type: 'circle', source: 'lk-overlay', filter: ['==', ['get', 'role'], 'self'],
-    paint: { 'circle-radius': 17, 'circle-color': 'rgba(25,214,232,.12)', 'circle-stroke-color': '#19d6e8', 'circle-stroke-width': 1.5 } });
+    paint: { 'circle-radius': 17, 'circle-color': 'rgba(76,195,217,.14)', 'circle-stroke-color': '#4cc3d9', 'circle-stroke-width': 1.5 } });
   map.addLayer({ id: 'lk-overlay-self', type: 'symbol', source: 'lk-overlay', filter: ['==', ['get', 'role'], 'self'],
     layout: { 'icon-image': ['get', 'icon'], 'icon-size': 1, 'icon-rotate': ['coalesce', ['get', 'heading'], 0], 'icon-rotation-alignment': 'map',
       'icon-allow-overlap': true, 'icon-ignore-placement': true },
-    paint: { 'icon-color': '#ffffff', 'icon-halo-color': '#19d6e8', 'icon-halo-width': 2 } });
+    paint: { 'icon-color': '#ffffff', 'icon-halo-color': '#4cc3d9', 'icon-halo-width': 2 } });
   if (map.getStyle()?.glyphs) {
     map.addLayer({ id: 'lk-overlay-label', type: 'symbol', source: 'lk-overlay', filter: ['==', ['get', 'role'], 'airport'],
       layout: { 'text-field': ['get', 'label'], 'text-size': 12, 'text-offset': [0, 1.2], 'text-font': ['Noto Sans Bold'], 'text-allow-overlap': true },
-      paint: { 'text-color': '#19d6e8', 'text-halo-color': 'rgba(0,0,0,.8)', 'text-halo-width': 1.2 } });
+      paint: { 'text-color': '#4cc3d9', 'text-halo-color': 'rgba(0,0,0,.8)', 'text-halo-width': 1.2 } });
   }
 }
 
@@ -404,7 +415,7 @@ async function refresh(l) {
   }
   rt.error = failed.length
     ? !navigator.onLine ? 'Keine Internetverbindung'
-      : `${failed.length === results.length ? 'Quelle nicht erreichbar' : `${failed.length} von ${results.length} Bereichen fehlen`}: ${failed[0].error.message}`
+      : `${failed.length === results.length ? 'Quelle nicht erreichbar' : `${failed.length} von ${results.length} Bereichen fehlen`}: ${failed[0].error.message.replace(/^Quelle nicht erreichbar – /, '')}`
     : null;
   render(l);
   rt.timer = setTimeout(() => refresh(l), every);
@@ -447,8 +458,8 @@ function render(l) {
 
 const num = (n) => n.toLocaleString('de-DE');
 const svg = (paths) => `<svg viewBox="0 0 24 24" aria-hidden="true">${paths}</svg>`;
-const ICON_LAYERS = '<path d="m12 3.5 8.5 4.5-8.5 4.5L3.5 8z"/><path d="m3.5 12 8.5 4.5 8.5-4.5"/><path d="m3.5 16 8.5 4.5 8.5-4.5"/>';
-const ICON_WALL = '<rect x="3.5" y="4.5" width="7.5" height="6.5" rx="1"/><rect x="13" y="4.5" width="7.5" height="6.5" rx="1"/><rect x="3.5" y="13" width="7.5" height="6.5" rx="1"/><rect x="13" y="13" width="7.5" height="6.5" rx="1"/>';
+const ICON_OPTS = '<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>';
+const ICON_FAV = '<path d="m12 3.8 2.5 5.1 5.6.8-4 3.9 1 5.6-5.1-2.7-5 2.7.9-5.6-4-3.9 5.6-.8z"/>';
 
 function ago(ts) {
   if (!ts) return '';
@@ -495,8 +506,9 @@ function dockButton(g) {
   if (g.menu) {
     // Menü: Zahl = eingeschaltete Ebenen; „an“, sobald eine läuft.
     const open = !$('#panel').hidden && panelGroup === l.id;
-    return `<button class="dk ${mine.length || open ? 'on' : ''}" style="--c:${l.color}" data-menu="${l.id}" aria-expanded="${open}" title="${esc(`${l.name}: ${g.members.map((x) => x.name).join(', ')}`)}">
-      ${svg(l.icon)}<span>${esc(l.short)}</span><i class="n ${err ? 'err' : ''}">${mine.length}</i></button>`;
+    const extra = l.id === 'wx' && wx.kind ? 1 : 0; // Wetterkarte zählt mit
+    return `<button class="dk ${mine.length + extra || open ? 'on' : ''}" style="--c:${l.color}" data-menu="${l.id}" aria-expanded="${open}" title="${esc(`${l.name}: ${g.members.map((x) => x.name).join(', ')}`)}">
+      ${svg(l.icon)}<span>${esc(l.short)}</span><i class="n ${err ? 'err' : ''}">${mine.length + extra}</i></button>`;
   }
   const on = mine.length > 0;
   const n = mine.reduce((s, x) => s + count(x), 0);
@@ -515,8 +527,8 @@ function layerRow(l) {
 
 function renderChrome() {
   $('#dock').innerHTML = DOCK.map(dockButton).join('') + '<div class="dk-sep"></div>'
-    + `<button class="dk ${!$('#panel').hidden && !panelGroup ? 'on' : ''}" data-act="panel" title="Ebenen und Karte">${svg(ICON_LAYERS)}<span>Ebenen</span></button>`
-    + `<button class="dk ${favs.size ? 'on' : ''}" style="--c:var(--warn)" data-act="wall" title="Favoriten-Wand">${svg(ICON_WALL)}<span>Wand</span><i class="n">${favs.size}</i></button>`;
+    + `<button class="dk ${!$('#panel').hidden && panelGroup === 'opts' ? 'on' : ''}" data-act="opts" title="Kartenstil und Ebenen">${svg(ICON_OPTS)}<span>Optionen</span></button>`
+    + `<button class="dk ${favs.size ? 'on' : ''}" style="--c:var(--warn)" data-act="wall" title="Favoriten">${svg(ICON_FAV)}<span>Favoriten</span><i class="n">${favs.size}</i></button>`;
 
   // Kopfzeilen-Zähler nur für die Hauptebenen (Kameras zusammen); Menü-Ebenen zählt ihr Panel.
   $('#stats').innerHTML = DOCK.filter((g) => !g.menu).map((g) => {
@@ -529,11 +541,21 @@ function renderChrome() {
 
   if (!$('#panel').hidden) {
     const menu = panelGroup && DOCK.find((g) => g.menu && g.lead.id === panelGroup);
-    $('#panel').innerHTML = `<div class="p-head"><span class="caps">${esc(menu ? menu.lead.name : 'Ebenen')}</span><button class="ic" data-act="panel-close" aria-label="Schließen">×</button></div>`
-      + (menu ? menu.members.map(layerRow).join('')
-        : LAYERS.map(layerRow).join('')
-          + `<div class="p-sub caps">Karte</div><div class="seg">
-        <button data-base="dark" class="${base === 'dark' ? 'on' : ''}">Dunkel</button><button data-base="sat" class="${base === 'sat' ? 'on' : ''}">Satellit</button></div>`);
+    const head = (title) => `<div class="p-head"><b>${esc(title)}</b><button class="ic" data-act="panel-close" aria-label="Schließen">×</button></div>`;
+    if (panelGroup === 'opts') {
+      $('#panel').innerHTML = head('Optionen')
+        + `<div class="p-sub">Kartenstil</div><div class="seg">
+          ${[['dark', 'Dunkel'], ['light', 'Hell'], ['sat', 'Satellit']].map(([k, n]) => `<button data-base="${k}" class="${base === k ? 'on' : ''}">${n}</button>`).join('')}</div>`
+        + `<div class="p-sub">Ebenen</div>${LAYERS.map(layerRow).join('')}`;
+    } else if (menu && menu.lead.id === 'wx') {
+      $('#panel').innerHTML = head('Wetter')
+        + `<div class="p-sub">Wetterkarte mit Zeitleiste</div><div class="seg">
+          <button data-wx="" class="${wx.kind ? '' : 'on'}">Aus</button>${Object.entries(KINDS).map(([k, v]) => `<button data-wx="${k}" class="${wx.kind === k ? 'on' : ''}">${v.short}</button>`).join('')}</div>`
+        + `<button class="row-btn" data-act="fc">Vorhersage 16 Tage für die Kartenmitte<small>Mit eingeschalteter Wetterkarte: beliebige Stelle antippen</small></button>`
+        + `<div class="p-sub">Weitere Ebenen</div>${menu.members.map(layerRow).join('')}`;
+    } else {
+      $('#panel').innerHTML = head(menu ? menu.lead.name : 'Ebenen') + (menu ? menu.members : LAYERS).map(layerRow).join('');
+    }
   }
 
   const errors = LAYERS.filter((l) => active.has(l.id) && runtime.get(l.id).error);
@@ -573,6 +595,7 @@ async function setBase(kind) {
   base = kind;
   prefs.base = kind;
   save();
+  applyTheme();
   map.setStyle(await fetchStyle(kind));
   // setStyle verwirft eigene Ebenen → nach dem Laden neu einhängen.
   map.once('style.load', installAll);
@@ -589,13 +612,15 @@ function openPanel(group) {
 }
 
 function onChromeClick(e) {
-  const t = e.target.closest('[data-layer],[data-group],[data-menu],[data-act],[data-base]');
+  const t = e.target.closest('[data-layer],[data-group],[data-menu],[data-act],[data-base],[data-wx]');
   if (!t) return;
   if (t.dataset.group) toggleGroup(t.dataset.group);
   else if (t.dataset.menu) openPanel(t.dataset.menu);
   else if (t.dataset.layer) toggleLayer(t.dataset.layer);
   else if (t.dataset.base) setBase(t.dataset.base);
-  else if (t.dataset.act === 'panel') openPanel(null);
+  else if (t.dataset.act === 'opts') openPanel('opts');
+  else if (t.dataset.wx !== undefined) setWxKind(t.dataset.wx || null);
+  else if (t.dataset.act === 'fc') openForecast(map.getCenter().toArray());
   else if (t.dataset.act === 'panel-close') { $('#panel').hidden = true; renderChrome(); }
   else if (t.dataset.act === 'wall') openWall();
 }
@@ -603,7 +628,7 @@ $('#dock').addEventListener('click', onChromeClick);
 $('#panel').addEventListener('click', onChromeClick);
 
 function tickClock() {
-  $('#utc').textContent = `${new Date().toISOString().slice(11, 19)} UTC`;
+  $('#utc').textContent = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 }
 setInterval(tickClock, 1000);
 tickClock();
@@ -690,7 +715,7 @@ async function loadMore() {
   const run = ++moreRun;
   const { l, p, coords } = current;
   // Aktuelle Position aus den Live-Daten, falls sich das Objekt bewegt hat
-  const live = runtime.get(l.id).features.find((f) => f.id === p.id);
+  const live = runtime.get(l.id)?.features.find((f) => f.id === p.id);
   const pos = currentPos(l, p.id) || (live ? [live.lon, live.lat] : coords);
   const ctrl = new AbortController();
   try {
@@ -719,7 +744,7 @@ function showDetail(l, props, coords) {
   const d = l.detail(p);
   stopMedia();
   current = { l, p, coords };
-  const fav = d.fav ? `<button class="ic fav ${favs.has(favKey(l, p)) ? 'on' : ''}" data-act="fav" aria-label="Favorit" title="Auf die Wand legen">★</button>` : '';
+  const fav = d.fav ? `<button class="ic fav ${favs.has(favKey(l, p)) ? 'on' : ''}" data-act="fav" aria-label="Favorit" title="Zu den Favoriten">★</button>` : '';
   const [lon, lat] = coords || [];
   // Flugzeuge/Schiffe: erst kompakt (Name, eine Zeile, Route/Details), damit die Karte mit der Route sichtbar bleibt.
   const sum = l.compact ? `<div class="d-sum"><p class="sum">${d.summary || ''}</p><div class="d-act">
@@ -785,7 +810,7 @@ function toggleFav(btn) {
   prefs.favs = [...favs.values()];
   save();
   btn.classList.toggle('on', favs.has(key));
-  toast(favs.has(key) ? `„${p.label || p.name}“ liegt jetzt auf der Wand` : 'Von der Wand genommen');
+  toast(favs.has(key) ? `„${p.label || p.name}“ ist jetzt ein Favorit` : 'Aus den Favoriten entfernt');
   renderChrome();
 }
 
@@ -805,7 +830,213 @@ $('#detail').addEventListener('click', (e) => {
   if (btn) playVideo(btn);
 });
 
-/* ---------- Favoriten-Wand ---------- */
+/* ---------- Wetterkarte mit Zeitleiste ----------
+   Zwei Rasterquellen im Wechsel: die neue Zeit lädt unsichtbar, erst wenn ihre Kacheln da sind, wird überblendet –
+   so flackert die Karte beim Abspielen nicht. */
+
+const WX_BUF = ['lk-wx-a', 'lk-wx-b'];
+const wxSources = new Set(); // eingehängte Puffer (nach setStyle leer)
+let wxFront = 0;
+
+function wxPut(buf, url) {
+  const id = WX_BUF[buf];
+  if (map.getSource(id)) { map.getSource(id).setTiles([url]); return; }
+  map.addSource(id, { type: 'raster', tiles: [url], tileSize: 256, maxzoom: 7,
+    attribution: 'Wetter: <a href="https://www.dwd.de" target="_blank" rel="noopener">DWD</a> · <a href="https://www.rainviewer.com" target="_blank" rel="noopener">RainViewer</a>' });
+  // Schwarze Windpfeile auf dunkler Karte weiß einfärben (Helligkeit auf 1, Transparenz bleibt)
+  const tint = KINDS[wx.kind]?.tint && base !== 'light' ? { 'raster-brightness-min': 1, 'raster-brightness-max': 1 } : {};
+  map.addLayer({ id: `${id}-r`, type: 'raster', source: id, paint: { 'raster-opacity': 0, 'raster-opacity-transition': { duration: 250 }, 'raster-fade-duration': 0, ...tint } }, below());
+  wxSources.add(id);
+}
+
+function wxLoaded(id, ms = 6000) {
+  return new Promise((done) => {
+    const t0 = Date.now();
+    const check = () => (map.getSource(id) && map.isSourceLoaded(id)) || Date.now() - t0 > ms ? done() : setTimeout(check, 100);
+    setTimeout(check, 80);
+  });
+}
+
+/** Schritt i zeigen: in den hinteren Puffer laden, dann überblenden. */
+async function showStep(i, instant = false) {
+  if (!wx.steps.length) return;
+  wx.idx = Math.max(0, Math.min(wx.steps.length - 1, i));
+  renderWxBar();
+  const run = ++wx.run;
+  const back = instant ? wxFront : 1 - wxFront;
+  wxPut(back, wx.steps[wx.idx].url);
+  await wxLoaded(WX_BUF[back]);
+  if (run !== wx.run || !wx.kind) return;
+  const op = KINDS[wx.kind].opacity;
+  map.setPaintProperty(`${WX_BUF[back]}-r`, 'raster-opacity', op);
+  if (back !== wxFront && map.getLayer(`${WX_BUF[wxFront]}-r`)) map.setPaintProperty(`${WX_BUF[wxFront]}-r`, 'raster-opacity', 0);
+  wxFront = back;
+}
+
+function wxRemove() {
+  for (const id of WX_BUF) {
+    if (map.getLayer(`${id}-r`)) map.removeLayer(`${id}-r`);
+    if (map.getSource(id)) map.removeSource(id);
+  }
+  wxSources.clear();
+}
+
+async function setWxKind(kind) {
+  wx.run++;
+  wx.playing = false;
+  clearTimeout(wx.timer);
+  wx.kind = KINDS[kind] ? kind : null;
+  prefs.wx = wx.kind;
+  save();
+  wx.steps = [];
+  wx.error = null;
+  wx.legend = false;
+  wxRemove();
+  renderWxBar();
+  renderChrome();
+  if (!wx.kind) return;
+  const kindNow = wx.kind;
+  try {
+    const steps = await buildSteps(kindNow);
+    if (wx.kind !== kindNow) return;
+    wx.steps = steps;
+    wx.loadedAt = Date.now();
+    await showStep(nowIndex(steps));
+  } catch (e) {
+    if (wx.kind !== kindNow) return;
+    wx.error = !navigator.onLine ? 'Keine Internetverbindung' : e.message;
+    renderWxBar();
+  }
+}
+
+/** Neue Radarbilder und Modellläufe: Schritte alle 15 min neu holen, aktuelle Zeit beibehalten. */
+async function wxReload() {
+  if (!wx.kind || wx.playing || !wx.steps.length || Date.now() - (wx.loadedAt || 0) < 15 * 60_000) return;
+  const kindNow = wx.kind;
+  const t = wx.steps[wx.idx].t;
+  try {
+    const steps = await buildSteps(kindNow);
+    if (wx.kind !== kindNow || wx.playing) return;
+    wx.steps = steps;
+    wx.loadedAt = Date.now();
+    showStep(nearestStep(steps, t));
+  } catch { /* nächster Versuch beim nächsten Takt */ }
+}
+setInterval(wxReload, 60_000);
+
+function togglePlay() {
+  wx.playing = !wx.playing;
+  clearTimeout(wx.timer);
+  renderWxBar();
+  if (!wx.playing) return;
+  const next = async () => {
+    if (!wx.playing || !wx.steps.length) return;
+    await showStep(wx.idx >= wx.steps.length - 1 ? 0 : wx.idx + 1);
+    if (wx.playing) wx.timer = setTimeout(next, 650);
+  };
+  next();
+}
+
+function renderWxBar() {
+  const bar = $('#wxbar');
+  document.body.classList.toggle('wx-on', Boolean(wx.kind));
+  if (!wx.kind) { bar.hidden = true; bar.innerHTML = ''; return; }
+  bar.hidden = false;
+  const k = KINDS[wx.kind];
+  const step = wx.steps[wx.idx];
+  const lab = step ? stepLabel(step.t) : null;
+  const when = wx.error ? `<b>${esc(k.name)}</b><span class="err">${esc(wx.error)}</span>`
+    : !step ? `<b>${esc(k.name)}</b><span>Lädt …</span>`
+      : `<b>${esc(lab.day)}, ${esc(lab.time)}</b><span>${esc(lab.rel)} · ${esc(step.src === 'Radar' ? 'Radar, gemessen' : `Vorhersage ${step.src}`)}</span>`;
+  // Regler und Tagesmarken nur neu bauen, wenn sich die Schritte geändert haben (sonst springt der Daumen beim Ziehen)
+  const sig = `${wx.kind}|${wx.steps.length}|${wx.steps[0]?.t}`;
+  if (bar.dataset.sig !== sig) {
+    bar.dataset.sig = sig;
+    const ticks = dayTicks(wx.steps).map((d) => `<i style="left:${(d.pos * 100).toFixed(2)}%">${esc(d.label)}</i>`).join('');
+    bar.innerHTML = `<div class="wx-row">
+        <button class="ic wx-play" data-wxact="play" aria-label="Abspielen"></button>
+        <div class="wx-when"></div>
+        <button class="chipbtn" data-wxact="legend">Legende</button>
+        <button class="ic" data-wxact="close" aria-label="Wetterkarte ausblenden">×</button>
+      </div>
+      <div class="wx-track"><input type="range" min="0" max="1000" step="1" aria-label="Zeitpunkt"><div class="wx-ticks">${ticks}</div></div>
+      <div class="wx-legend" hidden></div>`;
+  }
+  bar.querySelector('.wx-when').innerHTML = when;
+  const play = bar.querySelector('.wx-play');
+  play.textContent = wx.playing ? '❚❚' : '▶';
+  play.setAttribute('aria-label', wx.playing ? 'Anhalten' : 'Abspielen');
+  play.disabled = !wx.steps.length;
+  // Regler als Zeitachse (0..1000): Tage sind gleich breit, egal ob stündliche oder 3-stündliche Schritte
+  const range = bar.querySelector('input[type=range]');
+  const t0 = wx.steps[0]?.t, span = (wx.steps.at(-1)?.t - t0) || 1;
+  if (document.activeElement !== range && step) range.value = String(Math.round(((step.t - t0) / span) * 1000));
+  range.disabled = !wx.steps.length;
+  // Radar-Abschnitt (gemessen) auf der Leiste andeuten
+  const lastRadar = wx.steps.filter((s) => s.src === 'Radar').at(-1);
+  range.style.setProperty('--radar', lastRadar ? `${((lastRadar.t - t0) / span) * 100}%` : '0%');
+  const leg = bar.querySelector('.wx-legend');
+  leg.hidden = !wx.legend;
+  if (wx.legend) {
+    const layer = step?.legend || k.layers[0].wms;
+    leg.innerHTML = k.legendText ? `<p>${esc(k.legendText)}</p>`
+      : step?.src === 'Radar' ? '<p>Radar: blau = schwach, gelb/rot = stark. Die Farben der Vorhersage zeigt die Legende ab „jetzt“.</p>'
+        : `<img alt="Legende ${esc(k.name)}" src="${esc(legendUrl(layer))}">`;
+  }
+}
+
+let wxDrag = 0;
+$('#wxbar').addEventListener('input', (e) => {
+  if (e.target.type !== 'range') return;
+  if (wx.playing) { wx.playing = false; clearTimeout(wx.timer); }
+  const t0 = wx.steps[0]?.t, span = (wx.steps.at(-1)?.t - t0) || 1;
+  wx.idx = nearestStep(wx.steps, t0 + (Number(e.target.value) / 1000) * span);
+  renderWxBar();
+  clearTimeout(wxDrag);
+  wxDrag = setTimeout(() => showStep(wx.idx), 120);
+});
+$('#wxbar').addEventListener('click', (e) => {
+  const act = e.target.closest('[data-wxact]')?.dataset.wxact;
+  if (act === 'play') togglePlay();
+  else if (act === 'close') setWxKind(null);
+  else if (act === 'legend') { wx.legend = !wx.legend; renderWxBar(); }
+});
+
+/* ---------- Vorhersage für einen Ort (16 Tage) ---------- */
+
+const FORECAST = {
+  id: 'forecast',
+  name: 'Wettervorhersage',
+  detail() {
+    return {
+      title: 'Wetter an diesem Ort',
+      kicker: 'Vorhersage · 16 Tage',
+      chip: { text: 'Open-Meteo', cls: 'acc' },
+      body: '<div class="more">Lädt Vorhersage …</div><p class="src">Daten: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> (CC BY 4.0), Modelle u. a. DWD ICON</p>'
+    };
+  },
+  async more(p, pos) {
+    try {
+      return { html: forecastHtml(await forecast(pos[0], pos[1])) };
+    } catch (e) {
+      return { html: `<p class="noimg">Vorhersage nicht abrufbar: ${esc(e.message)}</p>` };
+    }
+  }
+};
+
+function openForecast(lonlat) {
+  $('#panel').hidden = true;
+  showDetail(FORECAST, { id: `${lonlat[0].toFixed(3)},${lonlat[1].toFixed(3)}` }, lonlat);
+}
+
+// Mit eingeschalteter Wetterkarte: leere Stelle antippen = Vorhersage dort
+map.on('click', (e) => {
+  if (!wx.kind) return;
+  const hit = map.queryRenderedFeatures(e.point).some((f) => LAYERS.some((o) => !o.noclick && srcId(o) === String(f.source).replace(/-live$/, '')));
+  if (!hit) openForecast([e.lngLat.lng, e.lngLat.lat]);
+});
+
+/* ---------- Favoriten ---------- */
 
 function openWall() {
   closeDetail();
@@ -818,9 +1049,9 @@ function openWall() {
     const media = new DOMParser().parseFromString(d.body, 'text/html').body.firstElementChild?.outerHTML || '';
     return `<article class="tile glass" data-key="${esc(f.key)}"><header>${d.chip ? `<span class="chip ${d.chip.cls}">${d.chip.text}</span>` : ''}<b>${d.title}</b>
       <button class="ic" data-act="goto" title="Auf der Karte zeigen" aria-label="Auf der Karte zeigen">⌖</button>
-      <button class="ic" data-act="unfav" title="Von der Wand nehmen" aria-label="Von der Wand nehmen">×</button></header>${media}</article>`;
+      <button class="ic" data-act="unfav" title="Aus den Favoriten entfernen" aria-label="Aus den Favoriten entfernen">×</button></header>${media}</article>`;
   }).join('');
-  $('#walltiles').innerHTML = tiles || '<p class="w-empty">Noch nichts auf der Wand.<br>Kamera oder Livestream öffnen und den Stern ★ antippen.</p>';
+  $('#walltiles').innerHTML = tiles || '<p class="w-empty">Noch keine Favoriten.<br>Kamera oder Livestream öffnen und den Stern ★ antippen.</p>';
   $('#wallplay').hidden = !favs.size;
   $('#wall').hidden = false;
   startImages($('#walltiles'));
@@ -950,6 +1181,9 @@ function installAll() {
     ensureInstalled(l);
     setVisible(l, active.has(l.id));
   }
+  // setStyle verwirft auch die Wetterkarte → aktuellen Zeitpunkt neu einhängen
+  wxSources.clear();
+  if (wx.kind && wx.steps.length) showStep(wx.idx, true);
 }
 
 /** Objekte aus den geladenen Vektorkacheln übernehmen (für Zähler, Suche und Detail-Aktualisierung). */
@@ -992,6 +1226,9 @@ renderChrome();
 function start() {
   installAll();
   LAYERS.forEach(refresh);
+  // Zuletzt gewählte Wetterkarte wiederherstellen
+  if (wx.kind && !wx.steps.length) setWxKind(wx.kind);
+  renderWxBar();
 }
 if (map.isStyleLoaded()) start(); else map.once('style.load', start);
 

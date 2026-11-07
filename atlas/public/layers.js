@@ -153,7 +153,7 @@ function playButton(attr, value, via) {
 }
 
 /** Farben wie Argos: Video magenta, Standbild blau, Akzent türkis. */
-export const COLORS = { live: '#ff3b6b', image: '#3d8bff', accent: '#19d6e8' };
+export const COLORS = { live: '#f0506e', image: '#5b9cf5', accent: '#4cc3d9' };
 
 /** Gruppen und Punkte im HUD-Stil: dunkle Gruppe mit farbigem Ring, Punkt mit Leuchthof. */
 function pointLayers(map, src, color, { radius = [5, 5, 14, 8] } = {}) {
@@ -177,7 +177,7 @@ function pointLayers(map, src, color, { radius = [5, 5, 14, 8] } = {}) {
   }
   map.addLayer({
     id: `${src}-glow`, type: 'circle', source: src, filter: ['!', ['has', 'point_count']],
-    paint: { 'circle-color': color, 'circle-radius': ['interpolate', ['linear'], ['zoom'], radius[0], radius[1] * 2.4, radius[2], radius[3] * 2.4], 'circle-blur': 1, 'circle-opacity': 0.55 }
+    paint: { 'circle-color': color, 'circle-radius': ['interpolate', ['linear'], ['zoom'], radius[0], radius[1] * 2.4, radius[2], radius[3] * 2.4], 'circle-blur': 1, 'circle-opacity': 0.22 }
   });
   map.addLayer({
     id: `${src}-pt`, type: 'circle', source: src, filter: ['!', ['has', 'point_count']],
@@ -198,13 +198,6 @@ export const DOCK_GROUPS = {
     short: 'Wetter',
     color: '#7fb4ff',
     icon: '<path d="M7 18h10a4 4 0 0 0 .6-7.95A5.5 5.5 0 0 0 7.1 9.6 4.2 4.2 0 0 0 7 18z"/>'
-  },
-  misc: {
-    id: 'misc',
-    name: 'Sonstige Ebenen',
-    short: 'Sonstige',
-    color: '#a7b4c2',
-    icon: '<circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/>'
   }
 };
 
@@ -213,28 +206,8 @@ const when = (v) => {
   return Number.isFinite(t) ? new Date(t).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : null;
 };
 
-/** Nachtseite der Erde als Fläche (Sonnenstand vereinfacht, auf wenige Minuten genau). */
-export function nightPolygon(date) {
-  const start = Date.UTC(date.getUTCFullYear(), 0, 0);
-  const day = (date.getTime() - start) / 86_400_000;
-  const decl = -23.44 * Math.cos(((2 * Math.PI) / 365) * (day + 10));
-  const b = ((2 * Math.PI) / 364) * (day - 81);
-  const eot = 9.87 * Math.sin(2 * b) - 7.53 * Math.cos(b) - 1.5 * Math.sin(b); // Zeitgleichung in Minuten
-  const hours = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600;
-  const sunLon = -15 * (hours - 12 + eot / 60);
-  const d = (Math.abs(decl) < 0.05 ? 0.05 : decl) * Math.PI / 180;
-  const line = [];
-  for (let lon = -180; lon <= 180; lon += 2) {
-    const lat = Math.atan(-Math.cos(((lon - sunLon) * Math.PI) / 180) / Math.tan(d)) * 180 / Math.PI;
-    line.push([lon, Math.round(lat * 100) / 100]);
-  }
-  // Sonne über der Nordhalbkugel → Nacht reicht bis zum Südpol, sonst bis zum Nordpol.
-  const pole = decl > 0 ? -85 : 85;
-  const ring = [...line, [180, pole], [-180, pole], line[0]];
-  return { id: 'night', lon: 0, lat: 0, heading: null, label: 'Nachtseite', props: {}, geometry: { type: 'Polygon', coordinates: [ring] } };
-}
 
-/** Punkte mit Farbe aus einer Eigenschaft (match) – für Katastrophen, Pegel, Radioaktivität. */
+/** Punkte mit Farbe aus einer Eigenschaft (match), z. B. Pegel nach Wasserstand. */
 function dotLayer(map, src, color, radius = [2, 3.5, 8, 7]) {
   map.addLayer({
     id: `${src}-pt`, type: 'circle', source: src,
@@ -247,9 +220,6 @@ function dotLayer(map, src, color, radius = [2, 3.5, 8, 7]) {
   });
 }
 
-const GDACS_TYPES = { TC: 'Tropensturm', FL: 'Überschwemmung', DR: 'Dürre', WF: 'Waldbrand', VO: 'Vulkanausbruch', EQ: 'Erdbeben' };
-const ALERT = { Green: ['grün', '#37b24d'], Orange: ['orange', '#fd7e14'], Red: ['rot', '#e03131'] };
-const EONET_CATS = { wildfires: ['Waldbrand', '#ff7a45'], severeStorms: ['Unwetter / Sturm', '#c084fc'], volcanoes: ['Vulkan', '#e03131'] };
 const PEGEL_STATE = { low: ['Niedrigwasser', '#ffd23b'], normal: ['normal', '#4dabf7'], high: ['Hochwasser', '#e03131'] };
 const SEVERITY = { Minor: ['Wetterwarnung', 'acc'], Moderate: ['Markantes Wetter', 'warn'], Severe: ['Unwetter', 'live'], Extreme: ['Extremes Unwetter', 'live'] };
 
@@ -576,73 +546,7 @@ export const LAYERS = [
       return { html: photo + (rows ? `<dl>${rows}</dl>` : '') + note, overlay: feats, summary, every: 60_000 };
     }
   },
-  {
-    id: 'quakes',
-    group: 'misc',
-    name: 'Erdbeben',
-    short: 'Beben',
-    color: '#ffb02e',
-    icon: '<path d="M2.5 12.5h4l2.5-6 4 12 3-8 1.5 2h4"/>',
-    attribution: 'Erdbeben: <a href="https://earthquake.usgs.gov" target="_blank" rel="noopener">USGS</a>',
-    desc: 'Letzte 24 Stunden, weltweit',
-    refresh: 60_000,
-    minzoom: 0,
-    viewport: false,
-    requests() { return { queries: [''] }; },
-    install(map, src) {
-      map.addLayer({
-        id: `${src}-circle`, type: 'circle', source: src,
-        paint: {
-          'circle-radius': ['interpolate', ['linear'], ['coalesce', ['get', 'mag'], 0], 0, 2.5, 3, 5, 5, 10, 7, 20],
-          'circle-color': ['interpolate', ['linear'], ['coalesce', ['get', 'mag'], 0], 1, '#fab005', 3, '#fd7e14', 5, '#e03131', 7, '#862e9c'],
-          'circle-opacity': 0.6,
-          'circle-blur': 0.15,
-          'circle-stroke-color': ['interpolate', ['linear'], ['coalesce', ['get', 'mag'], 0], 1, '#fab005', 3, '#fd7e14', 5, '#ff3b6b', 7, '#c084fc'],
-          'circle-stroke-width': 1.2
-        }
-      });
-    },
-    detail(p) {
-      const url = safeUrl(p.url);
-      const when = typeof p.time === 'number' ? new Date(p.time).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : null;
-      return {
-        title: `Magnitude ${p.mag === null ? '?' : fmt(p.mag, 1)}`,
-        kicker: `Erdbeben · ${esc(when || '')}`,
-        chip: { text: 'USGS', cls: p.mag >= 5 ? 'live' : 'warn' },
-        body: `<dl>${row('Ort', esc(p.place))}${row('Zeit', esc(when))}${row('Tiefe', p.depth_km === null ? null : `${fmt(p.depth_km, 1)} km`)}`
-          + row('Tsunami-Hinweis', p.tsunami ? 'ja' : null) + '</dl>'
-          + (url ? `<a class="ext" href="${esc(url)}" target="_blank" rel="noopener">Details bei USGS ›</a>` : '')
-      };
-    }
-  },
   /* ---------- Wetter ---------- */
-  {
-    id: 'radar',
-    group: 'wx',
-    off: true,
-    nocount: true,
-    noclick: true,
-    name: 'Regenradar',
-    short: 'Radar',
-    color: '#4dabf7',
-    attribution: 'Regenradar: <a href="https://www.rainviewer.com" target="_blank" rel="noopener">RainViewer</a>',
-    desc: 'Niederschlag weltweit, alle 10 min',
-    refresh: 300_000,
-    viewport: false,
-    // Rasterkacheln direkt von RainViewer (CORS offen); die Liste nennt das neueste Radarbild.
-    raster: {
-      maxzoom: 7,
-      opacity: 0.65,
-      async url() {
-        const res = await fetch('https://api.rainviewer.com/public/weather-maps.json', { cache: 'no-store' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const j = await res.json();
-        const last = j?.radar?.past?.at(-1);
-        if (!last?.path || typeof j.host !== 'string' || !/^https:\/\//.test(j.host)) throw new Error('Unerwartetes Format');
-        return { url: `${j.host}${last.path}/256/{z}/{x}/{y}/2/1_1.png`, at: last.time * 1000 };
-      }
-    }
-  },
   {
     id: 'warn',
     group: 'wx',
@@ -700,66 +604,9 @@ export const LAYERS = [
       }, before);
     }
   },
-  /* ---------- Sonstige ---------- */
-  {
-    id: 'gdacs',
-    group: 'misc',
-    name: 'Katastrophen (GDACS)',
-    short: 'GDACS',
-    color: '#fd7e14',
-    attribution: 'Katastrophen: <a href="https://www.gdacs.org" target="_blank" rel="noopener">GDACS</a> (UN/EU)',
-    desc: 'Stürme, Fluten, Dürren, Waldbrände, Vulkane weltweit',
-    refresh: 900_000,
-    minzoom: 0,
-    viewport: false,
-    requests() { return { queries: [''] }; },
-    install(map, src) {
-      dotLayer(map, src, ['match', ['get', 'alert'], 'Red', '#e03131', 'Orange', '#fd7e14', '#37b24d'], [1, 4, 8, 10]);
-    },
-    detail(p) {
-      const [lvl, color] = ALERT[p.alert] || ['–', '#999'];
-      const link = safeUrl(p.link);
-      return {
-        title: esc(p.name),
-        kicker: `${esc(GDACS_TYPES[p.type] || p.type)} · GDACS`,
-        chip: { text: `Stufe ${lvl}`, cls: p.alert === 'Red' ? 'live' : p.alert === 'Orange' ? 'warn' : 'acc' },
-        body: `<dl>${row('Art', esc(GDACS_TYPES[p.type] || p.type))}${row('Land', esc(p.country))}${row('Einstufung', esc(p.severity))}`
-          + `${row('Von', esc(when(p.from)))}${row('Bis', esc(when(p.to)))}</dl>`
-          + (link ? `<a class="ext" href="${esc(link)}" target="_blank" rel="noopener" style="--c:${color}">Bericht bei GDACS ›</a>` : '')
-      };
-    }
-  },
-  {
-    id: 'eonet',
-    group: 'misc',
-    off: true,
-    name: 'Naturereignisse (NASA)',
-    short: 'NASA',
-    color: '#ff7a45',
-    attribution: 'Naturereignisse: <a href="https://eonet.gsfc.nasa.gov" target="_blank" rel="noopener">NASA EONET</a>',
-    desc: 'Waldbrände, Stürme, Vulkane der letzten 30 Tage',
-    refresh: 900_000,
-    minzoom: 0,
-    viewport: false,
-    requests() { return { queries: [''] }; },
-    install(map, src) {
-      dotLayer(map, src, ['match', ['get', 'category'], 'wildfires', '#ff7a45', 'severeStorms', '#c084fc', 'volcanoes', '#e03131', '#a7b4c2'], [1, 3.5, 8, 9]);
-    },
-    detail(p) {
-      const [cat] = EONET_CATS[p.category] || [p.category];
-      const link = safeUrl(p.link);
-      return {
-        title: esc(p.title),
-        kicker: `${esc(cat)} · NASA EONET`,
-        chip: { text: esc(cat), cls: 'warn' },
-        body: `<dl>${row('Zuletzt gemeldet', esc(when(p.date)))}${row('Größe', typeof p.magnitude === 'number' ? `${fmt(p.magnitude)} ${esc(p.unit || '')}` : null)}</dl>`
-          + (link ? `<a class="ext" href="${esc(link)}" target="_blank" rel="noopener">Quelle ›</a>` : '')
-      };
-    }
-  },
   {
     id: 'pegel',
-    group: 'misc',
+    group: 'wx',
     off: true,
     name: 'Pegelstände (DE)',
     short: 'Pegel',
@@ -783,53 +630,6 @@ export const LAYERS = [
           + `${row('Gewässer', esc(p.water))}${row('Flusskilometer', typeof p.km === 'number' ? fmt(p.km, 1) : null)}${row('Amt', esc(p.agency))}</dl>`
           + (p.number ? `<a class="ext" href="https://www.pegelonline.wsv.de/gast/stammdaten?pegelnr=${encodeURIComponent(p.number)}" target="_blank" rel="noopener">Ganglinie bei PEGELONLINE ›</a>` : '')
       };
-    }
-  },
-  {
-    id: 'odl',
-    group: 'misc',
-    off: true,
-    name: 'Radioaktivität (DE)',
-    short: 'ODL',
-    color: '#d6ff3b',
-    attribution: 'Ortsdosisleistung: <a href="https://odlinfo.bfs.de" target="_blank" rel="noopener">Bundesamt für Strahlenschutz</a> (DL-DE/BY 2.0)',
-    desc: 'Gamma-Ortsdosisleistung, ~1.700 Messstellen, stündlich',
-    refresh: 900_000,
-    minzoom: 0,
-    viewport: false,
-    requests() { return { queries: [''] }; },
-    install(map, src) {
-      dotLayer(map, src, ['interpolate', ['linear'], ['coalesce', ['get', 'value'], 0], 0.05, '#37b24d', 0.1, '#a9e34b', 0.15, '#ffd23b', 0.3, '#fd7e14', 1, '#e03131'], [4, 2, 10, 6]);
-    },
-    detail(p) {
-      return {
-        title: esc(p.name),
-        kicker: `Messstelle${p.plz ? ` · ${esc(p.plz)}` : ''}`,
-        chip: { text: typeof p.value === 'number' ? `${fmt(p.value, 3)} µSv/h` : '–', cls: p.value >= 0.3 ? 'live' : 'acc' },
-        body: `<dl>${row('Ortsdosisleistung', typeof p.value === 'number' ? `${fmt(p.value, 3)} µSv/h` : null)}`
-          + `${row('davon kosmisch', typeof p.cosmic === 'number' ? `${fmt(p.cosmic, 3)} µSv/h` : null)}${row('davon terrestrisch', typeof p.terrestrial === 'number' ? `${fmt(p.terrestrial, 3)} µSv/h` : null)}`
-          + `${row('Messung bis', esc(when(p.end)))}${row('Höhe', typeof p.height === 'number' ? `${fmt(p.height)} m` : null)}</dl>`
-          + '<p class="noimg">Natürlicher Bereich in Deutschland etwa 0,05–0,18 µSv/h.</p>'
-          + '<a class="ext" href="https://odlinfo.bfs.de" target="_blank" rel="noopener">ODL-Info des BfS ›</a>'
-      };
-    }
-  },
-  {
-    id: 'night',
-    group: 'misc',
-    off: true,
-    nocount: true,
-    noclick: true,
-    name: 'Tag und Nacht',
-    short: 'Nacht',
-    color: '#7f8cff',
-    desc: 'Nachtseite der Erde, jede Minute neu berechnet',
-    refresh: 60_000,
-    viewport: false,
-    compute: (date) => [nightPolygon(date)],
-    install(map, src, before) {
-      map.addLayer({ id: `${src}-fill`, type: 'fill', source: src, paint: { 'fill-color': '#020611', 'fill-opacity': 0.38 } }, before);
-      map.addLayer({ id: `${src}-line`, type: 'line', source: src, paint: { 'line-color': '#7f8cff', 'line-width': 1, 'line-opacity': 0.5 } }, before);
     }
   }
 ];

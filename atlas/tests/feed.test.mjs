@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createProxy } from '../netlify/functions/feed/core.mts';
-import { parseReadsb, parseUsgs, cellCenter, CELL, parseTrace, parseAircraftInfo, parseFotoWebcam, parseShipPhoto, parseDwdWarnings, parseAurora, AURORA_MIN, parseGdacs, parseEonet, parsePegel, parseOdl } from '../netlify/functions/feed/sources.mts';
+import { parseReadsb, cellCenter, CELL, parseTrace, parseAircraftInfo, parseFotoWebcam, parseShipPhoto, parseDwdWarnings, parseAurora, AURORA_MIN, parsePegel } from '../netlify/functions/feed/sources.mts';
 
 const okJson = (body) => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
 const READSB = {
@@ -38,16 +38,6 @@ test('parseReadsb normalisiert und verwirft Einträge ohne Position', () => {
   assert.equal(f[1].props.alt_ft, 0);
   assert.equal(f[1].label, '3C65A1');
   assert.throws(() => parseReadsb({ foo: 1 }), /ac fehlt/);
-});
-
-test('parseUsgs liest Magnitude, Tiefe und Link', () => {
-  const f = parseUsgs({ type: 'FeatureCollection', features: [
-    { id: 'us1', geometry: { coordinates: [142.1, 38.2, 10.5] }, properties: { mag: 5.04, place: 'Japan', time: 1, url: 'https://e.x/1' } },
-    { id: 'bad', geometry: { coordinates: [] }, properties: {} }
-  ] });
-  assert.equal(f.length, 1);
-  assert.equal(f[0].label, 'M 5.0 · Japan');
-  assert.equal(f[0].props.depth_km, 10.5);
 });
 
 test('Zellmittelpunkte liegen auf dem Gitter', () => {
@@ -114,7 +104,7 @@ test('Alle Quellen weg: alte Daten als stale, ohne Daten 502', async () => {
 
 test('Unerwartetes Format zählt als Fehler', async () => {
   const { get } = setup(() => okJson({ html: 'Wartung' }));
-  assert.equal((await get('/api/feed/quakes')).status, 502);
+  assert.equal((await get('/api/feed/aurora')).status, 502);
 });
 
 test('Kameras: TfL, NYC, Caltrans und Digitraffic werden einheitlich', async () => {
@@ -268,54 +258,6 @@ test('parseAurora: nur ab AURORA_MIN %, Länge nach -180..180', () => {
   assert.throws(() => parseAurora([]), /coordinates fehlt/);
 });
 
-const gd = (eventtype, eventid, over = {}, geom = [10, 20]) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: geom },
-  properties: { eventtype, eventid, name: `Ereignis ${eventid}`, alertlevel: 'Orange', country: 'Japan', fromdate: '2026-11-01T00:00:00', todate: '2026-11-06T00:00:00', iscurrent: 'true', Class: 'Point_Centroid', severitydata: { severitytext: 'Windstärke 185 km/h' }, ...over } });
-
-test('parseGdacs: nur Mittelpunkte laufender Ereignisse, Teile dürfen fehlen', () => {
-  const tc = { features: [gd('TC', 1), gd('TC', 1, { Class: 'Poly_Green' }), gd('TC', 2, { iscurrent: 'false' }), gd('TC', 3, { severitydata: "{'severity': 1, 'severitytext': 'Magnitude 6 ', 'severityunit': ''}" })] };
-  const fl = { features: [gd('FL', 9, { Class: 'Point_Affected' }), gd('FL', 10, { alertlevel: 'Red' }, [-89.4, -0.8])] };
-  const f = parseGdacs([tc, fl, null, null, null]);
-  assert.deepEqual(f.map((x) => x.id), ['TC-1', 'TC-3', 'FL-10']);
-  assert.equal(f[0].props.severity, 'Windstärke 185 km/h');
-  assert.equal(f[1].props.severity, 'Magnitude 6');
-  assert.equal(f[2].props.alert, 'Red');
-  assert.equal(f[0].props.link, 'https://www.gdacs.org/report.aspx?eventid=1&eventtype=TC');
-  assert.equal(f[0].label, 'Ereignis 1');
-  assert.deepEqual(parseGdacs([null, null]), []);
-  assert.throws(() => parseGdacs({}), /Teile fehlen/);
-});
-
-test('gdacs über den Proxy: ausgefallener Teil (404) lässt die anderen stehen', async () => {
-  const { get, calls } = setup((url) => {
-    const t = new URL(url).searchParams.get('eventtype');
-    if (t === 'VO') return new Response('{}', { status: 404 });
-    return okJson({ features: t === 'TC' ? [gd('TC', 5)] : [] });
-  });
-  const r = await get('/api/feed/gdacs');
-  assert.equal(r.status, 200);
-  assert.equal(calls.length, 5);
-  assert.deepEqual(r.body.features.map((x) => x.id), ['TC-5']);
-  assert.match(r.headers.get('netlify-cdn-cache-control'), /s-maxage=900/);
-});
-
-test('parseEonet: Punkte und Linien (letzte Koordinate), nur Brände, Stürme, Vulkane', () => {
-  const ev = (id, cat, geometry, extra = {}) => ({ type: 'Feature', geometry, properties: { id, title: `T ${id}`, link: `https://eonet/${id}`, date: '2026-11-02T07:58:00Z', categories: [{ id: cat }], ...extra } });
-  const f = parseEonet({ features: [
-    ev('E1', 'wildfires', { type: 'Point', coordinates: [-71, 44] }, { magnitudeValue: 982, magnitudeUnit: 'acres', sources: [{ url: 'https://irwin/1' }] }),
-    ev('E2', 'severeStorms', { type: 'LineString', coordinates: [[1, 2], [3, 4], [5, 6]] }),
-    ev('E3', 'seaLakeIce', { type: 'Point', coordinates: [0, 0] }),
-    ev('E4', 'volcanoes', { type: 'Polygon', coordinates: [] }),
-    { properties: {} }
-  ] });
-  assert.deepEqual(f.map((x) => x.id), ['E1', 'E2']);
-  assert.deepEqual(f[0].props, { title: 'T E1', category: 'wildfires', date: '2026-11-02T07:58:00Z', magnitude: 982, unit: 'acres', link: 'https://irwin/1' });
-  assert.equal(f[1].lon, 5);
-  assert.equal(f[1].lat, 6);
-  assert.equal(f[1].props.link, 'https://eonet/E2');
-  assert.equal(f[1].props.magnitude, null);
-  assert.throws(() => parseEonet(null), /features fehlt/);
-});
-
 test('parsePegel: nur Stationen mit Position und aktuellem Wasserstand', () => {
   const st = (uuid, over = {}) => ({ uuid, number: '1', longname: `PEGEL ${uuid}`, km: 1.7, agency: 'VERDEN', longitude: 10, latitude: 52, water: { longname: 'ALLER' },
     timeseries: [{ shortname: 'W', unit: 'cm', currentMeasurement: { timestamp: '2026-11-06T18:00:00+01:00', value: 120, stateMnwMhw: 'normal' } }], ...over });
@@ -327,12 +269,3 @@ test('parsePegel: nur Stationen mit Position und aktuellem Wasserstand', () => {
   assert.throws(() => parsePegel({}), /Liste erwartet/);
 });
 
-test('parseOdl: nur Messstellen in Betrieb mit Zahlenwert', () => {
-  const o = (id, over = {}) => ({ geometry: { type: 'Point', coordinates: [7.81, 51.91] }, properties: { id, plz: '48351', name: `Ort ${id}`, site_status: 1, height_above_sea: 60, end_measure: '2026-11-06T16:00:00Z', value: 0.087, value_cosmic: 0.043, value_terrestrial: 0.044, unit: 'µSv/h', ...over } });
-  const f = parseOdl({ features: [o('DEZ1'), o('DEZ2', { site_status: 2 }), o('DEZ3', { value: null }), o('DEZ4', { value: '0.1' }), 'Müll'] });
-  assert.equal(f.length, 1);
-  assert.equal(f[0].id, 'DEZ1');
-  assert.equal(f[0].label, 'Ort DEZ1 · 0.087 µSv/h');
-  assert.deepEqual(f[0].props, { name: 'Ort DEZ1', plz: '48351', value: 0.087, cosmic: 0.043, terrestrial: 0.044, unit: 'µSv/h', end: '2026-11-06T16:00:00Z', height: 60 });
-  assert.throws(() => parseOdl({}), /features fehlt/);
-});

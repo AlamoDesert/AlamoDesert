@@ -3,7 +3,7 @@
   "private": true,
   "description": "Live Karten – freie Live-Daten (Flugzeuge, Erdbeben, …) auf einer Karte, ohne Konto",
   "scripts": {
-    "test": "node --experimental-strip-types --test tests/feed.test.mjs",
+    "test": "node --experimental-strip-types --test tests/feed.test.mjs tests/weather.test.mjs",
     "dev": "node --experimental-strip-types dev/server.mjs",
     "dev:mock": "MOCK=1 node --experimental-strip-types dev/server.mjs",
     "probe": "node tools/probe.mjs"
