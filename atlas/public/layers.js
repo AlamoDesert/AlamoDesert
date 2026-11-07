@@ -396,12 +396,12 @@ export const LAYERS = [
       }
       const rows = row('Airline', esc(a.airline)) + row('Halter', esc(a.owner)) + row('Hersteller', esc(a.manufacturer))
         + (o || d ? row(plausible ? 'Route' : 'Route (laut Datenbank, unsicher)', `${airportName(o) || '?'} → ${airportName(d) || '?'}`) : '')
-        + (plausible ? row('Noch bis Ziel', `${fmt(distKm(pos, [d.lon, d.lat]))} km`) : '')
-        + (path.length > 1 ? row('Weg seit Start', `${fmt(path.reduce((s, x, i) => (i ? s + distKm(path[i - 1], x) : 0), 0))} km`) : '');
+        + (plausible ? row('Noch bis Ziel', `<span data-remain>${fmt(distKm(pos, [d.lon, d.lat]))}</span> km`) : '')
+        + (path.length > 1 ? row('Weg seit Start', `<span data-done>${fmt(path.reduce((s, x, i) => (i ? s + distKm(path[i - 1], x) : 0), 0))}</span> km`) : '');
       return {
         summary: o || d
-          ? `${airportName(o) || '?'} → ${airportName(d) || '?'}${plausible ? ` · noch ${fmt(distKm(pos, [d.lon, d.lat]))} km Luftlinie` : ' (laut Datenbank, unsicher)'}`
-          : path.length > 1 ? `Route unbekannt · ${fmt(path.reduce((s, x, i) => (i ? s + distKm(path[i - 1], x) : 0), 0))} km seit Start` : null,
+          ? `${airportName(o) || '?'} → ${airportName(d) || '?'}${plausible ? ` · noch <span data-remain>${fmt(distKm(pos, [d.lon, d.lat]))}</span> km Luftlinie` : ' (laut Datenbank, unsicher)'}`
+          : path.length > 1 ? `Route unbekannt · <span data-done>${fmt(path.reduce((s, x, i) => (i ? s + distKm(path[i - 1], x) : 0), 0))}</span> km seit Start` : null,
         html: photoHtml(a.photo, a.photo_by, a.photo_link, a.photo_link?.includes('planespotters') ? 'planespotters.net' : null) + (rows ? `<dl>${rows}</dl>` : ''),
         overlay: feats,
         every: 30_000
@@ -536,13 +536,13 @@ export const LAYERS = [
       const rows = row('Ziel (AIS)', esc(v.destination)) + row('Ankunft (ETA)', esc(v.eta)) + row('In der Nähe von', esc(v.near))
         + row('Tiefgang', typeof v.draught === 'number' && v.draught ? `${fmt(v.draught, 1)} m` : null)
         + row('Rufzeichen', esc(v.callsign)) + row('IMO', v.imo ? esc(v.imo) : null)
-        + (sea ? row('Route (berechnet)', `${esc(port.name)} (${esc(port.code)}) · ${fmt(sea.km)} km${typeof sog === 'number' && sog >= 0.5 ? ` · ca. ${fmt(sea.km / (sog * 1.852), 1)} h` : ''}`) : '')
-        + (path.length > 1 ? row('Weg (letzte Stunden)', `${fmt(path.reduce((s, x, i) => (i ? s + distKm(path[i - 1], x) : 0), 0), 1)} km`) : '');
+        + (sea ? row('Route (berechnet)', `${esc(port.name)} (${esc(port.code)}) · <span data-remain>${fmt(sea.km)}</span> km${typeof sog === 'number' && sog >= 0.5 ? ` · ca. <span data-eta>${fmt(sea.km / (sog * 1.852), 1)}</span> h` : ''}`) : '')
+        + (path.length > 1 ? row('Weg (letzte Stunden)', `<span data-done>${fmt(path.reduce((s, x, i) => (i ? s + distKm(path[i - 1], x) : 0), 0), 1)}</span> km`) : '');
       const note = feats.length ? `<p class="hint-line">Durchgezogen = bisheriger Weg · gestrichelt = ${sea ? 'berechneter Seeweg zum AIS-Ziel (Schätzung, keine Navigation)' : 'Kurs der nächsten Stunde'}</p>` : '';
       const km = path.length > 1 ? path.reduce((s, x, i) => (i ? s + distKm(path[i - 1], x) : 0), 0) : 0;
       const summary = sea
-        ? `→ ${esc(port.name)} · noch ${fmt(sea.km)} km${typeof sog === 'number' && sog >= 0.5 ? ` · ca. ${fmt(sea.km / (sog * 1.852), 1)} h` : ''}${km ? ` · ${fmt(km, 1)} km gefahren` : ''}`
-        : [v.destination ? `Ziel ${esc(v.destination)}` : 'Ziel unbekannt', v.eta ? `ETA ${esc(v.eta)}` : null, km ? `${fmt(km, 1)} km gefahren` : null].filter(Boolean).join(' · ');
+        ? `→ ${esc(port.name)} · noch <span data-remain>${fmt(sea.km)}</span> km${typeof sog === 'number' && sog >= 0.5 ? ` · ca. <span data-eta>${fmt(sea.km / (sog * 1.852), 1)}</span> h` : ''}${km ? ` · <span data-done>${fmt(km, 1)}</span> km gefahren` : ''}`
+        : [v.destination ? `Ziel ${esc(v.destination)}` : 'Ziel unbekannt', v.eta ? `ETA ${esc(v.eta)}` : null, km ? `<span data-done>${fmt(km, 1)}</span> km gefahren` : null].filter(Boolean).join(' · ');
       // Zum Hochrechnen zwischen den Abfragen (Weg und Route folgen dem Schiff, auch ohne Live-Liste)
       const t0 = Date.parse(v.seen) || Date.now();
       const at = typeof sog === 'number' && sog >= 0.5 && sog < 60 && typeof cog === 'number' && cog < 360

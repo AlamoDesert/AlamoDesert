@@ -1,5 +1,5 @@
 /* Live Karten – Oberfläche: Karte, Dock, Abfragetakt, Detailkarte, Suche, Favoriten, Wetterkarte mit Zeitleiste. */
-import { LAYERS, DOCK_GROUPS, EMBED_HOSTS, esc } from './layers.js';
+import { LAYERS, DOCK_GROUPS, EMBED_HOSTS, esc, distKm } from './layers.js';
 import { KINDS, buildSteps, nowIndex, nearestStep, stepLabel, dayTicks, legendUrl, imageUrl, forecast, forecastHtml } from './weather.js';
 
 const STORE = 'livekarten.v1';
@@ -165,6 +165,31 @@ function follow(features) {
   });
 }
 
+/** Restkilometer, Fahrzeit und gefahrene Kilometer in der Infokarte laufend nachführen (aus der mitlaufenden Route, ~1×/s). */
+let remainAt = 0;
+function updateRemain(ts) {
+  if (ts - remainAt < 1000) return;
+  remainAt = ts;
+  const els = document.querySelectorAll('#detail [data-remain]'), done = document.querySelectorAll('#detail [data-done]');
+  if (!els.length && !done.length) return;
+  const lines = follow(current.overlay || []);
+  const len = (role) => {
+    const f = lines.find((x) => x.properties.role === role && x.geometry.type === 'LineString');
+    if (!f) return null;
+    let km = 0;
+    for (let i = 1; i < f.geometry.coordinates.length; i++) km += distKm(f.geometry.coordinates[i - 1], f.geometry.coordinates[i]);
+    return km;
+  };
+  const de = (n, d = 0) => n.toLocaleString('de-DE', { maximumFractionDigits: d });
+  const gone = len('track');
+  if (gone !== null) for (const el of done) el.textContent = de(gone, 1);
+  const km = len('route');
+  if (km === null) return;
+  for (const el of els) el.textContent = de(km, km < 100 ? 1 : 0);
+  const kmh = motion.get(current.l.id)?.get(current.p.id)?.m?.kmh ?? current.at?.kmh;
+  if (kmh > 1) for (const el of document.querySelectorAll('#detail [data-eta]')) el.textContent = de(km / kmh, 1);
+}
+
 /** Routenpunkte, die schon hinter dem Objekt liegen, weglassen (der nächste Punkt der Route, dann der Rest). */
 function trimPassed(c, pos) {
   let best = 0, bd = Infinity;
@@ -320,7 +345,7 @@ function tick(ts) {
   const total = LAYERS.reduce((n, l) => n + (active.has(l.id) && l.motion ? motion.get(l.id)?.size || 0 : 0), 0);
   if (ts - lastFrame < (total > 4000 ? 300 : total > 1500 ? 180 : 110)) return;
   lastFrame = ts;
-  if (current?.l.compact && map.isSourceLoaded('lk-overlay')) setOverlay(current.overlay || []);
+  if (current?.l.compact && map.isSourceLoaded('lk-overlay')) { setOverlay(current.overlay || []); updateRemain(ts); }
   for (const l of LAYERS) {
     if (!l.motion || !active.has(l.id) || !motion.get(l.id)?.size) continue;
     if (l.live && !runtime.get(l.id).liveOn) continue;
