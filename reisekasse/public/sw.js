@@ -1,6 +1,6 @@
 /* Reisekasse – Offline-Cache. Zuerst das Netz (Updates kommen sofort an), ohne Netz aus dem Cache.
    Tesseract-Dateien werden erst beim ersten Bon-Scan geladen und dann ebenfalls zwischengespeichert. */
-const CACHE = 'reisekasse-v1';
+const CACHE = 'reisekasse-v2';
 const ASSETS = [
   './', 'index.html', 'app.js', 'engine.js', 'vendor/qrcode.js', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'

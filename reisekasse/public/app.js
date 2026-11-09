@@ -357,13 +357,77 @@ function header(title, { back, sub, right = '' } = {}) {
     <h1>${esc(title)}${sub ? `<span class="sub">${sub}</span>` : ''}</h1>${right}
   </header>`;
 }
-function tabs(t, active) {
-  const a = (k, href, label, ic) => `<a href="${href}" ${active === k ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}</span></a>`;
-  return `<nav class="tabs"><div class="in">
-    ${a('list', `#/t/${t.id}`, 'Ausgaben', 'list')}
-    ${a('bal', `#/t/${t.id}/salden`, 'Salden', 'scale')}
-    ${a('more', `#/t/${t.id}/mehr`, 'Mehr', 'more')}
-  </div></nav>`;
+// Gemeinsamer Rahmen der Reise-Ansichten (wie Tricount/Splitwise): Kopfkarte mit Summen, Reiter oben,
+// auf breiten Bildschirmen rechts eine Spalte mit Salden und Ausgleich.
+function tripStats(t) {
+  const entries = liveEntries(t);
+  const bal = E.balances(t.trip, entries);
+  const cache = new Map();
+  let spent = 0, myShare = 0;
+  for (const e of entries) {
+    const r = E.entryShares(e, t.trip);
+    cache.set(e.id, r);
+    if (e.kind === 'transfer' || !r.ok) continue;
+    const sign = e.kind === 'income' ? -1 : 1;
+    spent += sign * r.total;
+    myShare += sign * (r.shares[t.me] || 0);
+  }
+  return { entries, bal, cache, spent, myShare, mine: bal[t.me] ? bal[t.me].balance : 0 };
+}
+function tripPage(t, active, content, { side = '', fab = false } = {}) {
+  const cur = t.trip.currency;
+  const st = t._stats || tripStats(t);
+  const mine = st.mine;
+  const avs = members(t).slice(0, 6).map((m) => avatar(t, m.id)).join('') + (members(t).length > 6 ? `<span class="avatar more">+${members(t).length - 6}</span>` : '');
+  const tab = (k, href, label) => `<a href="${href}" ${active === k ? 'aria-current="page"' : ''}>${label}</a>`;
+  return `<header class="top plain">
+      <a class="iconbtn" href="#/" aria-label="Alle Reisen">${icon('back')}</a>
+      <h1 class="hidden-title">${esc(t.trip.name)}</h1>
+      <span class="syncwrap">${syncPill(t)}</span>
+      <button class="iconbtn" data-act="invite" aria-label="Einladen">${icon('share')}</button>
+    </header>
+    <div class="tripwrap${side ? ' has-side' : ''}">
+      <main class="tmain">
+        <section class="herocard">
+          <div class="hc-top"><div class="hc-title"><h2>${esc(t.trip.name)}</h2><div class="hc-sub">${members(t).length} Personen · ${esc(cur)}</div></div><div class="avstack">${avs}</div></div>
+          <div class="hc-nums">
+            <div><div class="l">Gesamtkosten</div><div class="v">${fmt(st.spent, cur)}</div></div>
+            <div><div class="l">Dein Anteil</div><div class="v">${fmt(st.myShare, cur)}</div></div>
+            <div class="hc-me ${mine > 0 ? 'up' : mine < 0 ? 'down' : ''}"><div class="l">${mine > 0 ? 'Du bekommst' : mine < 0 ? 'Du schuldest' : 'Dein Saldo'}</div><div class="v">${fmt(Math.abs(mine), cur)}</div></div>
+          </div>
+        </section>
+        <nav class="ttabs" aria-label="Bereiche">
+          ${tab('list', `#/t/${t.id}`, 'Ausgaben')}${tab('bal', `#/t/${t.id}/salden`, 'Salden')}${tab('more', `#/t/${t.id}/mehr`, 'Mehr')}
+        </nav>
+        ${content}
+      </main>
+      ${side ? `<aside class="tside">${side}</aside>` : ''}
+    </div>
+    ${fab ? `<a class="fab" href="#/t/${t.id}/neu" aria-label="Neue Ausgabe">${icon('plus')}<span>Ausgabe</span></a>` : ''}`;
+}
+function balanceRows(t, bal, compact) {
+  const cur = t.trip.currency;
+  const order = members(t).map((m) => m.id);
+  const max = Math.max(1, ...order.map((id) => Math.abs(bal[id].balance)));
+  return members(t).map((m) => {
+    const b = bal[m.id];
+    const w = Math.round((Math.abs(b.balance) / max) * 50);
+    const cls = b.balance > 0 ? 'pos' : b.balance < 0 ? 'neg' : '';
+    const lbl = b.balance > 0 ? 'bekommt' : b.balance < 0 ? 'schuldet' : 'ausgeglichen';
+    return `<div class="bal">${avatar(t, m.id)}<div class="main" style="flex:1;min-width:0">
+      <div class="balhead"><strong>${esc(m.name)}${m.id === t.me ? ' (du)' : ''}</strong><span class="balv ${cls}"><small>${lbl}</small> ${b.balance ? fmt(Math.abs(b.balance), cur) : ''}</span></div>
+      ${compact ? '' : `<div class="small muted">bezahlt ${fmt(b.paid, cur)} · Anteil ${fmt(b.share, cur)}${b.sent - b.received > 0 ? ` · überwiesen ${fmt(b.sent - b.received, cur)}` : b.sent - b.received < 0 ? ` · erhalten ${fmt(b.received - b.sent, cur)}` : ''}</div>`}
+      <div class="bar"><i class="${b.balance >= 0 ? 'p' : 'n'}" style="width:${w}%"></i></div></div></div>`;
+  }).join('');
+}
+function settleRows(t, bal) {
+  const cur = t.trip.currency;
+  const plan = E.settle(bal, members(t).map((m) => m.id));
+  return {
+    plan,
+    html: plan.map((s, i) => `<div class="settle">${avatar(t, s.from)}<div class="main"><div class="sline"><strong>${esc(mname(t, s.from))}</strong> <span class="arrow">${icon('arrow')}</span> <strong>${esc(mname(t, s.to))}</strong></div><div class="num samt">${fmt(s.amount, cur)}</div></div>
+      <button class="btn ${s.from === t.me ? '' : 'sec'}" data-act="pay" data-i="${i}">${s.from === t.me ? 'Bezahlen' : 'Details'}</button></div>`).join('')
+  };
 }
 function syncPill(t) {
   const n = pendingCount(t);
@@ -521,67 +585,61 @@ function entryLine(t, e, cache) {
   const cur = t.trip.currency;
   const total = r.ok ? r.total : 0;
   const mine = r.ok ? (r.shares[t.me] || 0) : 0;
-  let ico = `<span class="ico">${icon(e.category || 'sonstiges')}</span>`;
+  const who = (id) => id === t.me ? 'Du' : esc(mname(t, id));
+  const cat = e.category || 'sonstiges';
+  let ico = `<span class="ico cat-${esc(cat)}">${icon(cat)}</span>`;
   let title = e.title || 'Ohne Titel';
-  let sub = `${esc(mname(t, e.payer))} hat bezahlt`;
-  let end = '';
+  const foreign = e.currency !== cur ? ` (${fmt(e.amount, e.currency)})` : '';
+  let sub = `${who(e.payer)} ${e.payer === t.me ? 'hast' : 'hat'} ${fmt(total, cur)}${foreign} bezahlt`;
+  let end;
   if (e.kind === 'transfer') {
-    ico = `<span class="ico tr">${icon('transfer')}</span>`;
+    ico = `<span class="ico cat-transfer">${icon('transfer')}</span>`;
     title = e.title || 'Ausgleich';
-    sub = `${esc(mname(t, e.payer))} → ${esc(mname(t, e.to))}`;
-  } else if (e.kind === 'income') {
-    ico = `<span class="ico in">${icon('income')}</span>`;
-    sub = `${esc(mname(t, e.payer))} hat erhalten`;
+    sub = `${who(e.payer)} → ${e.to === t.me ? 'dich' : esc(mname(t, e.to))}`;
+    end = `<div class="lbl">Überweisung</div><div class="amt">${fmt(total, cur)}</div>`;
+  } else {
+    if (e.kind === 'income') {
+      ico = `<span class="ico cat-income">${icon('income')}</span>`;
+      sub = `${who(e.payer)} ${e.payer === t.me ? 'hast' : 'hat'} ${fmt(total, cur)}${foreign} erhalten`;
+    }
+    const effect = (e.kind === 'income' ? -1 : 1) * ((e.payer === t.me ? total : 0) - mine);
+    end = effect > 0 ? `<div class="lbl pos">du bekommst</div><div class="amt pos">${fmt(effect, cur)}</div>`
+      : effect < 0 ? `<div class="lbl neg">du schuldest</div><div class="amt neg">${fmt(-effect, cur)}</div>`
+      : `<div class="lbl">nicht beteiligt</div>`;
   }
-  if (e.kind !== 'transfer') {
-    const paidByMe = e.payer === t.me;
-    const effect = (e.kind === 'income' ? -1 : 1) * ((paidByMe ? total : 0) - mine);
-    end = effect ? `<div class="s small ${effect > 0 ? 'pos' : 'neg'}">${effect > 0 ? 'du bekommst' : 'dein Anteil'} ${fmt(Math.abs(effect), cur)}</div>` : '<div class="s small">nicht beteiligt</div>';
-  }
-  const open = e.split && e.split.mode === 'items' && (e.split.items || []).some((it) => !it.who || !it.who.length);
-  const foreign = e.currency !== cur ? `<div class="s small">${fmt(e.amount, e.currency)}</div>` : '';
+  const open = e.split && e.split.mode === 'items' && (e.split.items || []).filter((it) => !it.who || !it.who.length).length;
   const pend = (t.pending || []).some((o) => o.eid === e.id);
-  return `<a class="row" href="#/t/${t.id}/e/${e.id}">${ico}
-    <div class="main"><div class="t">${esc(title)}</div><div class="s">${sub}${open ? ' · <span class="badge">Positionen offen</span>' : ''}${pend ? ' · wartet' : ''}${!r.ok ? ' · <span class="neg">fehlerhaft</span>' : ''}</div></div>
-    <div class="end"><div class="amt">${fmt(total, cur)}</div>${foreign}${end}</div></a>`;
+  const tags = [open ? `<span class="badge">${open} Position${open === 1 ? '' : 'en'} offen</span>` : '', pend ? '<span class="badge ok">wird hochgeladen</span>' : '', !r.ok ? '<span class="badge err">fehlerhaft</span>' : ''].filter(Boolean).join(' ');
+  return `<a class="row xrow" href="#/t/${t.id}/e/${e.id}">${ico}
+    <div class="main"><div class="t">${esc(title)}</div><div class="s">${sub}</div>${tags ? `<div class="tags">${tags}</div>` : ''}</div>
+    <div class="end">${end}</div></a>`;
+}
+function sidePanel(t, st) {
+  const { plan, html } = settleRows(t, st.bal);
+  return `<div class="card side-card"><h2>Salden</h2><div class="list flat">${balanceRows(t, st.bal, true)}</div></div>
+    <div class="card side-card"><h2>Ausgleich</h2>${plan.length ? `<div class="list flat">${html}</div>` : '<p class="muted small" style="margin:0">Alles ausgeglichen.</p>'}</div>`;
 }
 function viewList(t) {
   const cur = t.trip.currency;
-  const entries = liveEntries(t).sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || 0) - (a.createdAt || 0));
-  const bal = E.balances(t.trip, entries);
-  const cache = new Map();
-  let spent = 0, myShare = 0;
-  for (const e of entries) {
-    if (e.kind === 'transfer') continue;
-    const r = E.entryShares(e, t.trip);
-    cache.set(e.id, r);
-    if (!r.ok) continue;
-    const sign = e.kind === 'income' ? -1 : 1;
-    spent += sign * r.total;
-    myShare += sign * (r.shares[t.me] || 0);
-  }
-  const mine = bal[t.me] ? bal[t.me].balance : 0;
+  const st = t._stats = tripStats(t);
+  const entries = st.entries.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || 0) - (a.createdAt || 0));
   let body = '';
-  let day = null, group = [];
+  let day = null, group = [], daySum = 0;
   const flushDay = () => {
     if (!group.length) return;
-    body += `<div class="daylabel"><span>${esc(dayLabel(day))}</span></div><div class="list">${group.join('')}</div>`;
-    group = [];
+    body += `<div class="daylabel"><span>${esc(dayLabel(day))}</span><span class="num">${daySum ? fmt(daySum, cur) : ''}</span></div><div class="list">${group.join('')}</div>`;
+    group = []; daySum = 0;
   };
   for (const e of entries) {
     if (e.date !== day) { flushDay(); day = e.date; }
-    group.push(entryLine(t, e, cache));
+    group.push(entryLine(t, e, st.cache));
+    const r = st.cache.get(e.id);
+    if (r && r.ok && e.kind !== 'transfer') daySum += (e.kind === 'income' ? -1 : 1) * r.total;
   }
   flushDay();
-  return header(t.trip.name, { back: '#/', sub: syncPill(t) }) + `<main>
-    <div class="stats">
-      <div class="stat"><div class="l">Gesamtkosten</div><div class="v">${fmt(spent, cur)}</div></div>
-      <div class="stat"><div class="l">Dein Saldo</div><div class="v ${mine > 0 ? 'pos' : mine < 0 ? 'neg' : ''}">${mine > 0 ? '+' : ''}${fmt(mine, cur)}</div></div>
-    </div>
-    <p class="small muted" style="margin:6px 4px 0">Dein Anteil an allen Kosten: ${fmt(myShare, cur)}</p>
-    ${body || `<div class="empty">${icon('receipt')}<p><strong>Noch keine Ausgaben.</strong><br>Tipp auf „Ausgabe“ – oder fotografier direkt einen Bon.</p></div>`}
-  </main>
-  <a class="fab" href="#/t/${t.id}/neu">${icon('plus')}Ausgabe</a>` + tabs(t, 'list');
+  const html = tripPage(t, 'list', body || `<div class="empty">${icon('receipt')}<p><strong>Noch keine Ausgaben.</strong><br>Tipp auf „Ausgabe“ – oder fotografier direkt einen Bon.</p></div>`, { side: sidePanel(t, st), fab: true });
+  t._stats = null;
+  return html;
 }
 
 // ---------- Ausgabe ansehen ----------
@@ -963,30 +1021,18 @@ function deleteDraft() {
 // ---------- Salden ----------
 function viewBalances(t) {
   const cur = t.trip.currency;
-  const entries = liveEntries(t);
-  const bal = E.balances(t.trip, entries);
-  const order = members(t).map((m) => m.id);
-  const max = Math.max(1, ...order.map((id) => Math.abs(bal[id].balance)));
-  const rows = members(t).map((m) => {
-    const b = bal[m.id];
-    const w = Math.round((Math.abs(b.balance) / max) * 50);
-    return `<div class="bal">${avatar(t, m.id)}<div class="main" style="flex:1;min-width:0">
-      <div style="display:flex;justify-content:space-between;gap:8px"><strong>${esc(m.name)}${m.id === t.me ? ' (du)' : ''}</strong><strong class="num ${b.balance > 0 ? 'pos' : b.balance < 0 ? 'neg' : ''}">${b.balance > 0 ? '+' : ''}${fmt(b.balance, cur)}</strong></div>
-      <div class="small muted">bezahlt ${fmt(b.paid, cur)} · Anteil ${fmt(b.share, cur)}${b.sent - b.received > 0 ? ` · überwiesen ${fmt(b.sent - b.received, cur)}` : b.sent - b.received < 0 ? ` · erhalten ${fmt(b.received - b.sent, cur)}` : ''}</div>
-      <div class="bar"><i class="${b.balance >= 0 ? 'p' : 'n'}" style="width:${w}%"></i></div></div></div>`;
-  }).join('');
-  const plan = E.settle(bal, order);
-  const planRows = plan.map((s, i) => `<div class="settle">${avatar(t, s.from)}<div class="main"><div><strong>${esc(mname(t, s.from))}</strong> <span class="arrow">→</span> <strong>${esc(mname(t, s.to))}</strong></div><div class="num">${fmt(s.amount, cur)}</div></div>
-      <button class="btn sec" data-act="pay" data-i="${i}">${s.from === t.me ? 'Bezahlen' : 'Details'}</button></div>`).join('');
-  const cats = E.categoryTotals(t.trip, entries).filter((c) => c.amount > 0);
+  const st = t._stats = tripStats(t);
+  const { plan, html: planRows } = settleRows(t, st.bal);
+  const cats = E.categoryTotals(t.trip, st.entries).filter((c) => c.amount > 0);
   const cmax = Math.max(1, ...cats.map((c) => c.amount));
-  const catRows = cats.map((c) => `<div class="catbar"><div class="lbl"><span>${esc((E.CATEGORIES.find((x) => x.id === c.category) || { label: c.category }).label)}</span><span class="num">${fmt(c.amount, cur)}</span></div><div class="track"><i style="width:${(c.amount / cmax) * 100}%"></i></div></div>`).join('');
-  return header('Salden', { back: '#/', sub: esc(t.trip.name) }) + `<main>
-    <h2 class="sec">Wer liegt vorn, wer hinten?</h2><div class="list">${rows}</div>
+  const catRows = cats.map((c) => `<div class="catbar"><div class="lbl"><span class="catname"><span class="dot cat-${esc(c.category)}"></span>${esc((E.CATEGORIES.find((x) => x.id === c.category) || { label: c.category }).label)}</span><span class="num">${fmt(c.amount, cur)}</span></div><div class="track"><i class="cat-${esc(c.category)}" style="width:${(c.amount / cmax) * 100}%"></i></div></div>`).join('');
+  const html = tripPage(t, 'bal', `
     <h2 class="sec">So wird ausgeglichen</h2>
     ${plan.length ? `<div class="list">${planRows}</div><p class="small muted" style="margin:0 4px">Mit ${plan.length} Überweisung${plan.length === 1 ? '' : 'en'} ist alles ausgeglichen. Nach dem Bezahlen „Als bezahlt markieren“.</p>` : '<div class="card">Alles ausgeglichen.</div>'}
-    ${catRows ? `<h2 class="sec">Kosten nach Kategorie</h2><div class="list">${catRows}</div>` : ''}
-  </main>` + tabs(t, 'bal');
+    <h2 class="sec">Salden</h2><div class="list">${balanceRows(t, st.bal, false)}</div>
+    ${catRows ? `<h2 class="sec">Kosten nach Kategorie</h2><div class="list">${catRows}</div>` : ''}`);
+  t._stats = null;
+  return html;
 }
 function openPay(t, i) {
   const cur = t.trip.currency;
@@ -1038,7 +1084,7 @@ function qrSvg(text) {
 
 // ---------- Mehr ----------
 function viewMore(t) {
-  return header('Mehr', { back: '#/', sub: esc(t.trip.name) }) + `<main>
+  return tripPage(t, 'more', `
     <div class="list">
       <button class="row" data-act="invite"><span class="ico">${icon('share')}</span><div class="main"><div class="t">Mitreisende einladen</div><div class="s">Link oder QR-Code teilen</div></div></button>
       <a class="row" href="#/t/${t.id}/team"><span class="ico">${icon('users')}</span><div class="main"><div class="t">Personen</div><div class="s">${members(t).length} · Gewicht, PayPal, IBAN</div></div></a>
@@ -1052,8 +1098,7 @@ function viewMore(t) {
     <div class="list">
       <button class="row" data-act="sync-now"><span class="ico tr">${icon('history')}</span><div class="main"><div class="t">Jetzt abgleichen</div><div class="s">${syncPill(t)}</div></div></button>
       <button class="row" data-act="forget"><span class="ico in">${icon('trash')}</span><div class="main"><div class="t neg">Von diesem Gerät entfernen</div><div class="s">Die Reise bleibt für die anderen erhalten</div></div></button>
-    </div>
-  </main>` + tabs(t, 'more');
+    </div>`);
 }
 function openInvite(t) {
   if (!t) return;
