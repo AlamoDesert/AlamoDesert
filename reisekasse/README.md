@@ -25,6 +25,9 @@ npm run dev      # http://localhost:8892 mit Speicher im Arbeitsspeicher
 ```
 
 ## Veröffentlichen (Cloudflare Pages + D1)
+Live: https://reisekasse-efs.pages.dev (Domain `kosten.domenic-boe.de` nach DNS-Eintrag CNAME `kosten` → `reisekasse-efs.pages.dev`). Projekt, D1-Datenbank und Binding sind eingerichtet; neu veröffentlichen mit `npm run deploy`.
+
+Ersteinrichtung (bereits erledigt):
 Einmalig: `npx wrangler@4 d1 create reisekasse` → `database_id` in `wrangler.toml` eintragen; Pages-Projekt `reisekasse` anlegen und das D1-Binding `DB` setzen; eigene Domain `kosten.domenic-boe.de` (CNAME → `reisekasse.pages.dev`). Die Tabellen legt die Funktion beim ersten Aufruf selbst an (`schema.sql` zum Nachlesen).
 Danach: `npm run deploy` (lädt Tesseract und veröffentlicht mit `--branch main`). Der Token braucht dafür zusätzlich **D1: Edit**.
 
