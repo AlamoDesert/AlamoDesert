@@ -67,6 +67,17 @@ Eigene Web-App (PWA, kein Build): freie Live-Daten ohne Registrierung/API-Key au
   - Testen aus der Cloud-Umgebung: die Hosts dieser Quellen sind in der Umgebung „Standard“ freigegeben; Node braucht `NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt` (z. B. vor `npm run dev`). `tests/weather.test.mjs` prüft die reinen Funktionen von `weather.js`.
 - `public/sw.js` – bei Änderungen an Dateien `CACHE` hochzählen.
 
+## Reisekasse (`reisekasse/`)
+
+Eigene Web-App (PWA, kein Build) zum Aufteilen von Urlaubskosten. Unabhängig von den anderen Apps. Ziel: Cloudflare Pages, Projekt `reisekasse`, Domain `kosten.domenic-boe.de`, Speicher Cloudflare D1 (Binding `DB`). Noch nicht veröffentlicht: der Token in der Cloud-Umgebung hat kein D1-Recht.
+
+- Entscheidungen des Nutzers: nur Deutsch; OCR nur lokal (Tesseract.js 7.0.0, deu+eng `best_int`, `npm run vendor` lädt nach `public/vendor/tesseract/`, nicht committet – vor Deploy nötig); Positionen eines Bons ordnet sich jede Person selbst zu; alle dürfen alles ändern (Protokoll mit Wiederherstellen); Gewicht pro Person; mehrere Währungen mit Tageskurs; Ausgleich mit PayPal.me und GiroCode.
+- `public/engine.js` – reine Logik, Beträge als Ganzzahlen in Nebeneinheiten (`toMinor`, `allocate` = Größter Rest), `entryShares`/`balances`/`settle`, `parseReceipt` (Bon-Text → Summe, Datum, Geschäft, Währung, Positionen), `epcPayload` (GiroCode), `csvExport`.
+- `public/app.js` – Hash-Routen `#/`, `#/neu`, `#/j/<id>/<schlüssel>` (Beitritt, Schlüssel nur im Fragment), `#/t/<id>[/salden|/mehr|/team|/protokoll|/neu|/e/<eid>[/bearbeiten]]`. Daten pro Reise in `localStorage` `reisekasse.v1` (`trips[id] = { key, me, trip, entries, syncT, pending, lastCur, lastRates }`), Bons in IndexedDB `reisekasse` bis zum Hochladen (`receipt: "local:<id>"`, Warteschlangen-Op `img`). Änderungen laufen über `queue` → `flush` (Netzfehler = später nochmal, 4xx = verwerfen), Abgleich `sync` alle 15 s mit `?since=<server-now>`. Wechselkurse direkt von `api.frankfurter.dev`.
+- `server/core.mts` – API (`POST /api/trips`, `GET /api/t/<id>?since=`, `PUT …/trip`, `PUT|DELETE …/e/<eid>` (Grabstein), `POST …/e/<eid>/claim` (CAS-Schleife), `POST …/restore`, `GET …/log`, `POST|GET …/img`). Schlüssel nur als SHA-256. Speicher-Schnittstelle mit `rev` für CAS: `d1-store.mts` (D1, legt Tabellen selbst an), `memory-store.mjs`.
+- `public/sw.js` – bei Änderungen `CACHE` hochzählen.
+- Testen: `npm test` (Engine + API, API auch gegen D1-Nachbau auf `node:sqlite`), `npm run dev` (Port 8892).
+
 ## Testen
 
 Checkliste: kein automatisiertes Test-Setup. Lokal: `index.html` im Browser öffnen. SharePoint ohne Tenant: `node tools/sp-mock.mjs 8899` startet einen Nachbau der genutzten REST-Endpunkte und liefert `http://localhost:8899/sites/rez/test.html` (App im SharePoint-Modus, Abgleich jede Sekunde). `/__dump` zeigt die gespeicherten Dateien, `/__fail?n=3` lässt die nächsten Schreibzugriffe scheitern. Mit `PDFJS_DIR=<pdfjs-dist>/build` liefert der Nachbau pdf.js lokal aus (für PDF-Import-Tests ohne Internet).

@@ -1,0 +1,3 @@
+# Tesseract wird per `npm run vendor` geladen (~16 MB), nicht committet.
+public/vendor/tesseract/
+.wrangler/

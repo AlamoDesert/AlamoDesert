@@ -1,0 +1,12 @@
+{
+  "name": "reisekasse",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-strip-types --test tests/engine.test.mjs tests/api.test.mjs",
+    "dev": "node --experimental-strip-types dev/server.mjs",
+    "vendor": "node tools/vendor.mjs",
+    "deploy": "node tools/vendor.mjs && npx wrangler@4 pages deploy --project-name reisekasse --branch main"
+  },
+  "description": "Reisekasse – Urlaubskosten gemeinsam erfassen und aufteilen"
+}
