@@ -1,0 +1,11 @@
+# Cloudflare Pages: statische Dateien aus public/, API aus functions/ mit D1-Datenbank.
+# Datenbank: D1 "reisekasse" (Westeuropa), angelegt am 09.11.2026.
+# Veröffentlichen: npm run deploy (lädt Tesseract, dann wrangler pages deploy --branch main)
+name = "reisekasse"
+pages_build_output_dir = "public"
+compatibility_date = "2026-11-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "reisekasse"
+database_id = "b0941cd3-3ba6-48b4-977f-59a1b4f54c51"
