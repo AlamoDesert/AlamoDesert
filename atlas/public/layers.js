@@ -155,6 +155,13 @@ function playButton(attr, value, via) {
 /** Farben wie Argos: Video magenta, Standbild blau, Akzent türkis. */
 export const COLORS = { live: '#f0506e', image: '#5b9cf5', accent: '#4cc3d9' };
 
+/* Farben der Flugzeuge (nach Flughöhe) und Schiffe (nach AIS-Typ). Karte und Legende (Optionen) lesen dieselben
+   Werte – eine Farbe hier ändern genügt. */
+const GROUND_COLOR = '#6b7884';
+/** [Höhe in Fuß, Farbe, Beschriftung der Legende] – dazwischen fließender Übergang. */
+const ALT_STOPS = [[0, '#ffd23b', '0'], [10000, '#7fe3c4', '3 km'], [25000, '#19d6e8', '7,5 km'], [40000, '#7fb4ff', '12 km']];
+const SHIP_COLORS = { cargo: '#7fe3c4', tanker: '#ffb02e', passenger: '#ff7a9c', fishing: '#ffd23b', leisure: '#7fb4ff', service: '#a5c8ff', sar: '#ff3b6b', other: '#8aa0a8' };
+
 /** Gruppen und Punkte im HUD-Stil: dunkle Gruppe mit farbigem Ring, Punkt mit Leuchthof. */
 function pointLayers(map, src, color, { radius = [5, 5, 14, 8] } = {}) {
   map.addLayer({
@@ -310,6 +317,11 @@ export const LAYERS = [
   {
     id: 'flights',
     compact: true,
+    legend: {
+      title: 'Flugzeuge – Farbe nach Flughöhe',
+      scale: ALT_STOPS.map(([ft, color, label]) => ({ color, label, pos: Math.round((ft / ALT_STOPS.at(-1)[0]) * 100) })),
+      items: [{ color: GROUND_COLOR, label: 'am Boden' }]
+    },
     /** Für die flüssige Darstellung: Geschwindigkeit (km/h), Kurs und Zeitpunkt der Position. */
     motion(f, at) {
       const p = f.props;
@@ -348,8 +360,8 @@ export const LAYERS = [
         },
         paint: {
           // Farbe nach Höhe: Boden grau, tief gelb, Reiseflughöhe türkis.
-          'icon-color': ['case', ['==', ['get', 'ground'], 1], '#6b7884',
-            ['interpolate', ['linear'], ['coalesce', ['get', 'alt_ft'], 0], 0, '#ffd23b', 10000, '#7fe3c4', 25000, '#19d6e8', 40000, '#7fb4ff']],
+          'icon-color': ['case', ['==', ['get', 'ground'], 1], GROUND_COLOR,
+            ['interpolate', ['linear'], ['coalesce', ['get', 'alt_ft'], 0], ...ALT_STOPS.flatMap(([ft, c]) => [ft, c])]],
           'icon-halo-color': 'rgba(0,0,0,.7)',
           'icon-halo-width': 1
         }
@@ -411,6 +423,16 @@ export const LAYERS = [
   {
     id: 'ships',
     compact: true,
+    legend: {
+      title: 'Schiffe – Farbe nach Schiffstyp',
+      items: [
+        { color: SHIP_COLORS.cargo, label: 'Fracht' }, { color: SHIP_COLORS.tanker, label: 'Tanker' },
+        { color: SHIP_COLORS.passenger, label: 'Passagiere, Schnellfähren' }, { color: SHIP_COLORS.fishing, label: 'Fischerei' },
+        { color: SHIP_COLORS.leisure, label: 'Segel- und Sportboote' }, { color: SHIP_COLORS.service, label: 'Schlepper, Lotsen' },
+        { color: SHIP_COLORS.sar, label: 'Seenotrettung' }, { color: SHIP_COLORS.other, label: 'Sonstige, unbekannt' }
+      ],
+      note: 'Blasser: liegt still oder letzte Meldung älter als 30 Minuten.'
+    },
     name: 'Schiffe',
     short: 'Schiffe',
     color: '#7fe3c4',
@@ -463,14 +485,14 @@ export const LAYERS = [
         paint: {
           // Farbe nach AIS-Typ: Fracht grün, Tanker orange, Passagiere pink, Fischerei gelb, Sport/Segeln blau, Rest grau.
           'icon-color': ['case',
-            ['all', ['>=', type, 70], ['<', type, 80]], '#7fe3c4',
-            ['all', ['>=', type, 80], ['<', type, 90]], '#ffb02e',
-            ['any', ['all', ['>=', type, 60], ['<', type, 70]], ['all', ['>=', type, 40], ['<', type, 50]]], '#ff7a9c',
-            ['==', type, 30], '#ffd23b',
-            ['any', ['==', type, 36], ['==', type, 37]], '#7fb4ff',
-            ['any', ['==', type, 31], ['==', type, 32], ['==', type, 52], ['==', type, 50]], '#a5c8ff',
-            ['==', type, 51], '#ff3b6b',
-            '#8aa0a8'],
+            ['all', ['>=', type, 70], ['<', type, 80]], SHIP_COLORS.cargo,
+            ['all', ['>=', type, 80], ['<', type, 90]], SHIP_COLORS.tanker,
+            ['any', ['all', ['>=', type, 60], ['<', type, 70]], ['all', ['>=', type, 40], ['<', type, 50]]], SHIP_COLORS.passenger,
+            ['==', type, 30], SHIP_COLORS.fishing,
+            ['any', ['==', type, 36], ['==', type, 37]], SHIP_COLORS.leisure,
+            ['any', ['==', type, 31], ['==', type, 32], ['==', type, 52], ['==', type, 50]], SHIP_COLORS.service,
+            ['==', type, 51], SHIP_COLORS.sar,
+            SHIP_COLORS.other],
           // Liegende Schiffe und alte Meldungen blasser
           'icon-opacity': ['case', ['>', ['coalesce', ['get', 'age_s'], 0], 1800], 0.35, ['<', ['coalesce', ['get', 'sog'], 0], 0.5], 0.6, 1],
           'icon-halo-color': 'rgba(0,0,0,.7)',

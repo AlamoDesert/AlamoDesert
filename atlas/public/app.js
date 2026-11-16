@@ -606,9 +606,18 @@ function layerRow(l) {
           <span class="cnt">${cnt}</span></button>`;
 }
 
+/** Legende einer Ebene (Optionen): Farbverlauf mit Marken und/oder einzelne Farben; Werte aus layers.js. */
+function legendHtml(l) {
+  const g = l.legend;
+  const scale = g.scale ? `<div class="lg-scale"><i style="background:linear-gradient(90deg, ${g.scale.map((x) => `${x.color} ${x.pos}%`).join(', ')})"></i>
+      <div>${g.scale.map((x) => `<span style="left:${x.pos}%" class="${x.pos === 0 ? 'first' : x.pos === 100 ? 'last' : ''}">${esc(x.label)}</span>`).join('')}</div></div>` : '';
+  const items = (g.items || []).map((x) => `<span><i style="background:${x.color}"></i>${esc(x.label)}</span>`).join('');
+  return `<div class="lg"><b>${esc(g.title)}</b>${scale}<div class="lg-items">${items}</div>${g.note ? `<small>${esc(g.note)}</small>` : ''}</div>`;
+}
+
 function renderChrome() {
   $('#dock').innerHTML = DOCK.map(dockButton).join('') + '<div class="dk-sep"></div>'
-    + `<button class="dk ${!$('#panel').hidden && panelGroup === 'opts' ? 'on' : ''}" data-act="opts" title="Kartenstil">${svg(ICON_OPTS)}<span>Optionen</span></button>`
+    + `<button class="dk ${!$('#panel').hidden && panelGroup === 'opts' ? 'on' : ''}" data-act="opts" title="Kartenstil und Legende">${svg(ICON_OPTS)}<span>Optionen</span></button>`
     + `<button class="dk ${favs.size ? 'on' : ''}" style="--c:var(--warn)" data-act="wall" title="Favoriten">${svg(ICON_FAV)}<span>Favoriten</span><i class="n">${favs.size}</i></button>`;
 
   // Kopfzeilen-Zähler nur für die Hauptebenen (Kameras zusammen); Menü-Ebenen zählt ihr Panel.
@@ -626,7 +635,8 @@ function renderChrome() {
     if (panelGroup === 'opts') {
       $('#panel').innerHTML = head('Optionen')
         + `<div class="p-sub">Kartenstil</div><div class="seg">
-          ${[['dark', 'Dunkel'], ['light', 'Hell'], ['sat', 'Satellit']].map(([k, n]) => `<button data-base="${k}" class="${base === k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+          ${[['dark', 'Dunkel'], ['light', 'Hell'], ['sat', 'Satellit']].map(([k, n]) => `<button data-base="${k}" class="${base === k ? 'on' : ''}">${n}</button>`).join('')}</div>`
+        + `<div class="p-sub">Legende</div>${LAYERS.filter((l) => l.legend).map(legendHtml).join('')}`;
     } else if (menu && menu.lead.id === 'wx') {
       $('#panel').innerHTML = head('Wetter')
         + `<div class="p-sub">Wetterkarte mit Zeitleiste</div><div class="seg">
