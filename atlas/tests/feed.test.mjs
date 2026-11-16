@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createProxy } from '../netlify/functions/feed/core.mts';
-import { parseReadsb, cellCenter, CELL, parseTrace, parseAircraftInfo, parseFotoWebcam, parseShipPhoto, parseDwdWarnings, parseAurora, AURORA_MIN, parsePegel } from '../netlify/functions/feed/sources.mts';
+import { createProxy } from '../proxy/core.mts';
+import { parseReadsb, cellCenter, CELL, parseTrace, parseAircraftInfo, parseFotoWebcam, parseShipPhoto, parseDwdWarnings, parseAurora, AURORA_MIN, parsePegel } from '../proxy/sources.mts';
 
 const okJson = (body) => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
 const READSB = {
@@ -9,6 +9,7 @@ const READSB = {
     { hex: '3C6444', flight: 'DLH4AB ', r: 'D-AIBA', t: 'A319', lat: 50.1, lon: 8.6, alt_baro: 35000, gs: 452.3, track: 271.4, squawk: '1000' },
     { hex: '3c65a1', lat: 50.03, lon: 8.57, alt_baro: 'ground', gs: 3 },
     { hex: 'nopos', flight: 'X' }, // ohne Position → verworfen
+    { hex: '3f0001', flight: 'FM10', lat: 53.63, lon: 9.99, alt_baro: 'ground', category: 'C2' }, // Vorfeldfahrzeug → verworfen
     'Müll'
   ]
 };
@@ -18,7 +19,8 @@ function setup(responder) {
   const calls = [];
   const proxy = createProxy({
     fetch: async (url) => { calls.push(url); return responder(url, calls.length); },
-    now: () => t
+    now: () => t,
+    sleep: async () => {}
   });
   const get = async (path) => {
     const r = await proxy(new Request(`http://x${path}`));
@@ -64,7 +66,7 @@ test('Cache: eine Upstream-Abfrage pro Zelle und TTL, CDN-Header gesetzt', async
   assert.equal(a.status, 200);
   assert.equal(a.body.features.length, 2);
   assert.equal(a.body.stale, false);
-  assert.match(a.headers.get('netlify-cdn-cache-control'), /s-maxage=10/);
+  assert.match(a.headers.get('x-feed-ttl'), /s-maxage=10/);
   assert.equal(calls[0], 'https://api.adsb.lol/v2/point/50/10/250');
   await get('/api/feed/flights?cell=50,10');
   assert.equal(calls.length, 1);
@@ -96,7 +98,7 @@ test('Alle Quellen weg: alte Daten als stale, ohne Daten 502', async () => {
   const r = await get('/api/feed/flights?cell=50,10');
   assert.equal(r.status, 200);
   assert.equal(r.body.stale, true);
-  assert.equal(r.headers.get('netlify-cdn-cache-control'), null, 'alte Daten nicht im CDN festhalten');
+  assert.equal(r.headers.get('x-feed-ttl'), null, 'alte Daten nicht im CDN festhalten');
   const miss = await get('/api/feed/flights?cell=-2,-2');
   assert.equal(miss.status, 502);
   assert.match(miss.body.error, /adsb\.lol.*airplanes\.live/);
@@ -108,7 +110,7 @@ test('Unerwartetes Format zählt als Fehler', async () => {
 });
 
 test('Kameras: TfL, NYC, Caltrans und Digitraffic werden einheitlich', async () => {
-  const { parseTfl, parseNyc, parseCaltrans, parseDigitraffic } = await import('../netlify/functions/feed/sources.mts');
+  const { parseTfl, parseNyc, parseCaltrans, parseDigitraffic } = await import('../proxy/sources.mts');
   const tfl = parseTfl([
     { id: 'JamCams_1', commonName: 'A ', lat: 51.5, lon: -0.1, additionalProperties: [{ key: 'imageUrl', value: 'https://s3/x.jpg' }, { key: 'available', value: 'true' }] },
     { id: 'JamCams_2', lat: 51.5, lon: -0.1, additionalProperties: [{ key: 'imageUrl', value: 'https://s3/y.jpg' }, { key: 'available', value: 'false' }] },
@@ -150,7 +152,7 @@ test('Kameras: nur bekannte Anbieter, Parser bekommt den Anbieter', async () => 
   const r = await get('/api/feed/cams?p=caltrans-4');
   assert.equal(r.status, 200);
   assert.equal(calls[0], 'https://cwwp2.dot.ca.gov/data/d4/cctv/cctvStatusD04.json');
-  assert.match(r.headers.get('netlify-cdn-cache-control'), /s-maxage=600/);
+  assert.match(r.headers.get('x-feed-ttl'), /s-maxage=600/);
 });
 
 test('Livestream-Liste: gültige Quellen, eindeutig, alle in Deutschland', async () => {
@@ -279,4 +281,13 @@ test('Flugsuche: Rufzeichen und Kennzeichen zugleich, Treffer zusammengeführt, 
   assert.equal(r.status, 200);
   assert.deepEqual(calls, ['https://api.adsb.lol/v2/callsign/DLH4AB', 'https://api.adsb.lol/v2/reg/DLH4AB']);
   assert.equal(r.body.features.length, 2, 'doppeltes Flugzeug nur einmal');
+});
+
+test('Quelle antwortet erst beim zweiten Versuch: kein 502', async () => {
+  const { get, calls } = setup((url, n) => (n <= 2 ? Promise.reject(new TypeError('fetch failed')) : okJson(READSB)));
+  const r = await get('/api/feed/flights?cell=50,10');
+  assert.equal(r.status, 200);
+  assert.equal(r.body.stale, false);
+  assert.equal(r.body.features.length, 2);
+  assert.equal(calls.length, 3, 'Quelle + Ausweichquelle, dann zweiter Versuch');
 });

@@ -1,0 +1,13 @@
+# Cloudflare Pages: Antwort-Header für die statischen Dateien (Functions unter /api/* setzen ihre eigenen).
+# Content-Security-Policy: Skripte nur von hier. Bilder, Daten und Video dürfen von beliebigen https-Adressen
+# kommen (Kamerabilder und HLS-Streams liegen bei vielen Anbietern), eingebettete Player nur von den Hosts
+# aus EMBED_HOSTS in layers.js plus YouTube. Neue Player-Art = Host hier unter frame-src nachtragen.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; child-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; media-src 'self' https: blob:; connect-src 'self' https: data: blob:; font-src 'self' data:; frame-src https://www.youtube-nocookie.com https://www.youtube.com https://g0.ipcamlive.com https://v.angelcam.com https://player.livespotting.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(self), camera=(), microphone=(), payment=(), usb=()
+
+/sw.js
+  Cache-Control: no-cache

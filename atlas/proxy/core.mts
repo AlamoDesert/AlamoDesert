@@ -1,10 +1,12 @@
-/* Live Karten – Proxy-Logik mit austauschbarem fetch und Uhr (Tests, Dev-Server, Netlify).
+/* Live Karten – Proxy-Logik mit austauschbarem fetch und Uhr (Tests, Dev-Server, Cloudflare Pages).
    GET /api/feed/<quelle>?<parameter> → { source, at, stale, features } */
 import { SOURCES, ParamError, type Feature } from './sources.mts';
 
 export interface Deps {
   fetch: typeof fetch;
   now: () => number;
+  /** Wartezeit vor dem zweiten Versuch; Tests setzen hier eine sofortige Fassung ein. */
+  sleep?: (ms: number) => Promise<void>;
 }
 
 interface Entry { at: number; features: Feature[] }
@@ -13,12 +15,28 @@ const TIMEOUT_MS = 8000;
 /** Fällt die Quelle aus, liefert der Proxy bis zu diesem Vielfachen der TTL alte Daten (markiert als stale). */
 const STALE_FACTOR = 30;
 const MAX_ENTRIES = 2000;
+/** Nach einer Pause scheitert die erste Abfrage einer Quelle gelegentlich (kalte Verbindung): einmal neu versuchen. */
+const RETRY_MS = 250;
 // planespotters verlangt eine Kontaktadresse im User-Agent.
-const UA = 'LiveKarten/1.0 (+https://live-karten.netlify.app; private, nicht-kommerzielle Karte)';
+const UA = 'LiveKarten/1.0 (+https://karte.domenic-boe.de; private, nicht-kommerzielle Karte)';
 
 export function createProxy(deps: Deps) {
   const cache = new Map<string, Entry>();
   const inflight = new Map<string, Promise<Entry>>();
+  const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+
+  /** Zweiter Versuch nach kurzer Pause, wenn die Quelle (samt Ausweichquelle) nicht antwortet. */
+  async function twice<T>(run: () => Promise<T>): Promise<T> {
+    const t0 = deps.now();
+    try {
+      return await run();
+    } catch (e) {
+      // Lief der erste Versuch schon ins Zeitlimit, hilft ein zweiter nicht – der Besucher wartet nur doppelt.
+      if (deps.now() - t0 > TIMEOUT_MS / 2) throw e;
+      await sleep(RETRY_MS);
+      return run();
+    }
+  }
 
   async function fetchJson(url: string): Promise<unknown> {
     const res = await deps.fetch(url, {
@@ -63,8 +81,8 @@ export function createProxy(deps: Deps) {
       'content-type': 'application/json; charset=utf-8',
       'cache-control': 'public, max-age=0, must-revalidate'
     };
-    // Netlify-CDN: eine Upstream-Abfrage pro Zelle und TTL, egal wie viele Besucher.
-    if (ttl > 0) headers['netlify-cdn-cache-control'] = `public, durable, s-maxage=${ttl}, stale-while-revalidate=${ttl}`;
+    // Gültigkeit für den gemeinsamen Cache der Anbindung (functions/api/feed): eine Upstream-Abfrage pro Zelle und TTL.
+    if (ttl > 0) headers['x-feed-ttl'] = `s-maxage=${ttl}`;
     return new Response(JSON.stringify(body), { status, headers });
   }
 
@@ -95,7 +113,8 @@ export function createProxy(deps: Deps) {
     let p = inflight.get(key);
     if (!p) {
       const sub = key.slice(src.id.length + 1);
-      p = (src.parts ? upstreamParts(src.urls(sub), (j) => src.parse(j, sub)) : upstream(src.urls(sub), (j) => src.parse(j, sub)))
+      const parse = (j: unknown) => src.parse(j, sub);
+      p = twice(() => (src.parts ? upstreamParts(src.urls(sub), parse) : upstream(src.urls(sub), parse)))
         .then((features) => {
           const e = { at: deps.now(), features };
           remember(key, e);

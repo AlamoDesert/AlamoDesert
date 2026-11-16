@@ -12,9 +12,30 @@ function km(lon1, lat1, lon2, lat2) {
 let graphP = null;
 let portsP = null;
 
+async function getBuf(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.arrayBuffer();
+}
+
+/** Das Netz liegt gepackt daneben (halbe Größe; der Server komprimiert .bin nicht selbst). Kann der Browser
+    nicht entpacken (Safari < 16.4) oder fehlt die Datei, kommt die ungepackte Fassung. */
+async function loadBin() {
+  if (typeof DecompressionStream === 'function') {
+    try {
+      const buf = await getBuf('data/seaways.bin.gz');
+      const head = new Uint8Array(buf, 0, 2);
+      // Liefert ein Server die Datei mit Content-Encoding aus, hat der Browser sie schon entpackt.
+      if (head[0] !== 0x1f || head[1] !== 0x8b) return buf;
+      return await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+    } catch { /* unten die ungepackte Fassung */ }
+  }
+  return getBuf('data/seaways.bin');
+}
+
 /** seaways.bin: [n, m] (Uint32), n × (lon, lat) als Int32 in Tausendstel Grad, m × (i, j) als Uint32. */
 function loadGraph() {
-  graphP ||= fetch('data/seaways.bin').then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.arrayBuffer(); }).then((buf) => {
+  graphP ||= loadBin().then((buf) => {
     const head = new Uint32Array(buf, 0, 2);
     const n = head[0], m = head[1];
     const raw = new Int32Array(buf, 8, n * 2);
@@ -40,10 +61,14 @@ function loadGraph() {
 const norm = (s) => String(s || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Z0-9>]+/g, ' ').trim();
 
 function loadPorts() {
-  portsP ||= fetch('data/ports.json').then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then((list) => {
+  portsP ||= fetch('data/ports.json').then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then((d) => {
+    // Spaltenweise abgelegt: Codes und Namen mit „|“ getrennt, Koordinaten in Tausendstel Grad (tools/ports.mjs)
+    const codes = d.code.split('|'), names = d.name.split('|');
+    if (codes.length !== names.length || codes.length !== d.lon.length || codes.length !== d.lat.length) throw new Error('Hafenliste beschädigt');
     const byCode = new Map(), byName = new Map();
-    for (const [code, name, lon, lat] of list) {
-      const p = { code, name, lon, lat };
+    for (let i = 0; i < codes.length; i++) {
+      const code = codes[i], name = names[i];
+      const p = { code, name, lon: d.lon[i] / 1000, lat: d.lat[i] / 1000 };
       byCode.set(code, p);
       const key = norm(name).replace(/ /g, '');
       if (!byName.has(key)) byName.set(key, []);

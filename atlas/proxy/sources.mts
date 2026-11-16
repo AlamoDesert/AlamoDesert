@@ -71,6 +71,8 @@ export function parseReadsb(json: unknown): Feature[] {
     const lat = num(a.lat);
     const lon = num(a.lon);
     if (!hex || lat === null || lon === null) continue;
+    // ADS-B-Kategorie C* = Fahrzeuge und Hindernisse am Boden (Vorfeld, Schlepper) – keine Flugzeuge.
+    if (typeof a.category === 'string' && a.category.startsWith('C')) continue;
     const callsign = str(a.flight);
     // alt_baro ist eine Zahl in Fuß oder der Text "ground".
     const alt = a.alt_baro === 'ground' ? 0 : num(a.alt_baro);
@@ -480,7 +482,7 @@ export const SOURCES: Record<string, Source> = {
     urls(key) { return [CAM_PROVIDERS[key].url]; },
     parse(json, key) { return CAM_PROVIDERS[key].parse(json, key); }
   },
-  // Flug weltweit finden: genaues Rufzeichen oder Kennzeichen (adsb.lol kennt keine Teilsuche). Beide Abfragen zugleich.
+  // Flug weltweit finden: genaues Rufzeichen, Kennzeichen oder ICAO-Adresse (adsb.lol kennt keine Teilsuche). Abfragen zugleich.
   find: {
     id: 'find',
     ttl: 10,
@@ -491,7 +493,10 @@ export const SOURCES: Record<string, Source> = {
       return q;
     },
     urls(q) {
-      return [`https://api.adsb.lol/v2/callsign/${encodeURIComponent(q)}`, `https://api.adsb.lol/v2/reg/${encodeURIComponent(q)}`];
+      const urls = [`https://api.adsb.lol/v2/callsign/${encodeURIComponent(q)}`, `https://api.adsb.lol/v2/reg/${encodeURIComponent(q)}`];
+      // Sechs Hex-Zeichen können auch die ICAO-Adresse sein (geteilte Links „sel=flights:<hex>“).
+      if (/^[0-9A-F]{6}$/.test(q)) urls.push(`https://api.adsb.lol/v2/hex/${q}`);
+      return urls;
     },
     parse(parts) {
       const byId = new Map<string, Feature>();

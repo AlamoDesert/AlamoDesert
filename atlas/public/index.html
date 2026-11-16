@@ -40,6 +40,7 @@
   [hidden] { display: none !important; }
   .ic { flex: 0 0 auto; width: 32px; height: 32px; border-radius: 9px; border: 0; background: transparent; cursor: pointer; color: var(--muted);
     display: grid; place-items: center; font-size: 17px; line-height: 1; padding: 0; }
+  .ic svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; vertical-align: middle; }
   .ic:hover { background: var(--hover); color: var(--text); }
   .ic.fav.on { color: var(--warn); }
   .btn { height: 34px; padding: 0 14px; border-radius: 9px; border: 0; background: var(--acc); color: var(--on-acc); cursor: pointer; font-weight: 600; font-size: 13.5px; }
@@ -232,6 +233,13 @@
 
   #toast { position: fixed; z-index: 9; left: 50%; transform: translateX(-50%); top: calc(var(--top) + 52px); padding: 10px 14px; font-size: 13.5px; max-width: calc(100vw - 32px); }
 
+  /* Hinweis auf eine neue Version: bleibt stehen, bis neu geladen oder weggeklickt wird */
+  #update { position: fixed; z-index: 9; left: 50%; transform: translateX(-50%); top: calc(var(--top) + 52px); display: flex; align-items: center; gap: 10px;
+    padding: 8px 8px 8px 14px; font-size: 13.5px; max-width: calc(100vw - 32px); }
+  #update[hidden] { display: none; }
+  #update span { flex: 1; min-width: 0; }
+  #update .btn { height: 32px; flex: 0 0 auto; }
+
   /* MapLibre-Bedienelemente passend */
   .maplibregl-ctrl-group { background: var(--panel) !important; border: 1px solid var(--line); box-shadow: var(--shadow) !important; border-radius: 12px !important; }
   .maplibregl-ctrl-group button + button { border-top: 1px solid var(--line) !important; }
@@ -243,11 +251,14 @@
   /* Mit Zeitleiste die Bedienelemente unten anheben */
   body.wx-on .maplibregl-ctrl-bottom-left, body.wx-on .maplibregl-ctrl-bottom-right { bottom: 92px; }
 
-  #nl-badge-frame { right: 64px !important; bottom: 10px !important; }
 
   @media (max-width: 1180px) { .stats { display: none; } }
 
   /* ---------- Handy ---------- */
+  @media (pointer: coarse) { .maplibregl-ctrl-group button { width: 44px; height: 44px; } }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+  }
   @media (max-width: 760px) {
     .stats, .clock .sys > span, #searchbtn kbd, #searchbtn .lbl { display: none; }
     .brand { padding: 0 12px 0 10px; }
@@ -266,7 +277,8 @@
     body.wx-on #detail { max-height: 52vh; }
     .maplibregl-ctrl-bottom-right, .maplibregl-ctrl-bottom-left { bottom: calc(max(8px, env(safe-area-inset-bottom)) + var(--dock) + 2px); }
     body.wx-on .maplibregl-ctrl-bottom-left, body.wx-on .maplibregl-ctrl-bottom-right { bottom: calc(max(8px, env(safe-area-inset-bottom)) + var(--dock) + 108px); }
-    #nl-badge-frame { right: 64px !important; bottom: calc(max(8px, env(safe-area-inset-bottom)) + var(--dock) + 12px) !important; }
+    /* Zoom/Standort am Handy in Fingergröße (Standard: 29 px) */
+    .maplibregl-ctrl-group button { width: 44px; height: 44px; }
   }
 </style>
 </head>
@@ -312,6 +324,11 @@
 </section>
 
 <div id="toast" class="glass" role="status" hidden></div>
+<div id="update" class="glass" role="status" hidden>
+  <span>Neue Version verfügbar</span>
+  <button class="btn" data-act="reload">Neu laden</button>
+  <button class="ic" data-act="later" aria-label="Später">×</button>
+</div>
 <script src="vendor/maplibre/maplibre-gl.js"></script>
 <script type="module" src="app.js"></script>
 </body>

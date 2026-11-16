@@ -9,6 +9,8 @@ const CONCURRENCY = 6;
 const FETCH_TIMEOUT = 15_000;
 
 const $ = (s) => document.querySelector(s);
+/** Einstellung „Bewegung reduzieren“ des Geräts: Kartenfahrten und Überblendungen ohne Animation. */
+const CALM = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function load() {
   try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch { return {}; }
@@ -441,7 +443,8 @@ async function refresh(l) {
     // Open Waters lehnt jeden unbekannten Parameter (?t=…) mit 400 ab, dann verschwinden alle Schiffe.
     else if (now - rt.tilesAt >= l.refresh) { map.getSource(srcId(l))?.setTiles([`${l.tiles.url}#${now}`]); rt.tilesAt = now; }
     rt.at = now;
-    rt.error = null;
+    // Kachelfehler (map.on('error')) erst vergessen, wenn eine Weile keiner mehr kam
+    if (!rt.tileErrAt || now - rt.tileErrAt > 20_000) rt.error = null;
     if (l.live) await refreshLive(l, rt);
     renderChrome();
     if (active.has(l.id)) rt.timer = setTimeout(() => refresh(l), l.live ? l.live.refresh : l.refresh);
@@ -557,7 +560,23 @@ DOCK.sort((a, b) => menuRank(a) - menuRank(b));
 const groupOn = (g) => g.members.some((l) => active.has(l.id));
 let panelGroup = null; // null = alle Ebenen, sonst id eines Menüs
 
-const count = (l) => runtime.get(l.id).features.length;
+/** Zähler = Objekte im sichtbaren Ausschnitt. Geladen wird mehr (Flüge: 4°-Zellen mit 250 NM Umkreis) –
+    die Zahl aller geladenen Objekte passte nicht zu dem, was man sieht. Flächen ohne Punkt zählen ganz. */
+function count(l) {
+  const fs = runtime.get(l.id).features;
+  const b = map.getBounds();
+  const w = b.getWest();
+  const span = b.getEast() - w;
+  if (span >= 360) return fs.length;
+  const s = b.getSouth();
+  const n = b.getNorth();
+  let c = 0;
+  for (const f of fs) {
+    if (!Number.isFinite(f.lon) || !Number.isFinite(f.lat)) c++;
+    else if (f.lat >= s && f.lat <= n && (((f.lon - w) % 360) + 360) % 360 <= span) c++;
+  }
+  return c;
+}
 const short = (n) => (n > 999 ? `${Math.round(n / 1000)}k` : n);
 
 function dockButton(g) {
@@ -598,7 +617,7 @@ function renderChrome() {
     if (!mine.length) return '';
     const hint = mine.every((l) => runtime.get(l.id).hint) ? runtime.get(mine[0].id).hint : '';
     const label = g.members.length > 1 ? g.lead.short : g.lead.name;
-    return `<div class="stat glass" style="--c:${g.lead.color}" title="${esc(hint)}"><b>${hint ? '–' : num(mine.reduce((s, l) => s + count(l), 0))}</b><span><i></i>${esc(label)}</span></div>`;
+    return `<div class="stat glass" style="--c:${g.lead.color}" title="${esc(hint || 'im Kartenausschnitt')}"><b>${hint ? '–' : num(mine.reduce((s, l) => s + count(l), 0))}</b><span><i></i>${esc(label)}</span></div>`;
   }).join('');
 
   if (!$('#panel').hidden) {
@@ -807,12 +826,14 @@ function showDetail(l, props, coords) {
   const d = l.detail(p);
   stopMedia();
   current = { l, p, coords };
+  const share = LAYERS.includes(l) && p.id != null ? `<button class="ic" data-act="share" aria-label="Link teilen" title="Link teilen">${svg(ICON_SHARE)}</button>` : '';
+  setHashSel(share ? l : null, p.id);
   const fav = d.fav ? `<button class="ic fav ${favs.has(favKey(l, p)) ? 'on' : ''}" data-act="fav" aria-label="Favorit" title="Zu den Favoriten">★</button>` : '';
   const [lon, lat] = coords || [];
   // Flugzeuge/Schiffe: erst kompakt (Name, eine Zeile, Route/Details), damit die Karte mit der Route sichtbar bleibt.
   const sum = l.compact ? `<div class="d-sum"><p class="sum">${d.summary || ''}</p><div class="d-act">
       <button class="btn" data-act="route">Route</button><button class="btn ghost" data-act="expand">Details ▾</button></div></div>` : '';
-  $('#detail').innerHTML = `<div class="d-head"><span class="caps">${d.kicker || esc(l.name)}</span><b class="d-mint">${d.title}</b>${fav}
+  $('#detail').innerHTML = `<div class="d-head"><span class="caps">${d.kicker || esc(l.name)}</span><b class="d-mint">${d.title}</b>${fav}${share}
       <button class="ic" data-act="min" aria-label="Einklappen" title="Einklappen">▾</button>
       <button class="ic" data-act="close" aria-label="Schließen">×</button></div>
     <div class="d-body"><div class="d-title"><h2>${d.title}</h2>${d.chip ? `<span class="chip ${d.chip.cls}">${d.chip.text}</span>` : ''}</div>${sum}${d.body}
@@ -825,6 +846,75 @@ function showDetail(l, props, coords) {
   setOverlay([]);
   loadMore();
   renderChrome();
+}
+
+/* ---------- Auswahl in der Adresse: #karte=z/lat/lon&sel=<ebene>:<id> → Link führt zum selben Objekt ---------- */
+
+const ICON_SHARE = '<path d="M12 15V4M8 8l4-4 4 4M5 12v7h14v-7"/>';
+
+function hashSel() {
+  const m = /(?:^#|&)sel=([^&]*)/.exec(location.hash);
+  if (!m) return null;
+  try {
+    const [lid, ...rest] = decodeURIComponent(m[1]).split(':');
+    const l = LAYERS.find((x) => x.id === lid);
+    const id = rest.join(':');
+    return l && id ? { l, id } : null;
+  } catch { return null; }
+}
+
+/** MapLibre pflegt nur seinen Teil „karte=…“ der Adresse und lässt die übrigen Teile stehen. */
+function setHashSel(l, id) {
+  const parts = location.hash.replace(/^#/, '').split('&').filter((x) => x && !x.startsWith('sel='));
+  if (l) parts.push(`sel=${encodeURIComponent(`${l.id}:${id}`)}`);
+  try { history.replaceState(history.state, '', parts.length ? `#${parts.join('&')}` : location.pathname + location.search); } catch { /* Adresse gesperrt: Link enthält dann nur den Ausschnitt */ }
+}
+
+async function shareLink() {
+  if (!current) return;
+  const url = location.href;
+  const title = `${current.p.label || current.p.name || current.l.name} – Live Karten`;
+  try {
+    if (navigator.share) { await navigator.share({ title, url }); return; }
+    await navigator.clipboard.writeText(url);
+    toast('Link kopiert.');
+  } catch (e) {
+    if (e?.name === 'AbortError') return; // Teilen-Dialog geschlossen
+    toast('Link steht in der Adresszeile – von dort kopieren.');
+  }
+}
+
+/** Objekt aus einem geteilten Link öffnen. Flugzeuge und Schiffe haben sich seither bewegt → weltweit nachschlagen;
+    alles andere liegt im Ausschnitt des Links und erscheint, sobald seine Ebene geladen ist. */
+async function restoreSel() {
+  const sel = hashSel();
+  if (!sel) return;
+  const { l, id } = sel;
+  const open = (f, jump) => {
+    if (jump) map.jumpTo({ center: [f.lon, f.lat], zoom: Math.max(map.getZoom(), l.id === 'flights' ? 8 : 10) });
+    showDetail(l, { ...f.props, id: f.id, label: f.label, heading: f.heading }, [f.lon, f.lat]);
+  };
+  if (!active.has(l.id)) { setLayer(l, true); prefs.layers = [...active]; save(); renderChrome(); }
+  const ctrl = new AbortController();
+  try {
+    if (l.id === 'flights' && /^[0-9a-f]{6}$/.test(id)) {
+      const f = ((await getJSON(`/api/feed/find?q=${id}`, ctrl.signal)).features || []).find((x) => x.id === id);
+      if (f) return open(f, true);
+    } else if (l.id === 'ships' && /^\d{9}$/.test(id)) {
+      const fc = await getJSON(`https://ais.openwaters.io/v1/vessels?q=${id}`, ctrl.signal);
+      const f = l.live.parse(fc).find((x) => String(x.id) === id);
+      if (f) return open(f, true);
+    }
+  } catch { /* Nachschlagen gescheitert → unten in den geladenen Daten suchen */ }
+  for (let i = 0; i < 20; i++) {
+    if (current) return; // inzwischen etwas anderes angetippt
+    const f = runtime.get(l.id).features.find((x) => String(x.id) === id);
+    if (f) return open(f, false);
+    await new Promise((r) => setTimeout(r, 750));
+  }
+  if (current) return;
+  setHashSel(null);
+  toast('Das Objekt aus dem Link ist nicht mehr zu finden.');
 }
 
 /** Ausschnitt so wählen, dass Weg und Route ganz zu sehen sind – neben bzw. über der Infokarte, nicht darunter. */
@@ -844,13 +934,14 @@ function fitRoute() {
   const pad = mobile
     ? { top: 76, left: 30, right: 30, bottom: Math.max(90, innerHeight - r.top + 24) }
     : { top: 76, bottom: 50, right: 100, left: Math.min(innerWidth / 2, r.right + 30) };
-  map.fitBounds(b, { padding: pad, maxZoom: 11, duration: 900 });
+  map.fitBounds(b, { padding: pad, maxZoom: 11, duration: CALM ? 0 : 900 });
 }
 
 function closeDetail() {
   stopMedia();
   clearTimeout(moreTimer);
   moreRun++;
+  setHashSel(null);
   current = null; // erst die Auswahl löschen, sonst zeichnet setOverlay den Ring des Objekts gleich wieder
   setOverlay([]);
   $('#detail').hidden = true;
@@ -889,6 +980,7 @@ $('#detail').addEventListener('click', (e) => {
     return;
   }
   if (act === 'fav') return toggleFav(e.target.closest('[data-act]'));
+  if (act === 'share') return shareLink();
   const btn = e.target.closest('button.player');
   if (btn) playVideo(btn);
 });
@@ -949,7 +1041,7 @@ function wxPut(buf, url, coords) {
   if (src) { src.updateImage({ url, coordinates: coords }); return; }
   // Bildquellen kennen kein „attribution“ (MapLibre lehnt die Quelle sonst still ab) – Nachweis steht in der Legende.
   map.addSource(id, { type: 'image', url, coordinates: coords });
-  map.addLayer({ id: `${id}-r`, type: 'raster', source: id, paint: { 'raster-opacity': 0, 'raster-opacity-transition': { duration: 200 }, 'raster-fade-duration': 0 } }, below());
+  map.addLayer({ id: `${id}-r`, type: 'raster', source: id, paint: { 'raster-opacity': 0, 'raster-opacity-transition': { duration: CALM ? 0 : 200 }, 'raster-fade-duration': 0 } }, below());
   wxSources.add(id);
 }
 
@@ -1423,6 +1515,15 @@ let tileRetry = 0;
 map.on('error', (e) => {
   const l = LAYERS.find((x) => x.tiles && srcId(x) === e.sourceId);
   if (!l || !active.has(l.id)) return;
+  // Sichtbar machen statt still leer bleiben: Status im Panel/Kopf, einmal pro Minute ein Hinweis.
+  const rt0 = runtime.get(l.id);
+  rt0.error = 'Quelle antwortet nicht, neuer Versuch läuft';
+  rt0.tileErrAt = Date.now();
+  if (!rt0.tileToastAt || Date.now() - rt0.tileToastAt > 60_000) {
+    rt0.tileToastAt = Date.now();
+    toast(`${l.name}: Quelle antwortet gerade nicht – neuer Versuch läuft.`);
+  }
+  renderChrome();
   clearTimeout(tileRetry);
   tileRetry = setTimeout(() => {
     const rt = runtime.get(l.id);
@@ -1440,6 +1541,7 @@ let moveTimer = 0;
 map.on('moveend', () => {
   clearTimeout(moveTimer);
   moveTimer = setTimeout(() => LAYERS.filter((l) => l.viewport).forEach(refresh), 350);
+  renderChrome(); // Zähler gelten für den Ausschnitt
 });
 
 document.addEventListener('visibilitychange', () => { if (!document.hidden) LAYERS.forEach(refresh); });
@@ -1457,7 +1559,22 @@ function start() {
   // Zuletzt gewählte Wetterkarte wiederherstellen
   if (wx.kind && !wx.steps.length) setWxKind(wx.kind);
   renderWxBar();
+  restoreSel();
 }
 if (map.isStyleLoaded()) start(); else map.once('style.load', start);
 
-if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js');
+/* Neue Version: der neue Service Worker übernimmt sofort, die offene Seite läuft aber noch mit den alten Dateien.
+   Dann anbieten, neu zu laden – nicht beim allerersten Besuch (da gab es vorher keinen Service Worker). */
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  const sw = navigator.serviceWorker;
+  const hadWorker = Boolean(sw.controller);
+  sw.addEventListener('controllerchange', () => { if (hadWorker) $('#update').hidden = false; });
+  $('#update').addEventListener('click', (e) => {
+    if (e.target.closest('[data-act="reload"]')) location.reload();
+    else if (e.target.closest('[data-act="later"]')) $('#update').hidden = true;
+  });
+  sw.register('sw.js').then((reg) => {
+    // Installierte App bleibt oft tagelang offen: beim Zurückkehren nach einer neuen Version sehen.
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => undefined); });
+  }).catch(() => undefined);
+}

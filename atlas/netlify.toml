@@ -1,9 +1,0 @@
-# Netlify: Basisverzeichnis ist dieser Ordner (atlas/).
-[build]
-  publish = "public"
-  functions = "netlify/functions"
-
-[[headers]]
-  for = "/sw.js"
-  [headers.values]
-    Cache-Control = "no-cache"

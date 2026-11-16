@@ -1,14 +1,14 @@
 {
   "name": "Live Karten",
   "short_name": "Live Karten",
-  "description": "Freie Live-Daten auf einer Karte: Flugzeuge, Erdbeben und mehr – ohne Konto, ohne Paywall.",
+  "description": "Freie Live-Daten auf einer Karte: Kameras, Livestreams, Flugzeuge, Schiffe und Wetter mit Zeitleiste – ohne Konto, ohne Paywall.",
   "lang": "de",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#05080c",
-  "theme_color": "#05080c",
+  "background_color": "#121417",
+  "theme_color": "#121417",
   "categories": ["navigation", "utilities"],
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },

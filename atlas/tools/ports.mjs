@@ -1,4 +1,5 @@
-/* Häfen für die Restroute der Schiffe: public/data/ports.json = [[UN/LOCODE, Name, lon, lat], …].
+/* Häfen für die Restroute der Schiffe: public/data/ports.json = { code, name, lon, lat } –
+   spaltenweise (Codes und Namen mit „|“ getrennt, Koordinaten in Tausendstel Grad): komprimiert ~15 % kleiner als Zeilen.
    Quelle: npm-Paket @geoapify/un-locode (MIT) – UN/LOCODE mit nachgetragenen Koordinaten (Geoapify-Geokodierung)
    für Orte, denen die offizielle Liste keine mitgibt (z. B. Danzig, Southampton, Bremen). Nur Orte mit Funktion
    „Hafen“ (Index 0 der Funktionsliste) und Koordinaten.
@@ -24,5 +25,12 @@ for (const f of (await readdir(dir)).filter((x) => x.endsWith('.json')).sort()) 
   }
 }
 out.sort((a, b) => (a[0] < b[0] ? -1 : 1));
-await writeFile(new URL('../public/data/ports.json', import.meta.url), JSON.stringify(out));
+if (out.some(([code, name]) => code.includes('|') || name.includes('|'))) throw new Error('Trennzeichen „|“ kommt in den Daten vor');
+const packed = {
+  code: out.map((r) => r[0]).join('|'),
+  name: out.map((r) => r[1]).join('|'),
+  lon: out.map((r) => Math.round(r[2] * 1000)),
+  lat: out.map((r) => Math.round(r[3] * 1000))
+};
+await writeFile(new URL('../public/data/ports.json', import.meta.url), JSON.stringify(packed));
 console.log(`${out.length} Häfen geschrieben`);

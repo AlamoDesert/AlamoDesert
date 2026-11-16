@@ -1,7 +1,7 @@
-"""Erzeugt public/data/seaways.bin (Seewege-Netz) und public/data/ports.json (Häfen) für searoute.js.
-Quellen: Eurostat searoute „marnet_plus_10km.gpkg“ (EUPL-1.2, github.com/eurostat/searoute) und
-UN/LOCODE code-list.csv (github.com/datasets/un-locode). Aufruf: python3 tools/seaways.py <marnet.gpkg> (Häfen: node tools/ports.mjs)"""
-import csv, json, re, sqlite3, struct, sys
+"""Erzeugt public/data/seaways.bin (Seewege-Netz) und die gepackte Fassung seaways.bin.gz für searoute.js.
+Quelle: Eurostat searoute „marnet_plus_10km.gpkg“ (EUPL-1.2, github.com/eurostat/searoute).
+Aufruf: python3 tools/seaways.py <marnet.gpkg> (Häfen: node tools/ports.mjs)"""
+import gzip, sqlite3, struct, sys
 
 def lines(path):
     db = sqlite3.connect(path)
@@ -37,22 +37,9 @@ def graph(path, dst):
         for x, y in coords: f.write(struct.pack('<ii', round(x * 1000), round(y * 1000)))
         for i, j in sorted(edges): f.write(struct.pack('<II', i, j))
 
-def ports(path, dst):
-    def coord(s):
-        m = re.match(r'(\d{2})(\d{2})([NS])\s+(\d{3})(\d{2})([EW])', s.strip())
-        if not m: return None
-        lat = int(m[1]) + int(m[2]) / 60; lon = int(m[4]) + int(m[5]) / 60
-        return round(-lon if m[6] == 'W' else lon, 3), round(-lat if m[3] == 'S' else lat, 3)
-    out = []
-    for r in csv.DictReader(open(path, encoding='utf-8')):
-        c = coord(r.get('Coordinates') or '')
-        if r.get('Function', '')[:1] == '1' and c and r.get('Change') != 'X':
-            out.append([r['Country'] + r['Location'], r['NameWoDiacritics'] or r['Name'], *c])
-    json.dump(out, open(dst, 'w'), ensure_ascii=False, separators=(',', ':'))
-
 if __name__ == '__main__':
     graph(sys.argv[1], 'public/data/seaways.bin')
-    # Häfen erzeugt inzwischen tools/ports.mjs (UN/LOCODE mit nachgetragenen Koordinaten); die offizielle Liste
-    # allein hat für viele große Häfen keine Koordinaten (Danzig, Southampton, Bremen …).
-    if len(sys.argv) > 2 and sys.argv[2] == '--alte-haefen':
-        ports(sys.argv[3], 'public/data/ports.json')
+    # Cloudflare komprimiert .bin nicht selbst: gepackte Fassung daneben legen (searoute.js lädt sie, wenn der Browser
+    # sie entpacken kann). Häfen erzeugt tools/ports.mjs.
+    with open('public/data/seaways.bin', 'rb') as src, open('public/data/seaways.bin.gz', 'wb') as dst:
+        dst.write(gzip.compress(src.read(), 9, mtime=0))

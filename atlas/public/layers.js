@@ -1,7 +1,7 @@
 /* Live Karten – Ebenen. Jede Ebene beschreibt, welche Abfragen sie für den aktuellen Ausschnitt braucht,
    wie oft sie aktualisiert und wie sie sich auf der Karte zeigt. Neue Quellen: Eintrag hier + Quelle in sources.mts. */
 
-// Muss zu CELL in netlify/functions/feed/sources.mts passen.
+// Muss zu CELL in proxy/sources.mts passen.
 const CELL = 4;
 // Bis FULL_CELLS Zellen wird der ganze Ausschnitt alle 10 s geladen; weiter herausgezoomt die MAX_CELLS Zellen
 // um die Kartenmitte, seltener – sonst zu viele Abfragen bei den freien Quellen.

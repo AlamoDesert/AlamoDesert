@@ -1,8 +1,8 @@
-/* Cloudflare Pages Function: derselbe Proxy wie bei Netlify (netlify/functions/feed), nur andere Anbindung.
-   Pfad /api/feed/*. Der Arbeitsspeicher-Cache gilt nur pro Worker-Instanz; damit alle Besucher eines
-   Rechenzentrums dieselbe Upstream-Abfrage teilen (wie das Netlify-CDN), legt die Funktion Antworten
-   zusätzlich für die TTL der Quelle in den Cloudflare-Cache. */
-import { createProxy } from '../../../netlify/functions/feed/core.mts';
+/* Cloudflare Pages Function: bindet den Proxy (proxy/core.mts) unter /api/feed/* an.
+   Der Arbeitsspeicher-Cache gilt nur pro Worker-Instanz; damit alle Besucher eines Rechenzentrums
+   dieselbe Upstream-Abfrage teilen, legt die Funktion Antworten zusätzlich für die TTL der Quelle
+   in den Cloudflare-Cache. */
+import { createProxy } from '../../../proxy/core.mts';
 
 const handle = createProxy({ fetch: (input, init) => fetch(input, init), now: Date.now });
 
@@ -21,7 +21,7 @@ export const onRequest = async (ctx: Ctx): Promise<Response> => {
 
   const res = await handle(req);
   // core.mts gibt die TTL nur bei frischen Daten mit (stale → keine), Fehler werden nie zwischengespeichert.
-  const ttl = /s-maxage=(\d+)/.exec(res.headers.get('netlify-cdn-cache-control') || '')?.[1];
+  const ttl = /s-maxage=(\d+)/.exec(res.headers.get('x-feed-ttl') || '')?.[1];
   if (res.status === 200 && ttl) {
     const copy = new Response(res.clone().body, res);
     copy.headers.set('cache-control', `public, max-age=0, s-maxage=${ttl}`);
