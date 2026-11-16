@@ -19,7 +19,17 @@ export const onRequest = async (ctx: Ctx): Promise<Response> => {
     if (hit) return hit;
   } catch { /* Cache nicht verfügbar → direkt abfragen */ }
 
-  const res = await handle(req);
+  let res: Response;
+  try {
+    res = await handle(req);
+  } catch (e) {
+    // Unerwarteter Fehler im Proxy: als lesbare Antwort statt der nackten Cloudflare-Fehlerseite
+    return new Response(JSON.stringify({ error: `Proxy-Fehler – ${e instanceof Error ? e.message : String(e)}` }),
+      { status: 503, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
+  }
+  // Eine 502 der Function ersetzt Cloudflare durch die eigene Fehlerseite („error code: 502“) – die Meldung des
+  // Proxys ginge verloren. Als 503 bleibt sie lesbar.
+  if (res.status === 502) return new Response(res.body, { status: 503, headers: res.headers });
   // core.mts gibt die TTL nur bei frischen Daten mit (stale → keine), Fehler werden nie zwischengespeichert.
   const ttl = /s-maxage=(\d+)/.exec(res.headers.get('x-feed-ttl') || '')?.[1];
   if (res.status === 200 && ttl) {

@@ -439,7 +439,11 @@ export const SOURCES: Record<string, Source> = {
       if (!HEX.test(hex)) throw new ParamError('hex muss eine 24-Bit-ICAO-Adresse sein (6 Hex-Zeichen)');
       return hex;
     },
-    urls(hex) { return [`https://globe.adsb.lol/data/traces/${hex.slice(-2)}/trace_full_${hex}.json`]; },
+    // Gleiches tar1090-Format bei allen dreien; adsb.lol lehnt Abrufe zeitweise mit 403 ab → der Reihe nach versuchen.
+    urls(hex) {
+      const path = `/data/traces/${hex.slice(-2)}/trace_full_${hex}.json`;
+      return [`https://globe.adsb.lol${path}`, `https://globe.adsb.fi${path}`, `https://globe.airplanes.live${path}`];
+    },
     parse: parseTrace
   },
   shipphoto: {

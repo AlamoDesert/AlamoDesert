@@ -158,6 +158,7 @@ export const COLORS = { live: '#f0506e', image: '#5b9cf5', accent: '#4cc3d9' };
 /* Farben der Flugzeuge (nach Flughöhe) und Schiffe (nach AIS-Typ). Karte und Legende (Optionen) lesen dieselben
    Werte – eine Farbe hier ändern genügt. */
 const GROUND_COLOR = '#6b7884';
+const SHIP_TRACK_DAYS = 7;
 /** [Höhe in Fuß, Farbe, Beschriftung der Legende] – dazwischen fließender Übergang. */
 const ALT_STOPS = [[0, '#ffd23b', '0'], [10000, '#7fe3c4', '3 km'], [25000, '#19d6e8', '7,5 km'], [40000, '#7fb4ff', '12 km']];
 const SHIP_COLORS = { cargo: '#7fe3c4', tanker: '#ffb02e', passenger: '#ff7a9c', fishing: '#ffd23b', leisure: '#7fb4ff', service: '#a5c8ff', sar: '#ff3b6b', other: '#8aa0a8' };
@@ -317,6 +318,7 @@ export const LAYERS = [
   {
     id: 'flights',
     compact: true,
+    trail: true, // app.js schreibt den Weg der geladenen Flugzeuge mit (Ersatz, wenn die Flugweg-Quelle ablehnt)
     legend: {
       title: 'Flugzeuge – Farbe nach Flughöhe',
       scale: ALT_STOPS.map(([ft, color, label]) => ({ color, label, pos: Math.round((ft / ALT_STOPS.at(-1)[0]) * 100) })),
@@ -385,16 +387,19 @@ export const LAYERS = [
       };
     },
     /** Beim Antippen: Foto und Halter (planespotters/adsbdb), geplante Route, bisheriger Weg. Alle 30 s neu, solange offen. */
-    async more(p, pos, get) {
+    async more(p, pos, get, trail = []) {
       const cs = /^[A-Z0-9]{2,8}$/.test(p.callsign || '') ? p.callsign : '';
       const [info, trace] = await Promise.allSettled([
         get(`/api/feed/aircraft?hex=${encodeURIComponent(p.id)}${cs ? `&cs=${cs}` : ''}`),
         get(`/api/feed/track?hex=${encodeURIComponent(p.id)}`)
       ]);
       const a = info.status === 'fulfilled' ? info.value.features[0].props : {};
-      const path = trace.status === 'fulfilled' ? trace.value.features[0].props.path : [];
+      // Ganzer Weg seit dem Start von der Flugweg-Quelle; lehnt sie ab, der selbst mitgeschriebene Weg.
+      const full = trace.status === 'fulfilled' ? trace.value.features[0].props.path : [];
+      const own = full.length > 1 ? false : trail.length > 0;
+      const path = own ? trail : full;
       const feats = [];
-      if (path.length > 1) feats.push(line([...path.map((x) => [x[0], x[1]]), pos], 'track'));
+      if (path.length) feats.push(line([...path.map((x) => [x[0], x[1]]), pos], 'track'));
       // Route aus der Datenbank nur zeigen, wenn die Position dazu passt (Rufzeichen werden manchmal anders genutzt).
       const o = a.origin, d = a.destination;
       let plausible = false;
@@ -402,6 +407,8 @@ export const LAYERS = [
         const op = [o.lon, o.lat], dp = [d.lon, d.lat];
         plausible = distKm(op, pos) + distKm(pos, dp) <= distKm(op, dp) * 1.25 + 150;
         if (plausible) {
+          // Ohne ganzen Weg: das Stück vom Startflughafen bis zum ersten bekannten Punkt als Luftlinie (geschätzt)
+          if (own || !path.length) feats.push(line(greatCircle(op, path.length ? [path[0][0], path[0][1]] : pos), 'guess'));
           feats.push(line(greatCircle(pos, dp), 'route'));
           feats.push(spot(op, 'airport', o.iata || o.icao), spot(dp, 'airport', d.iata || d.icao));
         }
@@ -409,11 +416,12 @@ export const LAYERS = [
       const rows = row('Airline', esc(a.airline)) + row('Halter', esc(a.owner)) + row('Hersteller', esc(a.manufacturer))
         + (o || d ? row(plausible ? 'Route' : 'Route (laut Datenbank, unsicher)', `${airportName(o) || '?'} → ${airportName(d) || '?'}`) : '')
         + (plausible ? row('Noch bis Ziel', `<span data-remain>${fmt(distKm(pos, [d.lon, d.lat]))}</span> km`) : '')
-        + (path.length > 1 ? row('Weg seit Start', `<span data-done>${fmt(path.reduce((s, x, i) => (i ? s + distKm(path[i - 1], x) : 0), 0))}</span> km`) : '');
+        + (own || !path.length ? row('Bisheriger Weg', plausible ? 'gepunktet = Luftlinie ab Startflughafen (geschätzt), durchgezogen = seit die Karte das Flugzeug kennt' : path.length ? 'nur seit die Karte das Flugzeug kennt' : null) : '')
+        + (!own && path.length > 1 ? row('Weg seit Start', `<span data-done>${fmt(path.reduce((s, x, i) => (i ? s + distKm(path[i - 1], x) : 0), 0))}</span> km`) : '');
       return {
         summary: o || d
           ? `${airportName(o) || '?'} → ${airportName(d) || '?'}${plausible ? ` · noch <span data-remain>${fmt(distKm(pos, [d.lon, d.lat]))}</span> km Luftlinie` : ' (laut Datenbank, unsicher)'}`
-          : path.length > 1 ? `Route unbekannt · <span data-done>${fmt(path.reduce((s, x, i) => (i ? s + distKm(path[i - 1], x) : 0), 0))}</span> km seit Start` : null,
+          : !own && path.length > 1 ? `Route unbekannt · <span data-done>${fmt(path.reduce((s, x, i) => (i ? s + distKm(path[i - 1], x) : 0), 0))}</span> km seit Start` : null,
         html: photoHtml(a.photo, a.photo_by, a.photo_link, a.photo_link?.includes('planespotters') ? 'planespotters.net' : null) + (rows ? `<dl>${rows}</dl>` : ''),
         overlay: feats,
         every: 30_000
@@ -520,12 +528,16 @@ export const LAYERS = [
           + `<a class="ext" href="https://openwaters.io/ais/" target="_blank" rel="noopener">Open Waters AIS ›</a>`
       };
     },
-    /** Beim Antippen: Stammdaten und Weg der letzten Stunden (Open Waters), Foto über die IMO-Nummer (Wikidata), Kurs der nächsten Stunde. */
+    /** Beim Antippen: Stammdaten und Weg der letzten 7 Tage (Open Waters), Foto über die IMO-Nummer (Wikidata), Kurs der nächsten Stunde. */
     async more(p, pos, get) {
       const mmsi = encodeURIComponent(p.mmsi);
+      // Weg der letzten 7 Tage (Standard der Quelle: nur 24 h). Zuerst nach Form vereinfacht (genau in Kurven);
+      // sind das mehr als 1.000 Punkte, schneidet die Quelle ab → dann ein Punkt je 15 min, das passt immer.
+      const from = new Date(Date.now() - SHIP_TRACK_DAYS * 86_400_000).toISOString().slice(0, 19) + 'Z';
+      const trackUrl = `https://ais.openwaters.io/v1/vessels/${mmsi}/track?from=${from}`;
       const [info, track] = await Promise.allSettled([
         get(`https://ais.openwaters.io/v1/vessels/${mmsi}`),
-        get(`https://ais.openwaters.io/v1/vessels/${mmsi}/track`)
+        get(trackUrl).then((t) => (t.properties?.truncated ? get(`${trackUrl}&interval=15m`) : t))
       ]);
       const v = info.status === 'fulfilled' ? info.value.properties || {} : {};
       const now = info.status === 'fulfilled' && info.value.geometry?.coordinates ? info.value.geometry.coordinates : pos;
@@ -559,7 +571,7 @@ export const LAYERS = [
         + row('Tiefgang', typeof v.draught === 'number' && v.draught ? `${fmt(v.draught, 1)} m` : null)
         + row('Rufzeichen', esc(v.callsign)) + row('IMO', v.imo ? esc(v.imo) : null)
         + (sea ? row('Route (berechnet)', `${esc(port.name)} (${esc(port.code)}) · <span data-remain>${fmt(sea.km)}</span> km${typeof sog === 'number' && sog >= 0.5 ? ` · ca. <span data-eta>${fmt(sea.km / (sog * 1.852), 1)}</span> h` : ''}`) : '')
-        + (path.length > 1 ? row('Weg (letzte Stunden)', `<span data-done>${fmt(path.reduce((s, x, i) => (i ? s + distKm(path[i - 1], x) : 0), 0), 1)}</span> km`) : '');
+        + (path.length > 1 ? row(`Weg (letzte ${SHIP_TRACK_DAYS} Tage)`, `<span data-done>${fmt(path.reduce((s, x, i) => (i ? s + distKm(path[i - 1], x) : 0), 0), 1)}</span> km`) : '');
       const note = feats.length ? `<p class="hint-line">Durchgezogen = bisheriger Weg · gestrichelt = ${sea ? 'berechneter Seeweg zum AIS-Ziel (Schätzung, keine Navigation)' : 'Kurs der nächsten Stunde'}</p>` : '';
       const km = path.length > 1 ? path.reduce((s, x, i) => (i ? s + distKm(path[i - 1], x) : 0), 0) : 0;
       const summary = sea

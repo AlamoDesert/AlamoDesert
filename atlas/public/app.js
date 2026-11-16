@@ -129,6 +129,8 @@ function ensureOverlay() {
     layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#4cc3d9', 'line-width': 7, 'line-opacity': 0.12, 'line-blur': 2 } });
   map.addLayer({ id: 'lk-overlay-track', type: 'line', source: 'lk-overlay', filter: ['==', ['get', 'role'], 'track'],
     layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#4cc3d9', 'line-width': 2.2 } });
+  map.addLayer({ id: 'lk-overlay-guess', type: 'line', source: 'lk-overlay', filter: ['==', ['get', 'role'], 'guess'],
+    paint: { 'line-color': '#4cc3d9', 'line-width': 1.6, 'line-opacity': 0.55, 'line-dasharray': [1, 2.5] } });
   map.addLayer({ id: 'lk-overlay-route', type: 'line', source: 'lk-overlay', filter: ['==', ['get', 'role'], 'route'],
     paint: { 'line-color': '#dfeef2', 'line-width': 1.6, 'line-opacity': 0.75, 'line-dasharray': [2, 2.5] } });
   map.addLayer({ id: 'lk-overlay-airport', type: 'circle', source: 'lk-overlay', filter: ['==', ['get', 'role'], 'airport'],
@@ -397,6 +399,27 @@ async function pool(tasks, limit) {
   return out;
 }
 
+/** Zurückgelegten Weg selbst mitschreiben (Ebenen mit `trail`): die Flugweg-Quellen lehnen Abrufe des Proxys
+    oft ab (403), dann bleibt wenigstens der Weg, seit die App das Flugzeug kennt. Pro Objekt höchstens TRAIL_MAX
+    Punkte (ältere werden ausgedünnt); wer 15 min nicht mehr gemeldet wurde, fällt heraus. */
+const TRAIL_MAX = 600;
+function recordTrail(rt) {
+  rt.trail ||= new Map();
+  const now = Date.now();
+  for (const f of rt.features) {
+    if (f.props?.ground) continue;
+    let t = rt.trail.get(f.id);
+    if (!t) { t = { pts: [], seen: now }; rt.trail.set(f.id, t); }
+    t.seen = now;
+    const last = t.pts[t.pts.length - 1];
+    // erst ab ~200 m Bewegung ein neuer Punkt
+    if (last && Math.abs(last[0] - f.lon) < 0.003 && Math.abs(last[1] - f.lat) < 0.002) continue;
+    t.pts.push([f.lon, f.lat]);
+    if (t.pts.length > TRAIL_MAX) t.pts = t.pts.filter((_, i) => i % 2 === 1 || i > TRAIL_MAX / 2);
+  }
+  for (const [id, t] of rt.trail) if (now - t.seen > 15 * 60_000) rt.trail.delete(id);
+}
+
 async function refresh(l) {
   const rt = runtime.get(l.id);
   clearTimeout(rt.timer);
@@ -475,6 +498,7 @@ async function refresh(l) {
     const byId = new Map();
     for (const r of ok) for (const f of r.features) byId.set(f.id, f); // Zellen überlappen: doppelte Objekte zusammenführen
     rt.features = [...byId.values()];
+    if (l.trail) recordTrail(rt);
     rt.at = ok.map((r) => Date.parse(r.at)).reduce((a, b) => Math.min(a, b));
     rt.stale = ok.some((r) => r.stale);
   }
@@ -809,7 +833,8 @@ async function loadMore() {
   const pos = currentPos(l, p.id) || (live ? [live.lon, live.lat] : coords);
   const ctrl = new AbortController();
   try {
-    const r = await l.more(live ? { ...p, ...live.props, id: live.id } : p, pos, (url) => getJSON(url, ctrl.signal));
+    const r = await l.more(live ? { ...p, ...live.props, id: live.id } : p, pos, (url) => getJSON(url, ctrl.signal),
+      runtime.get(l.id)?.trail?.get(p.id)?.pts || []);
     if (run !== moreRun || !current) return;
     const box = $('#detail .more');
     if (box && r.html !== undefined) box.innerHTML = r.html;
@@ -939,6 +964,9 @@ function fitRoute() {
   if (!ok.length) return;
   const b = new maplibregl.LngLatBounds(ok[0], ok[0]);
   for (const c of ok) b.extend(c);
+  // Nur ein kurzes Stück bekannt (Weg wird erst mitgeschrieben, keine Route): nicht hineinzoomen, sonst ist
+  // das Flugzeug nach einer Minute aus dem Bild.
+  if (distKm(b.getSouthWest().toArray(), b.getNorthEast().toArray()) < 30) return;
   const r = $('#detail').getBoundingClientRect();
   const mobile = innerWidth <= 760;
   const pad = mobile
