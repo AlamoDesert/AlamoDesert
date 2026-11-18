@@ -2,6 +2,17 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.18.0 – 18.11.2026
+- Eigene Erinnerungen: „+ Erinnerung“ im Fahrplan (Text und Uhrzeit, gilt nur heute). Sie stehen im passenden Abschnitt, öffnen zur Uhrzeit ein Fenster und zählen nicht zum Fortschritt.
+- Immer im Blick: Bestätigte Pflichtpunkte bleiben sichtbar (grau mit Uhrzeit und Name). Pflichtpunkte können „fällig ab“ einer Uhrzeit sein – früher Bestätigtes steht ab dann wieder offen (z. B. Laptop und Handy laden). Pflichtpunkte bekommen Erinnerungen zur Uhrzeit (Mo–Fr / Sa+So, nur wenn offen oder immer), Rundgänge auf Wunsch ein Fenster, sobald sie überfällig sind.
+- Erinnerungen holen die Mac-App nach vorn (auch aus dem Dock) und spielen einen kurzen Ton; abschaltbar unter Verwaltung › Ton bei Erinnerungen. Die Webversion lässt nur den Titel blinken.
+- „Noch da?“: 30 Minuten nach dem geplanten Schichtende fragt die App die eingecheckte Früh- oder Spätschicht, ob sie auschecken möchte.
+- Vergessenes Auschecken trägt man beim nächsten Einchecken selbst nach (Ende, Pause, Grund) oder überlässt es der Leitung. Der Eintrag steht in den Arbeitszeiten als „nachgetragen“.
+- Dienstplan und Arbeitszeiten im gleichen Rahmen: Monat mit Pfeilen, „Heute“, Personenwahl, Aktionen rechts; Früh/Spät als Farbmarke. In den Arbeitszeiten stehen eingeplante Tage ohne Eintrag gelb.
+- Reiter „Zeiten“ heißt „Arbeitszeiten“; der Reiter „Schicht“ zeigt keine Zahl mehr.
+- Verwaltung in drei Spalten nebeneinander.
+- Check-ins ausgebaut (kein Reiter, kein Schalter, keine Knöpfe); Check-in-Aufgaben werden einmalig aus dem Aufgaben-Plan genommen. Code und Check-in-Daten bleiben erhalten (`CHECKINS_ENABLED`).
+
 ## 1.17.0 – 04.11.2026
 - Sicherungen verschlüsseln (einschaltbar unter Verwaltung › Datensicherung): Passwort der Leitung plus einmal angezeigter Wiederherstellungscode. Die automatische Sicherung läuft weiter ohne Eingabe; beim Einspielen fragt die App nach Passwort oder Code. Unverschlüsselte Sicherungen lassen sich weiter einspielen.
 - Alte Daten löschen nach dem Löschkonzept (Verwaltung › System): Protokoll und Übergaben nach 3 Monaten, Dienstplan nach 1 Jahr, Arbeitszeiten 2 Jahre nach Jahresende – mit Anzeige, was fällig ist, Bestätigung und Nachweis. Check-in-Fortschritt wird nach 3 Monaten automatisch entfernt.

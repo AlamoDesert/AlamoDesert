@@ -3,7 +3,7 @@
   "solution": {
     "name": "Rezeption Schichtcheck",
     "id": "3e981ad6-dd2b-414e-affe-55c796178269",
-    "version": "1.0.0.0",
+    "version": "1.18.0.0",
     "includeClientSideAssets": true,
     "skipFeatureDeployment": true,
     "isDomainIsolated": false,
@@ -30,7 +30,7 @@
         "title": "Rezeption Schichtcheck Feature",
         "description": "Aktiviert die Elemente der Lösung Rezeption Schichtcheck.",
         "id": "2370b248-e230-408a-b63c-91443b7ff9c2",
-        "version": "1.0.0.0"
+        "version": "1.18.0.0"
       }
     ]
   },

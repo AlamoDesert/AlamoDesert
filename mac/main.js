@@ -23,7 +23,7 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1440, height: 900, minWidth: 900, minHeight: 600,
     title: "Rezeption", backgroundColor: "#eef2f6", show: false,
-    webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: false },
+    webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: false, autoplayPolicy: "no-user-gesture-required", backgroundThrottling: false },
   });
   win.once("ready-to-show", () => { win.maximize(); win.show(); });
   win.loadURL("rezeption://app/index.html");
@@ -62,6 +62,21 @@ function writeAtomic(file, text) {
 }
 
 function registerIpc() {
+  // Erinnerung: Fenster nach vorn holen (auch aus dem Dock oder hinter anderen Programmen) und vorn halten,
+  // bis die App das Fenster beantwortet meldet (rz:attentionEnd). Das Dock-Symbol hüpft zusätzlich, falls macOS das Vordrängeln blockiert.
+  ipcMain.handle("rz:attention", () => {
+    if (!win) return false;
+    if (process.platform === "darwin") app.show();
+    if (win.isMinimized()) win.restore();
+    if (!win.isVisible()) win.show();
+    win.setAlwaysOnTop(true, "floating");
+    win.moveTop();
+    app.focus({ steal: true });
+    win.focus();
+    if (process.platform === "darwin" && app.dock && !win.isFocused()) app.dock.bounce("critical");
+    return true;
+  });
+  ipcMain.handle("rz:attentionEnd", () => { if (win) win.setAlwaysOnTop(false); return true; });
   ipcMain.handle("rz:info", () => ({ backupDir: backupDir(), autoStart: app.getLoginItemSettings().openAtLogin, version: app.getVersion() }));
 
   ipcMain.handle("rz:saveBackup", (_e, text, date) => {
