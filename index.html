@@ -1249,7 +1249,6 @@ function mount(container, opts = {}) {
       <label class="fld"><span>Was?</span><input class="in" id="rp-t" maxlength="120" autocomplete="off" placeholder="z. B. Licht einschalten, Equipment bereitlegen" value="${esc(pop.t || "")}"></label>
       <div class="rpwhen"><label class="fld"><span>Um</span>${timeIn("rp-at", def, "Uhrzeit")}</label>
         <span class="quick">${[15, 30, 60].map(n => `<button type="button" class="chip off" data-rq="${n}">in ${n === 60 ? "1 Std." : n + " Min."}</button>`).join("")}</span></div>
-      <p class="hint">Gilt nur für heute. Steht im Fahrplan bei der Uhrzeit; zur Uhrzeit öffnet sich ein Fenster mit Ton.</p>
       <p class="perr" id="rp-err" role="alert"></p>
       <div class="row"><button type="button" class="btn ghost" data-rpclose="1">Abbrechen</button><button type="submit" class="btn primary">Speichern</button></div></form></div>`;
   }
@@ -1259,6 +1258,8 @@ function mount(container, opts = {}) {
     const err = (m) => { const e = $("rp-err"); if (e) e.textContent = m; };
     if (!t) return err("Bitte eingeben, woran erinnert werden soll.");
     if (!at) return err("Bitte eine Uhrzeit als HH:MM angeben.");
+    // Enter im Textfeld: Fokus lösen, sonst schiebt render() das Neuzeichnen auf (Fenster bliebe offen, Erinnerung unsichtbar).
+    blurActive();
     state.remPop = null;
     setRem(newId("r"), { t, at, shift: pop.shift, by: actorId(), created: new Date().toISOString() });
     toast(`Erinnerung um ${at} angelegt`);
@@ -3471,7 +3472,7 @@ function mount(container, opts = {}) {
     }
     return "";
   }
-  function closeEdPop() { state.edPop = null; state.edConfirmDel = false; render(); }
+  function closeEdPop() { blurActive(); state.edPop = null; state.edConfirmDel = false; render(); }
   // Fenster „Speichern“: Felder lesen, prüfen, übernehmen.
   function submitEdPop() {
     const pop = state.edPop; if (!pop) return;

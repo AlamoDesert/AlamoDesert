@@ -2,6 +2,9 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.18.6 – 23.11.2026
+- Neue Erinnerung: Enter speichert und schließt das Fenster (vorher blieb es offen und die Erinnerung erschien erst nach „Speichern“). Gleiches im Aufgaben-Plan-Fenster. Hinweistext im Fenster entfernt.
+
 ## 1.18.5 – 23.11.2026
 - Eigene Erinnerungen: Erledigte verschwinden aus der Liste, offene bleiben oben. „n erledigte anzeigen“ blendet sie bei Bedarf darunter wieder ein.
 
