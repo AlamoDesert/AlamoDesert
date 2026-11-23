@@ -2,6 +2,9 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.18.5 – 23.11.2026
+- Eigene Erinnerungen: Erledigte verschwinden aus der Liste, offene bleiben oben. „n erledigte anzeigen“ blendet sie bei Bedarf darunter wieder ein.
+
 ## 1.18.4 – 23.11.2026
 - Fehler behoben: Die erste eigene Erinnerung nach dem Start ging beim Speichern verloren (Fenster leer, nichts gespeichert). Ursache: Ein aufgeschobenes Neuzeichnen ersetzte das Fenster zwischen Drücken und Loslassen von „Speichern“. Neuzeichnen wartet jetzt, bis die Maus losgelassen ist; Eingaben im Fenster bleiben auch beim Neuzeichnen erhalten.
 

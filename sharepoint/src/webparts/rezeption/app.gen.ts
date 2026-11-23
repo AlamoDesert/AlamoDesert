@@ -1576,10 +1576,15 @@ export function mount(container, opts = {}) {
     const ownDue = own.some(([, r]) => !r.done && typeof ctx === "number" && ctx >= toMin(r.at));
     const ownSec = !own.length ? "" : (() => {
       const allDone = !ownOpen, collapsed = allDone && !state.expanded.has("_rem");
+      // Erledigte verschwinden aus der Liste, damit offene oben bleiben; „n erledigte anzeigen“ holt sie unten wieder hervor.
+      const doneN = own.length - ownOpen, showDone = allDone || state.expanded.has("_remdone");
+      const ownList = own.filter(([, r]) => !r.done).map(([id, r]) => remHtml(id, r, canRem)).join("")
+        + (showDone ? own.filter(([, r]) => r.done).map(([id, r]) => remHtml(id, r, canRem)).join("") : "")
+        + (doneN && !allDone ? `<li class="more"><button class="morebtn" data-toggle="_remdone" aria-expanded="${showDone}">${showDone ? "erledigte ausblenden" : `${doneN} erledigte anzeigen`} <span aria-hidden="true">${showDone ? "‹" : "›"}</span></button></li>` : "");
       const st = allDone ? "done" : ownDue ? "now" : "later";
       const head = `<span class="mark" aria-hidden="true">${allDone ? "✓" : BELL_SVG}</span><span class="time">heute</span><span class="ttl">Eigene Erinnerungen<small>${own.length - ownOpen}/${own.length}</small></span>${allDone ? PILL.done : `<span class="pill ${ownDue ? "now" : "later"}">${ownOpen} offen</span>`}`;
       const headEl = allDone ? `<button class="stop-head" data-toggle="_rem" aria-expanded="${!collapsed}" aria-label="Eigene Erinnerungen, erledigt, ${collapsed ? "aufklappen" : "zuklappen"}">${head}</button>` : `<div class="stop-head">${head}</div>`;
-      return `<section class="stop is-${st} is-own ownpanel${lay.rem && !collapsed ? " fixed" : ""}" id="phase-own"${lay.rem ? ` style="--remh:${lay.rem}px"` : ""}>${headEl}${collapsed ? "" : `<ul class="items">${own.map(([id, r]) => remHtml(id, r, canRem)).join("")}</ul>`}</section>`;
+      return `<section class="stop is-${st} is-own ownpanel${lay.rem && !collapsed ? " fixed" : ""}" id="phase-own"${lay.rem ? ` style="--remh:${lay.rem}px"` : ""}>${headEl}${collapsed ? "" : `<ul class="items">${ownList}</ul>`}</section>`;
     })();
     const other = key === "frueh" ? "spaet" : "frueh";
     const otherOpen = plan[other].phases.filter(p => phaseState(p, ctx) === "late").reduce((n, p) => n + p.items.filter(i => !state.checks[i.id]).length, 0)
