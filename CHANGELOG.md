@@ -2,6 +2,9 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.18.3 – 23.11.2026
+- „Eigene Erinnerungen“ ist ein eigener Bereich unten in der Fahrplan-Karte: erscheint nur, wenn es Erinnerungen gibt, wächst mit dem Inhalt nach oben (höchstens knapp die halbe Karte, darüber scrollt die Liste) und lässt sich an der Trennlinie in der Höhe ziehen (pro Person gespeichert, Doppelklick = wieder automatisch).
+
 ## 1.18.2 – 23.11.2026
 - Eigene Erinnerungen stehen gesammelt in einem eigenen Abschnitt „Eigene Erinnerungen“ unter dem Fahrplan (nur wenn welche da sind), nicht mehr in den Abschnitten des Plans. Sind alle erledigt, klappt der Abschnitt zu.
 

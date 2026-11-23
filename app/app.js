@@ -1562,6 +1562,7 @@ export function mount(container, opts = {}) {
     }).join("") || `<div class="empty">Für diese Schicht sind keine Abschnitte geplant (Verwaltung › Aufgaben-Plan).</div>`;
     // Eigene Erinnerungen: eigener Abschnitt unter dem Fahrplan, nur wenn welche da sind; nach Uhrzeit sortiert.
     // Offen, solange etwas offen ist; sind alle erledigt, eine Zeile zum Aufklappen. Zählen nicht zum Fortschritt.
+    const lay = getLayout();
     const own = Object.entries(state.rem).filter(([, r]) => r.shift === key).sort((a, b) => a[1].at.localeCompare(b[1].at));
     const ownOpen = own.filter(([, r]) => !r.done).length;
     const ownDue = own.some(([, r]) => !r.done && typeof ctx === "number" && ctx >= toMin(r.at));
@@ -1570,7 +1571,7 @@ export function mount(container, opts = {}) {
       const st = allDone ? "done" : ownDue ? "now" : "later";
       const head = `<span class="mark" aria-hidden="true">${allDone ? "✓" : BELL_SVG}</span><span class="time">heute</span><span class="ttl">Eigene Erinnerungen<small>${own.length - ownOpen}/${own.length}</small></span>${allDone ? PILL.done : `<span class="pill ${ownDue ? "now" : "later"}">${ownOpen} offen</span>`}`;
       const headEl = allDone ? `<button class="stop-head" data-toggle="_rem" aria-expanded="${!collapsed}" aria-label="Eigene Erinnerungen, erledigt, ${collapsed ? "aufklappen" : "zuklappen"}">${head}</button>` : `<div class="stop-head">${head}</div>`;
-      return `<section class="stop is-${st} is-own" id="phase-own">${headEl}${collapsed ? "" : `<ul class="items">${own.map(([id, r]) => remHtml(id, r, canRem)).join("")}</ul>`}</section>`;
+      return `<section class="stop is-${st} is-own ownpanel${lay.rem && !collapsed ? " fixed" : ""}" id="phase-own"${lay.rem ? ` style="--remh:${lay.rem}px"` : ""}>${headEl}${collapsed ? "" : `<ul class="items">${own.map(([id, r]) => remHtml(id, r, canRem)).join("")}</ul>`}</section>`;
     })();
     const other = key === "frueh" ? "spaet" : "frueh";
     const otherOpen = plan[other].phases.filter(p => phaseState(p, ctx) === "late").reduce((n, p) => n + p.items.filter(i => !state.checks[i.id]).length, 0)
@@ -1578,7 +1579,6 @@ export function mount(container, opts = {}) {
     const pr = progress(plan, key, state.checks);
     const seg = KEYS.map(k => `<button class="segbtn${k === key ? " on" : ""}" data-shiftsel="${k}" aria-pressed="${k === key}">${SHIFT_META[k].short}${k === auto && typeof ctx === "number" && activeShift(plan, ctx) === k ? " ·&nbsp;jetzt" : ""}</button>`).join("");
     const title = ctx === "past" ? "Rückblick" : ctx === "future" ? "Vorschau" : "Fahrplan";
-    const lay = getLayout();
     // Ungelesene Übergabe: Leiste über dem Fahrplan, bis die eingecheckte Person sie als gelesen markiert.
     const hb = state.date === isoDate(new Date()) && cp && !state.readOnly ? handIn(key) : null;
     const banner = hb && !handRead(key, hb) ? `<div class="handbar${hb.important ? " imp" : ""}"><span class="imptag">Übergabe</span><span class="htxt"><b>${key === "frueh" ? "Von der Spätschicht" : "Von der Frühschicht"}:</b> ${esc(hb.text)}</span><button class="btn" data-hopen="${key}">Öffnen</button><button class="btn primary" data-hread="${key}">Gelesen</button></div>` : "";
@@ -1588,7 +1588,8 @@ export function mount(container, opts = {}) {
         <div class="chead"><h2>${title} ${meta.label}</h2><span class="hint">${s.start}–${s.end} · ${pr.done}/${pr.total} erledigt</span>${role ? "" : `<div class="seg" role="group" aria-label="Schicht wählen">${seg}</div>`}${canRem ? `<button class="btn sm remadd" data-remadd="${key}">${BELL_SVG}+ Erinnerung</button>` : ""}</div>
         <div class="bar flat"><i style="width:${pr.pct}%"></i></div>
         ${otherOpen ? (role ? `<div class="othersum">${SHIFT_META[other].label}: <b>${otherOpen} offen geblieben</b></div>` : `<button class="othersum" data-shiftsel="${other}">${SHIFT_META[other].label}: <b>${otherOpen} offen geblieben</b> – ansehen</button>`) : ""}
-        <div class="cbody board"><div class="board-in">${stops}${ownSec}</div></div>
+        <div class="cbody board"><div class="board-in">${stops}</div></div>
+        ${ownSec ? `<div class="hsplit" data-split="rem" role="separator" aria-orientation="horizontal" aria-label="Höhe der eigenen Erinnerungen – ziehen oder Pfeiltasten, Doppelklick passt sich wieder dem Inhalt an" tabindex="0" title="Ziehen zum Anpassen · Doppelklick = automatisch"></div>${ownSec}` : ""}
       </section>
       <div class="splitter" data-split="side" role="separator" aria-orientation="vertical" aria-label="Spaltenbreite – ziehen oder Pfeiltasten, Doppelklick setzt zurück" tabindex="0" title="Ziehen zum Anpassen · Doppelklick = Standard"></div>
       <div class="side${lay.hand ? " has-hand" : ""}"${lay.hand ? ` style="--hand:${lay.hand}px"` : ""}>
@@ -1601,15 +1602,17 @@ export function mount(container, opts = {}) {
 
   // Breite der rechten Spalte und Höhe von „Dienst & Übergabe“, gespeichert pro Person (sonst „Standard“) im Browser-Speicher des Geräts.
   // hand = Höhe der Karte „Dienst & Übergabe“ in px, null = so hoch wie der Inhalt.
-  const LAYOUT_DEFAULT = { side: 420, hand: null };
+  const LAYOUT_DEFAULT = { side: 420, hand: null, rem: null };
   const clampSide = (v) => Math.min(900, Math.max(280, Math.round(v)));
   const clampHand = (v) => Math.min(1200, Math.max(120, Math.round(v)));
+  const clampRem = (v) => Math.min(1200, Math.max(70, Math.round(v)));
   const layoutKey = () => { const p = currentPerson(); return p ? p.id : "_"; };
   function getLayout() {
     const all = LS.get("rz2layout", {}), l = (all && all[layoutKey()]) || (all && all._) || {};
     return {
       side: Number.isFinite(l.side) ? clampSide(l.side) : LAYOUT_DEFAULT.side,
       hand: Number.isFinite(l.hand) ? clampHand(l.hand) : LAYOUT_DEFAULT.hand,
+      rem: Number.isFinite(l.rem) ? clampRem(l.rem) : LAYOUT_DEFAULT.rem,
     };
   }
   function saveLayout(patch) {
@@ -1620,13 +1623,16 @@ export function mount(container, opts = {}) {
   let drag = null;
   // Trennlinien ziehen: data-split="side" (Breite rechte Spalte) oder "hand" (Höhe Dienst & Übergabe).
   function startDrag(e, el) {
-    const kind = el.dataset.split, wrap = el.closest(kind === "hand" ? ".side" : ".schicht"); if (!wrap) return;
+    const kind = el.dataset.split, wrap = el.closest(kind === "hand" ? ".side" : kind === "rem" ? ".boardcard" : ".schicht"); if (!wrap) return;
     e.preventDefault();
     const rect = wrap.getBoundingClientRect();
     drag = { kind, value: null };
     el.setPointerCapture && el.setPointerCapture(e.pointerId);
     const move = (ev) => {
-      if (kind === "hand") {
+      if (kind === "rem") {
+        drag.value = Math.round(Math.min(rect.height - 180, Math.max(70, rect.bottom - ev.clientY - 6)));
+        const pn = wrap.querySelector(".ownpanel"); if (pn) { pn.classList.add("fixed"); pn.style.setProperty("--remh", drag.value + "px"); }
+      } else if (kind === "hand") {
         drag.value = Math.round(Math.min(rect.height - 140, Math.max(120, rect.bottom - ev.clientY - 6)));
         wrap.classList.add("has-hand"); wrap.style.setProperty("--hand", drag.value + "px");
       } else {
@@ -3930,6 +3936,7 @@ export function mount(container, opts = {}) {
     if (!step) return;
     e.preventDefault();
     if (kind === "side") saveLayout({ side: clampSide(getLayout().side + step) });
+    else if (kind === "rem") { const pn = root.querySelector(".ownpanel"); saveLayout({ rem: clampRem((getLayout().rem || (pn ? pn.getBoundingClientRect().height : 160)) + step) }); }
     else {
       const card = root.querySelector(".side > .card.hand");
       saveLayout({ hand: clampHand((getLayout().hand || (card ? card.getBoundingClientRect().height : 240)) + step) });

@@ -659,3 +659,14 @@ ul.items li.ownrem .skip.danger { color: var(--warn); font-weight: 700 }
 .stop.is-own { margin-top: 14px }
 .stop.is-own .stop-head .mark svg { width: 13px; height: 13px }
 .stop.is-own.is-later .mark { background: var(--now-soft); color: var(--now); box-shadow: inset 0 0 0 1px var(--now) }
+/* Eigene Erinnerungen: unten in der Fahrplan-Karte angepinnt, wächst mit dem Inhalt nach oben (max. 45 %), Höhe per Trennlinie */
+.boardcard .ownpanel { flex: none; margin: 0 10px 10px; display: flex; flex-direction: column; min-height: 0 }
+.boardcard .ownpanel .items { overflow-y: auto; min-height: 0 }
+.boardcard .hsplit[data-split="rem"] { flex: 0 0 12px; margin: 0 10px }
+.stop.is-own { margin-top: 0 }
+@media (orientation: landscape) and (min-width: 900px) {
+  .boardcard .ownpanel { max-height: 45% }
+  .boardcard .ownpanel.fixed { height: var(--remh); max-height: calc(100% - 180px) }
+  .boardcard .ownpanel.fixed .items { flex: 1 }
+}
+@media (orientation: portrait), (max-width: 899px) { .boardcard .hsplit[data-split="rem"] { display: none } .boardcard .ownpanel { margin-top: 10px } }
