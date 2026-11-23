@@ -2,6 +2,9 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.18.1 – 23.11.2026
+- Fahrplan: Ist ein Abschnitt komplett (erledigt oder „entfällt“), klappt er zu – auch wenn er vorher von Hand aufgeklappt wurde.
+
 ## 1.18.0 – 18.11.2026
 - Eigene Erinnerungen: „+ Erinnerung“ im Fahrplan (Text und Uhrzeit, gilt nur heute). Sie stehen im passenden Abschnitt, öffnen zur Uhrzeit ein Fenster und zählen nicht zum Fortschritt.
 - Immer im Blick: Bestätigte Pflichtpunkte bleiben sichtbar (grau mit Uhrzeit und Name). Pflichtpunkte können „fällig ab“ einer Uhrzeit sein – früher Bestätigtes steht ab dann wieder offen (z. B. Laptop und Handy laden). Pflichtpunkte bekommen Erinnerungen zur Uhrzeit (Mo–Fr / Sa+So, nur wenn offen oder immer), Rundgänge auf Wunsch ein Fenster, sobald sie überfällig sind.

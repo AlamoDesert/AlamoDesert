@@ -1086,6 +1086,8 @@ export function mount(container, opts = {}) {
     if (!value) delete next[id];
     state.checks = next;
     state.month = { ...state.month, [state.date]: { checks: next, plan: state.dayPlan, snap: state.daySnap } };
+    // Abschnitt komplett (erledigt oder „entfällt“) → wieder zuklappen, auch wenn er vorher von Hand aufgeklappt wurde.
+    if (value) { const it = derive(P()).item[id]; if (it && it.phase.items.every(i => next[i.id])) state.expanded.delete(it.phase.id); }
     render();
     persistDay(state.date, { checks: { [id]: value } });
     // Letzter Punkt der Spätschicht heute erledigt → Tagesabschluss sichern.
