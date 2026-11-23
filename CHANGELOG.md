@@ -2,6 +2,9 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.18.4 – 23.11.2026
+- Fehler behoben: Die erste eigene Erinnerung nach dem Start ging beim Speichern verloren (Fenster leer, nichts gespeichert). Ursache: Ein aufgeschobenes Neuzeichnen ersetzte das Fenster zwischen Drücken und Loslassen von „Speichern“. Neuzeichnen wartet jetzt, bis die Maus losgelassen ist; Eingaben im Fenster bleiben auch beim Neuzeichnen erhalten.
+
 ## 1.18.3 – 23.11.2026
 - „Eigene Erinnerungen“ ist ein eigener Bereich unten in der Fahrplan-Karte: erscheint nur, wenn es Erinnerungen gibt, wächst mit dem Inhalt nach oben (höchstens knapp die halbe Karte, darüber scrollt die Liste) und lässt sich an der Trennlinie in der Höhe ziehen (pro Person gespeichert, Doppelklick = wieder automatisch).
 

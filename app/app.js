@@ -799,6 +799,7 @@ export function mount(container, opts = {}) {
   let db = null, user = null, myId = null, unsubDay = null, unsubMonth = null, unsubCfg = null, monthKey = null;
   let writeChain = Promise.resolve();
   let renderPending = false;
+  let ptrDown = false;   // Maus/Finger gedrückt in <main> – Neuzeichnen bis zum Loslassen aufschieben
   let scrolledOnce = false;
 
   // raw = ohne Schichtzeiten aus dem Dienstplan (für den Plan-Editor).
@@ -1217,11 +1218,14 @@ export function mount(container, opts = {}) {
       ${canEdit ? `<button class="skip" data-remdel="${esc(id)}" aria-label="Erinnerung löschen">×</button>` : ""}
     </li>`;
   }
+  // Eingaben liegen in state.remPop (t, at), damit ein Neuzeichnen das offene Fenster nicht leert.
   function remPopHtml() {
-    const def = fmtMin(Math.min(1435, Math.ceil((nowMin() + 30) / 5) * 5));
+    const pop = state.remPop;
+    if (pop.at == null) pop.at = fmtMin(Math.min(1435, Math.ceil((nowMin() + 30) / 5) * 5));
+    const def = pop.at;
     return `<div class="overlay inmain" role="dialog" aria-modal="true" aria-labelledby="rp-title"><form class="dialog rempop" id="rempop">
       <h2 id="rp-title">Neue Erinnerung</h2>
-      <label class="fld"><span>Was?</span><input class="in" id="rp-t" maxlength="120" autocomplete="off" placeholder="z. B. Licht einschalten, Equipment bereitlegen"></label>
+      <label class="fld"><span>Was?</span><input class="in" id="rp-t" maxlength="120" autocomplete="off" placeholder="z. B. Licht einschalten, Equipment bereitlegen" value="${esc(pop.t || "")}"></label>
       <div class="rpwhen"><label class="fld"><span>Um</span>${timeIn("rp-at", def, "Uhrzeit")}</label>
         <span class="quick">${[15, 30, 60].map(n => `<button type="button" class="chip off" data-rq="${n}">in ${n === 60 ? "1 Std." : n + " Min."}</button>`).join("")}</span></div>
       <p class="hint">Gilt nur für heute. Steht im Fahrplan bei der Uhrzeit; zur Uhrzeit öffnet sich ein Fenster mit Ton.</p>
@@ -3664,7 +3668,7 @@ export function mount(container, opts = {}) {
   function render() {
     const active = root.activeElement;
     const typing = active && $("main").contains(active) && (active.tagName === "TEXTAREA" || (active.tagName === "INPUT" && !["checkbox", "radio", "file", "button", "submit"].includes(active.type)));
-    if (typing || drag) { renderPending = true; renderHeader(); return; }
+    if (typing || drag || ptrDown) { renderPending = true; renderHeader(); return; }
     renderPending = false;
     if (state.view === "erstattung" && !checkinsOn()) state.view = "schicht";
     renderHeader();
@@ -3791,7 +3795,7 @@ export function mount(container, opts = {}) {
       state.remPop = { shift: t.dataset.remadd }; render(); const i = $("rp-t"); if (i) i.focus(); return;
     }
     if (t.dataset.rpclose) { blurActive(); state.remPop = null; render(); return; }
-    if (t.dataset.rq) { const i = $("rp-at"); if (i) i.value = fmtMin(Math.min(1435, Math.ceil((nowMin() + Number(t.dataset.rq)) / 5) * 5)); return; }
+    if (t.dataset.rq) { const v = fmtMin(Math.min(1435, Math.ceil((nowMin() + Number(t.dataset.rq)) / 5) * 5)); const i = $("rp-at"); if (i) i.value = v; if (state.remPop) state.remPop.at = v; return; }
     if (t.dataset.remcheck) { if (needPerson()) return; const r = state.rem[t.dataset.remcheck]; if (r) setRemDone(t.dataset.remcheck, !r.done); return; }
     if (t.dataset.remdel) {
       const id = t.dataset.remdel, r = state.rem[id]; if (!r) return;
@@ -3946,6 +3950,8 @@ export function mount(container, opts = {}) {
   main.addEventListener("input", (e) => {
     const el = e.target;
     if (el.id === "rhi") { state.rosterHi = el.value.slice(0, 40); return applyRosterHi(); }
+    if (state.remPop && el.id === "rp-t") state.remPop.t = el.value;
+    if (state.remPop && el.id === "rp-at") state.remPop.at = el.value;
   });
   main.addEventListener("change", (e) => {
     if (e.target.dataset && e.target.dataset.rnote) return setRosterNote(e.target.dataset.rnote, e.target.dataset.shift, e.target.value);
@@ -3977,7 +3983,13 @@ export function mount(container, opts = {}) {
       if (el.id === "imp-year") { const y = parseInt(el.value, 10); if (y >= 2020 && y <= 2100) ip.year = y; render(); return; }
     }
   });
-  main.addEventListener("focusout", () => setTimeout(() => { if (renderPending) render(); }, 0));
+  // Aufgeschobenes Neuzeichnen erst, wenn keine Taste/Maus mehr gedrückt ist: Sonst ersetzt render() den Knopf zwischen
+  // Drücken und Loslassen (z. B. „Speichern“ im Fenster), der Klick geht verloren und die Eingabe ist weg.
+  main.addEventListener("pointerdown", () => { ptrDown = true; }, true);
+  const ptrUp = () => { if (!ptrDown) return; ptrDown = false; setTimeout(() => { if (renderPending) render(); }, 0); };
+  window.addEventListener("pointerup", ptrUp, true); window.addEventListener("pointercancel", ptrUp, true);
+  cleanups.push(() => { window.removeEventListener("pointerup", ptrUp, true); window.removeEventListener("pointercancel", ptrUp, true); });
+  main.addEventListener("focusout", () => setTimeout(() => { if (renderPending && !ptrDown) render(); }, 0));
   // Anwesend-Leiste und „Nur ansehen“-Leiste
   container.addEventListener("click", (e) => {
     const b = e.target.closest && e.target.closest("[data-pres],[data-pres-add]");
