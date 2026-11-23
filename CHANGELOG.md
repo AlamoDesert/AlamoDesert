@@ -2,6 +2,9 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.18.2 – 23.11.2026
+- Eigene Erinnerungen stehen gesammelt in einem eigenen Abschnitt „Eigene Erinnerungen“ unter dem Fahrplan (nur wenn welche da sind), nicht mehr in den Abschnitten des Plans. Sind alle erledigt, klappt der Abschnitt zu.
+
 ## 1.18.1 – 23.11.2026
 - Fahrplan: Ist ein Abschnitt komplett (erledigt oder „entfällt“), klappt er zu – auch wenn er vorher von Hand aufgeklappt wurde.
 

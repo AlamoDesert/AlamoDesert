@@ -655,3 +655,7 @@ ul.items li.ownrem .skip.danger { color: var(--warn); font-weight: 700 }
 .stale .tnote { display: block; margin-top: 8px }
 .stale .check-inline { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-weight: 500 }
 .stale .hint { margin: 6px 0 0; font-size: 12.5px; color: var(--muted) }
+/* Eigene Erinnerungen als eigener Abschnitt unter dem Fahrplan */
+.stop.is-own { margin-top: 14px }
+.stop.is-own .stop-head .mark svg { width: 13px; height: 13px }
+.stop.is-own.is-later .mark { background: var(--now-soft); color: var(--now); box-shadow: inset 0 0 0 1px var(--now) }

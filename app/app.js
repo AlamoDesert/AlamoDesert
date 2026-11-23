@@ -1203,6 +1203,7 @@ export function mount(container, opts = {}) {
   function setRemDone(id, done) {
     const r = state.rem[id]; if (!r) return;
     const { done: _old, ...rest } = r;
+    if (done && Object.entries(state.rem).every(([k, x]) => k === id || x.shift !== r.shift || x.done)) state.expanded.delete("_rem");
     setRem(id, done ? { ...rest, done: { by: actorId(), at: new Date().toISOString() } } : rest);
   }
   function remHtml(id, r, canEdit) {
@@ -1540,36 +1541,37 @@ export function mount(container, opts = {}) {
     // Eingecheckt als Früh oder Spät: nur die eigene Schicht, kein Umschalten (sonst verwirrend).
     const auto = role || focusShift(plan, ctx), key = role || state.shiftSel || auto, s = plan[key], meta = SHIFT_META[key];
     const MARK = { done: "✓", now: "▶", late: "!", later: "" };
-    // Eigene Erinnerungen stehen im Abschnitt, in dessen Zeit sie fallen (sonst im ersten); sie zählen nicht zum Fortschritt.
     const isToday = state.date === isoDate(new Date()), canRem = isToday && !state.readOnly;
-    const remBy = new Map();
-    for (const [id, r] of Object.entries(state.rem).filter(([, r]) => r.shift === key).sort((a, b) => a[1].at.localeCompare(b[1].at))) {
-      let ph = null; for (const p of s.phases) if (toMin(p.from) <= toMin(r.at)) ph = p;
-      ph = ph || s.phases[0]; if (!ph) continue;
-      if (!remBy.has(ph.id)) remBy.set(ph.id, []);
-      remBy.get(ph.id).push([id, r]);
-    }
     const stops = s.phases.map(p => {
       const st = phaseState(p, ctx);
       const done = p.items.filter(i => state.checks[i.id]).length;
-      const rs = remBy.get(p.id) || [], rsOpen = rs.filter(([, r]) => !r.done).length;
-      const remDue = rs.some(([, r]) => !r.done && typeof ctx === "number" && ctx >= toMin(r.at));
       // Übersicht: offen sind nur der laufende und überfällige Abschnitte (und nach „Zurück zur Schicht“ alle mit offenen Punkten);
-      // erledigte und spätere sind eine Zeile zum Aufklappen. Eine fällige eigene Erinnerung hält ihren Abschnitt offen.
+      // erledigte und spätere sind eine Zeile zum Aufklappen.
       const flagged = state.coFlag === key && done < p.items.length;
       const foldable = st === "done" || st === "later";
-      const collapsed = foldable && !flagged && !remDue && !state.expanded.has(p.id);
+      const collapsed = foldable && !flagged && !state.expanded.has(p.id);
       const label = { done: "erledigt", now: "jetzt", late: "offen", later: "später" }[st];
-      const count = (st === "later" && collapsed ? `${p.items.length} ${p.items.length === 1 ? "Aufgabe" : "Aufgaben"}` : `${done}/${p.items.length}`)
-        + (rsOpen && collapsed ? ` · ${rsOpen} ${rsOpen === 1 ? "Erinnerung" : "Erinnerungen"}` : "");
+      const count = st === "later" && collapsed ? `${p.items.length} ${p.items.length === 1 ? "Aufgabe" : "Aufgaben"}` : `${done}/${p.items.length}`;
       const head = `<span class="mark" aria-hidden="true">${MARK[st]}</span><span class="time">${p.from}–${p.to}</span><span class="ttl">${esc(p.title)}<small>${count}</small></span>${PILL[st]}`;
       const headEl = foldable
         ? `<button class="stop-head" data-toggle="${esc(p.id)}" aria-expanded="${!collapsed}" aria-label="${esc(p.title)}, ${label}, ${collapsed ? "aufklappen" : "zuklappen"}">${head}</button>`
         : `<div class="stop-head">${head}</div>`;
       const hint = p.hint && (st === "now" || st === "late") ? `<div class="phint">${esc(p.hint)}</div>` : "";
-      const items = collapsed ? "" : `<ul class="items">${rs.map(([id, r]) => remHtml(id, r, canRem)).join("")}${p.items.map(i => itemHtml(d.item[i.id])).join("") || (rs.length ? "" : '<li class="empty">Keine Aufgaben.</li>')}</ul>`;
+      const items = collapsed ? "" : `<ul class="items">${p.items.map(i => itemHtml(d.item[i.id])).join("") || '<li class="empty">Keine Aufgaben.</li>'}</ul>`;
       return `<section class="stop is-${st}" id="phase-${esc(p.id)}">${headEl}${hint}${items}</section>`;
     }).join("") || `<div class="empty">Für diese Schicht sind keine Abschnitte geplant (Verwaltung › Aufgaben-Plan).</div>`;
+    // Eigene Erinnerungen: eigener Abschnitt unter dem Fahrplan, nur wenn welche da sind; nach Uhrzeit sortiert.
+    // Offen, solange etwas offen ist; sind alle erledigt, eine Zeile zum Aufklappen. Zählen nicht zum Fortschritt.
+    const own = Object.entries(state.rem).filter(([, r]) => r.shift === key).sort((a, b) => a[1].at.localeCompare(b[1].at));
+    const ownOpen = own.filter(([, r]) => !r.done).length;
+    const ownDue = own.some(([, r]) => !r.done && typeof ctx === "number" && ctx >= toMin(r.at));
+    const ownSec = !own.length ? "" : (() => {
+      const allDone = !ownOpen, collapsed = allDone && !state.expanded.has("_rem");
+      const st = allDone ? "done" : ownDue ? "now" : "later";
+      const head = `<span class="mark" aria-hidden="true">${allDone ? "✓" : BELL_SVG}</span><span class="time">heute</span><span class="ttl">Eigene Erinnerungen<small>${own.length - ownOpen}/${own.length}</small></span>${allDone ? PILL.done : `<span class="pill ${ownDue ? "now" : "later"}">${ownOpen} offen</span>`}`;
+      const headEl = allDone ? `<button class="stop-head" data-toggle="_rem" aria-expanded="${!collapsed}" aria-label="Eigene Erinnerungen, erledigt, ${collapsed ? "aufklappen" : "zuklappen"}">${head}</button>` : `<div class="stop-head">${head}</div>`;
+      return `<section class="stop is-${st} is-own" id="phase-own">${headEl}${collapsed ? "" : `<ul class="items">${own.map(([id, r]) => remHtml(id, r, canRem)).join("")}</ul>`}</section>`;
+    })();
     const other = key === "frueh" ? "spaet" : "frueh";
     const otherOpen = plan[other].phases.filter(p => phaseState(p, ctx) === "late").reduce((n, p) => n + p.items.filter(i => !state.checks[i.id]).length, 0)
       + (typeof ctx === "number" && toMin(plan[other].end) <= ctx ? pendingConfirms(plan, other).length : 0);
@@ -1586,7 +1588,7 @@ export function mount(container, opts = {}) {
         <div class="chead"><h2>${title} ${meta.label}</h2><span class="hint">${s.start}–${s.end} · ${pr.done}/${pr.total} erledigt</span>${role ? "" : `<div class="seg" role="group" aria-label="Schicht wählen">${seg}</div>`}${canRem ? `<button class="btn sm remadd" data-remadd="${key}">${BELL_SVG}+ Erinnerung</button>` : ""}</div>
         <div class="bar flat"><i style="width:${pr.pct}%"></i></div>
         ${otherOpen ? (role ? `<div class="othersum">${SHIFT_META[other].label}: <b>${otherOpen} offen geblieben</b></div>` : `<button class="othersum" data-shiftsel="${other}">${SHIFT_META[other].label}: <b>${otherOpen} offen geblieben</b> – ansehen</button>`) : ""}
-        <div class="cbody board"><div class="board-in">${stops}</div></div>
+        <div class="cbody board"><div class="board-in">${stops}${ownSec}</div></div>
       </section>
       <div class="splitter" data-split="side" role="separator" aria-orientation="vertical" aria-label="Spaltenbreite – ziehen oder Pfeiltasten, Doppelklick setzt zurück" tabindex="0" title="Ziehen zum Anpassen · Doppelklick = Standard"></div>
       <div class="side${lay.hand ? " has-hand" : ""}"${lay.hand ? ` style="--hand:${lay.hand}px"` : ""}>
