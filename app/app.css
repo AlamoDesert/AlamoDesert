@@ -1,4 +1,4 @@
-/* Wird in einen Shadow-Root geladen (eigenständig und in SharePoint). :host = Wurzel.
+/* Wird in einen Shadow-Root geladen (Mac-App und Webversion). :host = Wurzel.
    Layout: Querformat = ein Bildschirm ohne Seiten-Scroll (Kopfzeile + Spalten, die nur intern scrollen).
    Hochformat/Handy = normale Seite. Ansichten: Übersicht, Früh, Spät (Phasen als Spalten), Monat, Plan (Editor). */
 [hidden] { display: none !important }

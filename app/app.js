@@ -1,202 +1,9 @@
 const MARKUP = "<div class=\"wrap\">\n  <header class=\"top\">\n    <h1 class=\"brand\">Rezeption<small id=\"weekday\">–</small></h1>\n    <div class=\"clock\" id=\"clock\">--:--</div>\n    <div class=\"presence\" id=\"presence\" role=\"group\" aria-label=\"Eingecheckt\"></div>\n    <button class=\"btn outbtn\" id=\"outBtn\" hidden>Auschecken</button>\n    <div class=\"tabs\" role=\"tablist\">\n      <button class=\"tab\" role=\"tab\" data-view=\"schicht\"><b>Schicht</b><span class=\"meta\" id=\"meta-shift\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"erstattung\" hidden><b>Check-ins</b><span class=\"meta\" id=\"meta-ci\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"dienst\"><b>Dienstplan</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"zeiten\"><b>Arbeitszeiten</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"admin\"><b>Verwaltung</b></button>\n    </div>\n    <div class=\"datenav\">\n      <button class=\"iconbtn\" id=\"prev\" aria-label=\"Vorheriger Tag\">‹</button>\n      <label class=\"datebtn\"><span id=\"datelabel\">–</span><span class=\"src\" id=\"datesrc\"></span><input type=\"date\" id=\"datepick\" aria-label=\"Datum wählen\"></label>\n      <button class=\"iconbtn\" id=\"next\" aria-label=\"Nächster Tag\">›</button>\n      <button class=\"todaybtn\" id=\"today\">Heute</button>\n    </div>\n    <div class=\"status\" id=\"status\">Verbinde…</div>\n  </header>\n  <div class=\"vobar\" id=\"vobar\" hidden><b>Nur ansehen</b><span>Abhaken und Eintragen sind gesperrt.</span><button class=\"btn primary\" data-pres-add=\"1\">Einchecken</button></div>\n  <main id=\"main\"></main>\n  <div id=\"ciwrap\" class=\"ciwrap\" hidden></div>\n</div>\n<input type=\"file\" id=\"rzfile\" class=\"rzfile\" tabindex=\"-1\" aria-hidden=\"true\"><div id=\"picker\" hidden></div><div id=\"remind\" hidden></div><div id=\"toast\" class=\"toast\" role=\"status\" hidden></div>";
 
 /* Rezeption Schichtcheck – App-Kern.
-   Wird von tools/build.mjs in index.html (eigenständig) und in das SharePoint-Webpart (app.gen.ts) eingebaut.
+   Wird von tools/build.mjs in index.html (Mac-App und Webversion) eingebaut.
    mount(container, opts) rendert die App in `container` (liegt in einem Shadow-Root) und gibt eine Aufräumfunktion zurück.
-   opts.mode: "auto" (claude.ai-Datenbank falls vorhanden, sonst Browser-Speicher) | "local" | "sharepoint". */
-
-// ---------- SharePoint-Speicher ----------
-// Jedes Dokument ist eine JSON-Datei in einer Dokumentbibliothek (Versionsverlauf = Sicherung).
-// Bietet dieselbe Schnittstelle wie die claude.ai-Datenbank, soweit die App sie nutzt:
-// doc(path).get/set/update/onSnapshot und collection("days").where("month", "==", ym).onSnapshot.
-// Änderungen anderer Geräte kommen per Abfrage alle POLL_MS an.
-export function createSpDb(opts) {
-  const POLL_MS = opts.pollMs || 15000;
-  const web = String(opts.webAbsoluteUrl || "").replace(/\/$/, "");
-  const webRel = String(opts.webServerRelativeUrl || "/").replace(/\/$/, "");
-  const title = opts.library || "RezeptionDaten";
-  let libUrl = null;                 // server-relativ, z. B. /sites/team/RezeptionDaten
-  let digest = null, digestUntil = 0;
-  const knownFolders = new Set();
-
-  const q = (v) => encodeURIComponent(String(v).replace(/'/g, "''"));
-  class SpError extends Error { constructor(code, message, status) { super(message); this.code = code; this.status = status; } }
-  async function http(url, init = {}) {
-    let res;
-    try { res = await fetch(url, { credentials: "same-origin", cache: "no-store", ...init }); }
-    catch { throw new SpError("unavailable", "Keine Verbindung zu SharePoint"); }
-    if (res.status === 401 || res.status === 403) throw new SpError("not_granted", "Keine Berechtigung in SharePoint", res.status);
-    return res;
-  }
-  async function getDigest() {
-    if (digest && Date.now() < digestUntil) return digest;
-    const res = await http(`${web}/_api/contextinfo`, { method: "POST", headers: { Accept: "application/json;odata=nometadata" } });
-    if (!res.ok) throw new SpError("unavailable", `contextinfo ${res.status}`, res.status);
-    const j = await res.json();
-    digest = j.FormDigestValue;
-    digestUntil = Date.now() + Math.max(60, (j.FormDigestTimeoutSeconds || 1800) - 120) * 1000;
-    return digest;
-  }
-  async function post(url, body, headers = {}) {
-    const d = await getDigest();
-    return http(url, { method: "POST", body, headers: { Accept: "application/json;odata=nometadata", "X-RequestDigest": d, ...headers } });
-  }
-  // Bibliothek finden oder anlegen (BaseTemplate 101 = Dokumentbibliothek).
-  async function ensureLibrary() {
-    if (libUrl) return libUrl;
-    const url = `${web}/_api/web/lists/GetByTitle('${q(title)}')?$select=Id&$expand=RootFolder`;
-    let res = await http(url, { headers: { Accept: "application/json;odata=nometadata" } });
-    if (res.status === 404) {
-      const c = await post(`${web}/_api/web/lists`, JSON.stringify({ __metadata: { type: "SP.List" }, BaseTemplate: 101, Title: title, Description: "Daten der Rezeptions-Checkliste (nicht manuell bearbeiten)" }),
-        { Accept: "application/json;odata=verbose", "Content-Type": "application/json;odata=verbose" });
-      if (!c.ok) throw new SpError("unavailable", `Bibliothek „${title}“ konnte nicht angelegt werden (${c.status})`, c.status);
-      res = await http(url, { headers: { Accept: "application/json;odata=nometadata" } });
-    }
-    if (!res.ok) throw new SpError("unavailable", `Bibliothek „${title}“ nicht lesbar (${res.status})`, res.status);
-    const j = await res.json();
-    libUrl = (j.RootFolder && j.RootFolder.ServerRelativeUrl) || `${webRel}/${title}`;
-    return libUrl;
-  }
-  // Pfad → Ordner + Dateiname. Tage liegen in Monatsordnern: days/2026-10/2026-10-14.json
-  function locate(path) {
-    const parts = path.split("/");
-    const name = parts.pop() + ".json";
-    if (parts[0] === "days" && parts.length === 1 && /^\d{4}-\d{2}-\d{2}/.test(name)) parts.push(name.slice(0, 7));
-    return { dir: parts, name };
-  }
-  async function ensureFolder(dirParts) {
-    const lib = await ensureLibrary();
-    let cur = lib;
-    for (const p of dirParts) {
-      cur += "/" + p;
-      if (knownFolders.has(cur)) continue;
-      const res = await post(`${web}/_api/web/folders/AddUsingPath(DecodedUrl='${q(cur)}',Overwrite=false)`, null);
-      if (!res.ok && res.status !== 409) {
-        // Ältere Variante als Rückfall
-        const r2 = await post(`${web}/_api/web/folders/add('${q(cur)}')`, null);
-        if (!r2.ok) throw new SpError("unavailable", `Ordner ${cur} (${r2.status})`, r2.status);
-      }
-      knownFolders.add(cur);
-    }
-    return cur;
-  }
-  async function readFile(path) {
-    const lib = await ensureLibrary();
-    const { dir, name } = locate(path);
-    const fileUrl = [lib, ...dir, name].join("/");
-    const res = await http(`${web}/_api/web/GetFileByServerRelativePath(DecodedUrl='${q(fileUrl)}')/$value`);
-    if (res.status === 404) return { exists: false, data: undefined, etag: null, fileUrl };
-    if (!res.ok) throw new SpError("unavailable", `Lesen ${path} (${res.status})`, res.status);
-    const text = await res.text();
-    let data;
-    try { data = JSON.parse(text); } catch { throw new SpError("unavailable", `Datei ${name} ist beschädigt`); }
-    return { exists: true, data, etag: res.headers.get("ETag"), fileUrl };
-  }
-  async function writeFile(path, data, etag) {
-    const { dir, name } = locate(path);
-    const body = JSON.stringify(data);
-    if (etag !== undefined && etag !== null) {
-      const lib = await ensureLibrary();
-      const fileUrl = [lib, ...dir, name].join("/");
-      const res = await post(`${web}/_api/web/GetFileByServerRelativePath(DecodedUrl='${q(fileUrl)}')/$value`, body, { "X-HTTP-Method": "PUT", "IF-MATCH": etag });
-      if (res.status === 412) throw new SpError("conflict", "Gleichzeitige Änderung", 412);
-      if (!res.ok) throw new SpError("unavailable", `Schreiben ${path} (${res.status})`, res.status);
-      return;
-    }
-    const folder = await ensureFolder(dir);
-    const res = await post(`${web}/_api/web/GetFolderByServerRelativePath(DecodedUrl='${q(folder)}')/Files/AddUsingPath(DecodedUrl='${q(name)}',Overwrite=true)`, body);
-    if (!res.ok) throw new SpError("unavailable", `Speichern ${path} (${res.status})`, res.status);
-  }
-  const isObj = (v) => v && typeof v === "object" && !Array.isArray(v);
-  function merge(base, patch) {
-    const out = isObj(base) ? { ...base } : {};
-    for (const [k, v] of Object.entries(patch)) out[k] = isObj(v) && isObj(out[k]) ? merge(out[k], v) : (isObj(v) ? merge({}, v) : v);
-    return out;
-  }
-  const freeze = (o) => { if (o && typeof o === "object") { Object.values(o).forEach(freeze); Object.freeze(o); } return o; };
-  const snap = (id, exists, data) => ({ id, exists, data: () => data, metadata: { fromCache: false, hasPendingWrites: false } });
-
-  // Beobachter: nach eigenen Schreibvorgängen sofort neu lesen.
-  const watchers = new Set();
-  const poke = () => watchers.forEach((w) => w());
-
-  function doc(path) {
-    const id = path.split("/").pop();
-    return {
-      id, path,
-      async get() { const r = await readFile(path); return snap(id, r.exists, r.exists ? freeze(r.data) : undefined); },
-      async set(data) { await writeFile(path, data); poke(); },
-      async update(patch) {
-        for (let attempt = 0; attempt < 4; attempt++) {
-          const r = await readFile(path);
-          if (!r.exists) throw new SpError("invalid_argument", "Dokument existiert nicht");
-          try { await writeFile(path, merge(r.data, patch), r.etag || null); poke(); return; }
-          catch (e) { if (e.code !== "conflict") throw e; }
-        }
-        throw new SpError("unavailable", "Zu viele gleichzeitige Änderungen");
-      },
-      onSnapshot(next, error) {
-        let last = Symbol("none"), stopped = false, busy = false;
-        const run = async () => {
-          if (stopped || busy) return;
-          busy = true;
-          try {
-            const r = await readFile(path);
-            const key = r.exists ? JSON.stringify(r.data) : null;
-            if (key !== last) { last = key; next(snap(id, r.exists, r.exists ? freeze(r.data) : undefined)); }
-          } catch (e) { if (e.code === "not_granted" && error) { error(e); stopped = true; } }
-          finally { busy = false; }
-        };
-        run();
-        const t = setInterval(run, POLL_MS);
-        watchers.add(run);
-        return () => { stopped = true; clearInterval(t); watchers.delete(run); };
-      },
-    };
-  }
-  function collection(name) {
-    let monthEq = null;
-    const api = {
-      where(field, op, value) { if (name === "days" && field === "month" && op === "==") monthEq = String(value); return api; },
-      onSnapshot(next, error) {
-        let stopped = false, busy = false, lastKey = null;
-        const cache = new Map(); // Dateiname -> { etag, data }
-        const run = async () => {
-          if (stopped || busy || !monthEq) return;
-          busy = true;
-          try {
-            const lib = await ensureLibrary();
-            const folder = `${lib}/days/${monthEq}`;
-            const res = await http(`${web}/_api/web/GetFolderByServerRelativePath(DecodedUrl='${q(folder)}')/Files?$select=Name,ETag`, { headers: { Accept: "application/json;odata=nometadata" } });
-            let files = [];
-            if (res.ok) files = ((await res.json()).value || []).filter((f) => /\.json$/.test(f.Name));
-            else if (res.status !== 404) throw new SpError("unavailable", `Monat ${monthEq} (${res.status})`, res.status);
-            for (const f of files) {
-              const c = cache.get(f.Name);
-              if (c && c.etag === f.ETag) continue;
-              const r = await readFile("days/" + f.Name.replace(/\.json$/, ""));
-              if (r.exists) cache.set(f.Name, { etag: f.ETag, data: freeze(r.data) });
-            }
-            for (const k of [...cache.keys()]) if (!files.some((f) => f.Name === k)) cache.delete(k);
-            const key = files.map((f) => f.Name + f.ETag).sort().join("|");
-            if (key !== lastKey) {
-              lastKey = key;
-              const docs = [...cache.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([n, v]) => snap(n.replace(/\.json$/, ""), true, v.data));
-              next({ docs, size: docs.length, empty: !docs.length, docChanges: () => [], metadata: { fromCache: false, hasPendingWrites: false } });
-            }
-          } catch (e) { if (e.code === "not_granted" && error) { error(e); stopped = true; } }
-          finally { busy = false; }
-        };
-        run();
-        const t = setInterval(run, POLL_MS);
-        watchers.add(run);
-        return () => { stopped = true; clearInterval(t); watchers.delete(run); };
-      },
-    };
-    return api;
-  }
-  return { doc, collection, ready: ensureLibrary };
-}
+   opts.mode: "auto" (claude.ai-Datenbank falls vorhanden, sonst Browser-Speicher) | "local". */
 
 // ---------- App ----------
 export function mount(container, opts = {}) {
@@ -204,7 +11,7 @@ export function mount(container, opts = {}) {
   const root = opts.root || document;
   const host = root.host || container;
   const timers = [], cleanups = [];
-  // Brücke der Mac-App (mac/preload.js); im Browser und in SharePoint nicht vorhanden.
+  // Brücke der Mac-App (mac/preload.js); im Browser nicht vorhanden.
   const NATIVE = opts.native || (typeof window !== "undefined" && window.rezeptionNative) || null;
   let disposed = false;
   container.innerHTML = MARKUP;
@@ -214,9 +21,8 @@ export function mount(container, opts = {}) {
   // Ab 1.18 ausgebaut: kein Reiter, kein Schalter, keine Knöpfe. Code und Daten (cfg.features.checkins, cir.* der Seite) bleiben erhalten;
   // wieder einschalten = true setzen und neu bauen.
   const CHECKINS_ENABLED = false;
-  // Farbschema: in SharePoint immer hell, sonst wie die einbettende Seite (claude.ai setzt data-theme).
-  if (opts.mode === "sharepoint") host.setAttribute("data-theme", "light");
-  else if (root.host) {
+  // Farbschema wie die einbettende Seite (claude.ai setzt data-theme).
+  if (root.host) {
     const syncTheme = () => { const t = document.documentElement.getAttribute("data-theme"); if (t) host.setAttribute("data-theme", t); else host.removeAttribute("data-theme"); };
     syncTheme();
     const mo = new MutationObserver(syncTheme);
@@ -851,7 +657,7 @@ export function mount(container, opts = {}) {
   function setStatus(text, err = false) { const el = $("status"); el.textContent = text; el.title = text; el.classList.toggle("err", err); }
   function statusLine() {
     if (state.readOnly) return "Nur Lesezugriff.";
-    if (state.mode === "shared") return opts.mode === "sharepoint" ? "Gespeichert in SharePoint" : "Live geteilt";
+    if (state.mode === "shared") return "Live geteilt";
     if (state.mode === "local") return backupHint() || "Gespeichert auf diesem Mac";
     return "Verbinde…";
   }
@@ -1783,10 +1589,8 @@ export function mount(container, opts = {}) {
   // Pro Tag stehen die Namen in „Vormittags“ bzw. „Nachmittags/Abends“. Anmerkungen werden nur angezeigt.
   // Zuordnung über die Spaltenposition der Kopfzeile (PDF: x-Koordinate, Excel: Spaltenbuchstabe).
   const MONTH_NAMES = ["jan", "feb", "mär|mar|maer", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "dez"];
-  // pdf.js: Mac-App lokal, Webversion aus der mitveröffentlichten Kopie (pdfjs/ neben index.html), SharePoint von jsDelivr.
-  const PDFJS_CDN = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.mjs";
-  // jsDelivr nur im SharePoint-Betrieb (dort liegt keine eigene Kopie); Mac-App und Webversion laden nichts von fremden Servern.
-  const PDFJS_CANDIDATES = [opts.pdfjsUrl, NATIVE && NATIVE.pdfjsUrl, (() => { try { return new URL("pdfjs/pdf.min.mjs", document.baseURI).href; } catch { return null; } })(), opts.mode === "sharepoint" ? PDFJS_CDN : null].filter(Boolean);
+  // pdf.js: Mac-App lokal, Webversion aus der mitveröffentlichten Kopie (pdfjs/ neben index.html). Keine fremden Server.
+  const PDFJS_CANDIDATES = [opts.pdfjsUrl, NATIVE && NATIVE.pdfjsUrl, (() => { try { return new URL("pdfjs/pdf.min.mjs", document.baseURI).href; } catch { return null; } })()].filter(Boolean);
   const TIME_RANGE = /(\d{1,2})[:.](\d{2})\s*[-–]\s*(\d{1,2})[:.](\d{2})/;
   async function unzipEntries(buf) {
     const dv = new DataView(buf), u8 = new Uint8Array(buf);
@@ -1839,7 +1643,7 @@ export function mount(container, opts = {}) {
     }
     if (!lib) throw new Error("PDF-Leser konnte nicht geladen werden (" + ((lastErr && lastErr.message) || "unbekannt") + "). Die Excel-Datei des Plans funktioniert immer.");
     lib.GlobalWorkerOptions.workerSrc = src.replace(/pdf\.min\.mjs$/, "pdf.worker.min.mjs");
-    // Außerhalb der Mac-App (claude.ai, SharePoint) darf die Seite oft keinen Worker von fremder Adresse starten.
+    // Außerhalb der Mac-App (claude.ai) darf die Seite oft keinen Worker von fremder Adresse starten.
     // pdf.js nutzt dann den hier geladenen Worker-Code direkt in der Seite (für Monatspläne schnell genug).
     if (!NATIVE && !globalThis.pdfjsWorker) {
       try { globalThis.pdfjsWorker = await import(/* webpackIgnore: true */ lib.GlobalWorkerOptions.workerSrc); } catch { /* dann normaler Worker */ }
@@ -1983,7 +1787,7 @@ export function mount(container, opts = {}) {
       if (Object.keys(times).length) entry.times = times;
       if (Object.keys(notes).length) entry.notes = notes;
       roster[date] = entry;
-      // Monatsplan ersetzt den Tag komplett. null löscht alte Felder beim Zusammenführen in SharePoint.
+      // Monatsplan ersetzt den Tag komplett. null löscht alte Felder beim Zusammenführen im geteilten Speicher.
       patch[date] = { frueh: entry.frueh, spaet: entry.spaet, info: null,
         times: { frueh: times.frueh || null, spaet: times.spaet || null },
         notes: { frueh: notes.frueh || null, spaet: notes.spaet || null } };
@@ -2127,7 +1931,7 @@ export function mount(container, opts = {}) {
   // Verwaltung: eine Liste mit Status in drei Gruppen; Team, Datensicherung und PIN öffnen ein Fenster (state.adminPop).
   function backupStatus() {
     const last = LS.get("rz2meta", {}).lastBackup, when = last ? new Date(last).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) : null;
-    if (state.mode === "shared") return { text: opts.mode === "sharepoint" ? "Gespeichert in SharePoint (Versionsverlauf)" : "Online gespeichert · Sicherung der Mac-App übernehmen", cls: "" };
+    if (state.mode === "shared") return { text: "Online gespeichert · Sicherung der Mac-App übernehmen", cls: "" };
     const enc = state.cfg.backupKey ? " · verschlüsselt" : "";
     if (NATIVE) return when ? { text: `Gesichert ${when} · automatisch${enc}`, cls: "ok" } : { text: "Noch keine Sicherung", cls: "bad" };
     if (!backupDir) return { text: "Kein Sicherungsordner gewählt" + (when ? ` · zuletzt ${when}` : ""), cls: "bad" };
@@ -2269,7 +2073,7 @@ export function mount(container, opts = {}) {
                <button class="btn primary" data-act2="backup-now">Jetzt sichern</button>
                <button class="btn" data-act2="backup-dir">Anderen Ordner wählen</button>
                <button class="btn ghost danger" data-act2="backup-forget">Ordner trennen</button>`
-            : `<p>Wähle einmal den per OneDrive synchronisierten SharePoint-Ordner. Danach sichert die App automatisch dorthin – andere Downloads bleiben, wo sie sind.</p>
+            : `<p>Wähle einmal einen Ordner (z. B. einen synchronisierten Cloud-Ordner). Danach sichert die App automatisch dorthin – andere Downloads bleiben, wo sie sind.</p>
                <button class="btn primary" data-act2="backup-dir">Sicherungsordner wählen</button>
                <button class="btn" data-act2="export">Einmalig herunterladen</button>`)
           : `<p>Dieser Browser kann nicht direkt in einen Ordner schreiben. Bitte Google Chrome verwenden.</p>
@@ -2282,7 +2086,7 @@ export function mount(container, opts = {}) {
               <button class="btn" data-adminpop="encsetup">Passwort ändern (neu einrichten)</button>
               ${state.confirm === "enc-off" ? `<button class="btn danger" data-act2="enc-off">Wirklich ausschalten?</button>` : `<button class="btn ghost danger" data-act2="enc-off-ask">Ausschalten</button>`}
               <p class="hint">Ältere Sicherungen bleiben mit dem damaligen Passwort bzw. Code lesbar.</p>`
-            : `<p>Aus – wer eine Sicherungsdatei öffnet, kann alles lesen.</p><button class="btn" data-adminpop="encsetup">Verschlüsselung einrichten</button>`}</div>` : state.mode === "shared" ? `${opts.mode === "sharepoint" ? `<p>Alle Daten liegen in der SharePoint-Bibliothek <b>${esc(opts.library || "RezeptionDaten")}</b> dieser Website. SharePoint speichert jede Änderung im Versionsverlauf – ein früherer Stand lässt sich dort wiederherstellen.</p>` : `<p>Die Webversion speichert online und ist für alle mit dem Link gleich. Die Mac-App hat ihre eigenen Daten – beide gleichen sich nicht ab.</p>`}
+            : `<p>Aus – wer eine Sicherungsdatei öffnet, kann alles lesen.</p><button class="btn" data-adminpop="encsetup">Verschlüsselung einrichten</button>`}</div>` : state.mode === "shared" ? `<p>Die Webversion speichert online und ist für alle mit dem Link gleich. Die Mac-App hat ihre eigenen Daten – beide gleichen sich nicht ab.</p>
           <p>Daten aus der bisherigen Mac-Version übernehmen: dort unter Verwaltung › Datensicherung eine Sicherung herunterladen und hier einspielen.</p>
           <label class="btn" for="rzfile" data-filepick="backup">Sicherung übernehmen</label>
           <p id="import-msg"></p>` : ""}</div>`);
@@ -2481,7 +2285,7 @@ export function mount(container, opts = {}) {
     if (reason === "day" && LS.get("rz2meta", {}).lastDayBackup === isoDate(new Date())) return;
     writeBackup(reason);
   }
-  // Übernimmt eine lokale Sicherung (localStorage-Schlüssel) in den geteilten Speicher (SharePoint).
+  // Übernimmt eine lokale Sicherung (localStorage-Schlüssel) in den geteilten Speicher (Webversion).
   async function migrateToShared(entries, msg) {
     const docs = [];
     for (const [k, v] of entries) {
@@ -2657,8 +2461,8 @@ export function mount(container, opts = {}) {
       <h2 id="ci-title">Einchecken · ${esc(personName(c.pid))}</h2>
       ${c.stale.map((x, i) => `<div class="stale"><b>Auschecken vergessen am ${WD[parseIso(x.date).getDay()].slice(0, 2)} ${pad(parseIso(x.date).getDate())}.${pad(parseIso(x.date).getMonth() + 1)}.</b> (${ROLE_LABEL[x.entry.role]} ab ${x.entry.in}) – trag nach, bis wann du da warst.
         <div class="trow"><label>Ende ${timeSelect("ci-stale-" + i, x.out || plannedEnd(x) || fmtMin(Math.min(1425, toMin(x.entry.in) + 480)))}</label><label>Pause ${pauseSelect("ci-stalep-" + i, x.pause ?? suggestPause(480))}</label></div>
-        <label class="tnote">Grund (optional) <input class="in" id="ci-staler-${i}" maxlength="200" placeholder="z. B. Auschecken vergessen"></label>
-        <label class="check-inline"><input type="checkbox" id="ci-staleskip-${i}"> Nicht nachtragen – die Leitung klärt es</label>
+        <label class="tnote">Grund (optional) <input class="in" id="ci-staler-${i}" maxlength="200" placeholder="z. B. Auschecken vergessen" value="${esc(x.reason || "")}"></label>
+        <label class="check-inline"><input type="checkbox" id="ci-staleskip-${i}" ${x.skip ? "checked" : ""}> Nicht nachtragen – die Leitung klärt es</label>
         <p class="hint">Steht in deinen Arbeitszeiten als „nachgetragen“; die Leitung sieht und korrigiert es bei Bedarf.</p></div>`).join("")}
       <div class="trow big"><label>Beginn ${timeSelect("ci-time", c.time)}</label>
         <span class="quick"><button class="chip${c.time === now ? "" : " off"}" data-ciq="${now}">Jetzt ${now}</button>${c.planned ? `<button class="chip${c.time === c.planned ? "" : " off"}" data-ciq="${c.planned}">laut Plan ${c.planned}</button>` : ""}</span></div>
@@ -2768,7 +2572,11 @@ export function mount(container, opts = {}) {
     if (e.target.id === "co-note") state.checkout.note = e.target.value;
     if (e.target.id === "co-reason") { state.checkout.reason = e.target.value; const ok = $("remind").querySelector('[data-co="ok"]'); if (ok) ok.disabled = !e.target.value.trim(); }
   });
-  $("picker").addEventListener("input", (e) => { if (e.target.id === "ci-note" && state.checkin) state.checkin.note = e.target.value; });
+  $("picker").addEventListener("input", (e) => {
+    if (!state.checkin) return;
+    if (e.target.id === "ci-note") state.checkin.note = e.target.value;
+    const m = e.target.id.match(/^ci-staler-(\d+)$/); if (m && state.checkin.stale[Number(m[1])]) state.checkin.stale[Number(m[1])].reason = e.target.value;
+  });
   // Klicks/Änderungen im Ein-/Auschecken (Overlays liegen außerhalb von <main>)
   const stepSelect = (b) => { const sel = $(b.dataset.tstep); if (!sel) return; sel.selectedIndex = Math.max(0, Math.min(sel.options.length - 1, sel.selectedIndex + Number(b.dataset.dir))); sel.dispatchEvent(new Event("change", { bubbles: true })); };
   $("remind").addEventListener("click", (e) => {
@@ -2827,6 +2635,7 @@ export function mount(container, opts = {}) {
     if (e.target.id === "ci-time") { c.time = e.target.value; renderPicker(); }
     const m = e.target.id.match(/^ci-stale(p?)-(\d+)$/);
     if (m) { const x = c.stale[Number(m[2])]; if (m[1]) x.pause = Number(e.target.value); else x.out = e.target.value; }
+    const k = e.target.id.match(/^ci-staleskip-(\d+)$/); if (k && c.stale[Number(k[1])]) c.stale[Number(k[1])].skip = e.target.checked;
   });
   const onKey = (e) => {
     // Die Anmeldemaske lässt sich nur über „Nur ansehen“ verlassen; Escape schließt Eingabe bzw. „+“-Fenster.
@@ -3059,7 +2868,7 @@ export function mount(container, opts = {}) {
   }
   function renderTimeEdit() {
     const ed = state.timesEdit;
-    return `<div class="overlay inmain" role="dialog" aria-modal="true"><div class="dialog">
+    return `<div class="overlay inmain" role="dialog" aria-modal="true"><form class="dialog" id="teform">
       <h2>${ed.id ? "Eintrag korrigieren" : "Eintrag hinzufügen"}</h2>
       <div class="trow"><label>Datum <input type="date" id="te-date" class="in" value="${ed.date}" ${ed.id ? "disabled" : ""}></label>
         <label>Person <select id="te-pid">${state.cfg.people.map(p => `<option value="${esc(p.id)}"${ed.e.pid === p.id ? " selected" : ""}>${esc(p.name)}</option>`).join("")}</select></label>
@@ -3067,8 +2876,8 @@ export function mount(container, opts = {}) {
       <div class="trow"><label>Ein ${timeSelect("te-in", ed.e.in)}</label><label>Aus ${timeSelect("te-out", ed.e.out || "", { allowOpen: true })}</label><label>Pause ${pauseSelect("te-pause", ed.e.pause || 0)}</label></div>
       <label class="tnote">Notiz <input class="in" id="te-note" maxlength="200" value="${esc(ed.e.note || "")}"></label>
       ${ed.e.orig ? `<p class="muted">Ursprünglich: ${esc([ed.e.orig.in, ed.e.orig.out].filter(Boolean).join("–"))}${ed.e.orig.pause !== null ? `, Pause ${ed.e.orig.pause} Min.` : ""}</p>` : ""}
-      <div class="row">${ed.id ? `<button class="btn ghost danger" data-act2="te-del">${state.confirm === "te-del" ? "Wirklich löschen?" : "Löschen"}</button>` : ""}<button class="btn ghost" data-act2="te-cancel">Abbrechen</button><button class="btn primary" data-act2="te-save">Speichern</button></div>
-    </div></div>`;
+      <div class="row">${ed.id ? `<button type="button" class="btn ghost danger" data-act2="te-del">${state.confirm === "te-del" ? "Wirklich löschen?" : "Löschen"}</button>` : ""}<button type="button" class="btn ghost" data-act2="te-cancel">Abbrechen</button><button type="submit" class="btn primary">Speichern</button></div>
+    </form></div>`;
   }
   function saveTimeEdit() {
     const ed = state.timesEdit; if (!ed) return;
@@ -3527,8 +3336,9 @@ export function mount(container, opts = {}) {
     if (!t) return;
     const id = newId(SHIFT_META[key].prefix);
     if (editMaster(m => { const p = findPhase(m, key, pid); if (!p) return false; p.items.push({ id, t, s: "", important: false, optional: false }); })) {
-      state.edNew = id; render();
-      const inp = $("ed-new"); if (inp) inp.focus();
+      // Fokus erst lösen, sonst schiebt render() das Neuzeichnen auf: neue Aufgabe unsichtbar, Text bliebe stehen (Enter = doppelt).
+      blurActive(); state.edNew = id; render();
+      const inp = $("ed-new"); if (inp) { inp.value = ""; inp.focus(); }
     }
   }
   // Sortieren per Ziehen am Griff ⋮⋮ (Maus und Touch); gespeichert wird die neue Reihenfolge beim Loslassen.
@@ -3671,6 +3481,26 @@ export function mount(container, opts = {}) {
     if (mc) mc.textContent = fmtMin(nowMin());
   }
 
+  // Eingaben in offenen Fenstern (Aufgaben-Plan, Arbeitszeiten, Verwaltung, Dienstplan-Tag) gehen beim Neuzeichnen nicht verloren:
+  // Jede Eingabe landet sofort in drafts und wird nach render() wieder eingesetzt, solange dasselbe Fenster offen ist –
+  // auch über die PIN-Abfrage hinweg. Passwörter werden nicht gemerkt.
+  let drafts = null;
+  const dialogKey = () => JSON.stringify([state.edPop, state.timesEdit && [state.timesEdit.id, state.timesEdit.date], state.adminPop, state.rosterDay]);
+  function rememberDraft(el) {
+    if (!el.id || el.type === "password" || el.type === "file" || !el.closest || !el.closest(".overlay")) return;
+    const key = dialogKey();
+    if (!drafts || drafts.key !== key) drafts = { key, vals: {} };
+    drafts.vals[el.id] = el.type === "checkbox" || el.type === "radio" ? { c: el.checked } : { v: el.value };
+  }
+  function restoreDrafts() {
+    if (!drafts) return;
+    if (drafts.key !== dialogKey()) { drafts = null; return; }
+    for (const [id, d] of Object.entries(drafts.vals)) {
+      const el = $(id); if (!el || !$("main").contains(el)) continue;
+      if ("c" in d) el.checked = d.c; else el.value = d.v;
+      if (el.id === "ep-kind") el.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  }
   function render() {
     const active = root.activeElement;
     const typing = active && $("main").contains(active) && (active.tagName === "TEXTAREA" || (active.tagName === "INPUT" && !["checkbox", "radio", "file", "button", "submit"].includes(active.type)));
@@ -3685,6 +3515,7 @@ export function mount(container, opts = {}) {
     main.className = ["plan", "monat", "dienst", "admin", "pin", "zeiten"].includes(v) ? "scroll" : "";
     main.innerHTML = v === "monat" ? renderMonth() : v === "plan" ? renderEditor()
       : v === "dienst" ? renderRoster() : v === "admin" ? renderAdmin() : v === "pin" ? renderPin() : v === "zeiten" ? renderTimes() : renderSchicht();
+    restoreDrafts();
     maybeAskPerson();
     // Offene Anmeldemaske mit frischen Daten neu zeichnen (z. B. wer inzwischen eingecheckt ist), außer beim Eintippen.
     if (state.pickerOpen && !state.checkin && !state.pickAdd) {
@@ -3955,6 +3786,7 @@ export function mount(container, opts = {}) {
   });
   main.addEventListener("input", (e) => {
     const el = e.target;
+    rememberDraft(el);
     if (el.id === "rhi") { state.rosterHi = el.value.slice(0, 40); return applyRosterHi(); }
     if (state.remPop && el.id === "rp-t") state.remPop.t = el.value;
     if (state.remPop && el.id === "rp-at") state.remPop.at = el.value;
@@ -3966,6 +3798,8 @@ export function mount(container, opts = {}) {
   });
   main.addEventListener("submit", (e) => {
     e.preventDefault();
+    // Enter in einem Fenster = Speichern: Werte sind schon gelesen bzw. stehen im DOM; Fokus lösen, damit sofort neu gezeichnet wird.
+    if (e.target.id === "teform") { blurActive(); if (isUnlocked()) saveTimeEdit(); return; }
     if (e.target.id === "pinform") return submitPin($("pin-in").value);
     if (e.target.id === "addperson") return addPerson($("newperson").value);
     if (e.target.id === "edpop") return submitEdPop();
@@ -3976,6 +3810,7 @@ export function mount(container, opts = {}) {
   });
   main.addEventListener("change", (e) => {
     const el = e.target;
+    rememberDraft(el);
     if (el.dataset.person) return renamePerson(el.dataset.person, el.value);
     if (el.id === "t-person") { state.timesPerson = el.value || (state.timesAll ? "" : null); render(); return; }
     if (el.id === "rhi-sel") { state.rosterHi = el.value; return applyRosterHi(); }
@@ -3992,6 +3827,9 @@ export function mount(container, opts = {}) {
   // Aufgeschobenes Neuzeichnen erst, wenn keine Taste/Maus mehr gedrückt ist: Sonst ersetzt render() den Knopf zwischen
   // Drücken und Loslassen (z. B. „Speichern“ im Fenster), der Klick geht verloren und die Eingabe ist weg.
   main.addEventListener("pointerdown", () => { ptrDown = true; }, true);
+  // Leitungsbereich: jede Aktion (Tippen, Klicken) verlängert die 10 Minuten – sonst sperrte er mitten in einer längeren Eingabe.
+  const keepUnlocked = () => { if (state.unlockedUntil > Date.now()) state.unlockedUntil = Date.now() + 10 * 60000; };
+  for (const ev of ["pointerdown", "keydown", "input", "wheel"]) main.addEventListener(ev, keepUnlocked, { capture: true, passive: true });
   const ptrUp = () => { if (!ptrDown) return; ptrDown = false; setTimeout(() => { if (renderPending) render(); }, 0); };
   window.addEventListener("pointerup", ptrUp, true); window.addEventListener("pointercancel", ptrUp, true);
   cleanups.push(() => { window.removeEventListener("pointerup", ptrUp, true); window.removeEventListener("pointercancel", ptrUp, true); });
@@ -4027,11 +3865,7 @@ export function mount(container, opts = {}) {
   render();
   (async () => {
     const api = opts.mode === "auto" && window.claude && typeof window.claude.use === "function" ? window.claude : null;
-    if (opts.mode === "sharepoint") {
-      db = createSpDb(opts);
-      try { await db.ready(); }
-      catch (e) { setStatus("SharePoint-Speicher nicht erreichbar: " + ((e && e.message) || "Fehler"), true); state.readOnly = true; }
-    } else if (api) {
+    if (api) {
       try { db = await api.use("db"); } catch { db = null; }
       try { user = await api.use("user"); } catch { user = null; }
     }

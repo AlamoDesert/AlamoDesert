@@ -2,7 +2,6 @@
 //   index.html                                   – eigenständige Seite (Mac lokal, claude.ai-Artifact), Schriften eingebettet
 //   checkin.html                                 – Check-ins aus app/checkin.html, Schriften eingebettet
 //   pdfjs/, vendor/                              – pdf.js und SheetJS als lokale Kopie für die Webversion (nicht committet)
-//   sharepoint/src/webparts/rezeption/app.gen.ts – Modul für das SharePoint-Webpart (falls das Projekt existiert)
 // Aufruf: node tools/build.mjs
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -13,8 +12,8 @@ const repo = join(here, "..");
 const css = readFileSync(join(repo, "app/app.css"), "utf8");
 const js = readFileSync(join(repo, "app/app.js"), "utf8");
 
-if (!/export function mount\(/.test(js) || !/export function createSpDb\(/.test(js)) {
-  throw new Error("app/app.js muss mount() und createSpDb() exportieren");
+if (!/export function mount\(/.test(js)) {
+  throw new Error("app/app.js muss mount() exportieren");
 }
 // Inline-Skript darf kein "</script" enthalten.
 if (/<\/script/i.test(js) || /<\/style/i.test(css)) throw new Error("app enthält </script> oder </style>");
@@ -94,15 +93,3 @@ if (existsSync(pdfSrc)) {
   console.log("pdfjs/ geschrieben");
 } else console.log("pdfjs-dist fehlt (cd mac && npm install) – pdfjs/ übersprungen");
 
-const spDir = join(repo, "sharepoint/src/webparts/rezeption");
-if (existsSync(spDir)) {
-  const ts = `/* eslint-disable */
-// @ts-nocheck
-// GENERIERT von tools/build.mjs aus app/app.js und app/app.css – nicht direkt bearbeiten.
-export const APP_CSS: string = ${JSON.stringify(css)};
-${js}`;
-  writeFileSync(join(spDir, "app.gen.ts"), ts);
-  console.log("sharepoint/src/webparts/rezeption/app.gen.ts geschrieben");
-} else {
-  console.log("SharePoint-Projekt nicht gefunden – app.gen.ts übersprungen");
-}
