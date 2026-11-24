@@ -2,6 +2,16 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.19.0 – 24.11.2026
+- Neue Übersicht in der Schicht-Ansicht: Jetzt-Leiste mit Fortschrittsring, „Jetzt: … bis …“ und antippbaren Hinweisen (offene Aufgaben, Überfälliges, fällige Rundgänge, nächste Erinnerung, Übergabe gelesen, andere Schicht). Darunter ein Zeitstrahl der ganzen Schicht mit Jetzt-Markierung und Glocken für Erinnerungen.
+- Fahrplan: groß nur der laufende (und überfällige) Abschnitt, der Rest als Kacheln „Danach“, „Erledigt“, „Später“. Ist gerade nichts dran: „Alles erledigt bis … – als Nächstes …“. Erledigtes rutscht im Abschnitt nach unten.
+- Rechts „Als Nächstes“: Rundgänge und Aufgaben-Erinnerungen nach Uhrzeit, darunter „Pflicht vor Schichtende · x von y“.
+- Feste Farben: Rot nur für Überfälliges, Gelb für jetzt dran und Erinnerungen, Grau für später, Grün für erledigt. Offene Pflichtpunkte sind erst in den letzten 30 Minuten gelb. „Andere Schicht offen geblieben“ ist ein kleiner Hinweis; die rote Leiste sieht nur die entsperrte Leitung.
+- Kopfzeile ruhiger: Datum hinter dem Kalender-Knopf, Statuszeile nur bei Problemen. Neuer Knopf für große Schrift, gespeichert pro Person.
+- Fehler behoben: Aufgaben-Plan – neue Aufgabe mit Enter war unsichtbar und ließ sich doppelt anlegen. Einchecken – Grund und „Nicht nachtragen“ verschwanden beim Wechsel von Rolle oder Zeit. Leitungsbereich sperrte sich nach 10 Minuten auch während der Eingabe; jetzt zählt jede Aktion, und offene Eingaben überstehen die PIN-Abfrage. Arbeitszeiten-Korrektur speichert mit Enter.
+- Grundsätzlich: Jedes Fenster merkt sich Eingaben beim Neuzeichnen, Enter speichert überall. Neuer Test `tools/test-fenster.cjs`.
+- SharePoint komplett entfernt (Webpart, Speicher-Anbindung, Test-Nachbau).
+
 ## 1.18.6 – 23.11.2026
 - Neue Erinnerung: Enter speichert und schließt das Fenster (vorher blieb es offen und die Erinnerung erschien erst nach „Speichern“). Gleiches im Aufgaben-Plan-Fenster. Hinweistext im Fenster entfernt.
 

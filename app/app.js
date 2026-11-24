@@ -1,4 +1,4 @@
-const MARKUP = "<div class=\"wrap\">\n  <header class=\"top\">\n    <h1 class=\"brand\">Rezeption<small id=\"weekday\">–</small></h1>\n    <div class=\"clock\" id=\"clock\">--:--</div>\n    <div class=\"presence\" id=\"presence\" role=\"group\" aria-label=\"Eingecheckt\"></div>\n    <button class=\"btn outbtn\" id=\"outBtn\" hidden>Auschecken</button>\n    <div class=\"tabs\" role=\"tablist\">\n      <button class=\"tab\" role=\"tab\" data-view=\"schicht\"><b>Schicht</b><span class=\"meta\" id=\"meta-shift\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"erstattung\" hidden><b>Check-ins</b><span class=\"meta\" id=\"meta-ci\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"dienst\"><b>Dienstplan</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"zeiten\"><b>Arbeitszeiten</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"admin\"><b>Verwaltung</b></button>\n    </div>\n    <div class=\"datenav\">\n      <button class=\"iconbtn\" id=\"prev\" aria-label=\"Vorheriger Tag\">‹</button>\n      <label class=\"datebtn\"><span id=\"datelabel\">–</span><span class=\"src\" id=\"datesrc\"></span><input type=\"date\" id=\"datepick\" aria-label=\"Datum wählen\"></label>\n      <button class=\"iconbtn\" id=\"next\" aria-label=\"Nächster Tag\">›</button>\n      <button class=\"todaybtn\" id=\"today\">Heute</button>\n    </div>\n    <div class=\"status\" id=\"status\">Verbinde…</div>\n  </header>\n  <div class=\"vobar\" id=\"vobar\" hidden><b>Nur ansehen</b><span>Abhaken und Eintragen sind gesperrt.</span><button class=\"btn primary\" data-pres-add=\"1\">Einchecken</button></div>\n  <main id=\"main\"></main>\n  <div id=\"ciwrap\" class=\"ciwrap\" hidden></div>\n</div>\n<input type=\"file\" id=\"rzfile\" class=\"rzfile\" tabindex=\"-1\" aria-hidden=\"true\"><div id=\"picker\" hidden></div><div id=\"remind\" hidden></div><div id=\"toast\" class=\"toast\" role=\"status\" hidden></div>";
+const MARKUP = "<div class=\"wrap\">\n  <header class=\"top\">\n    <h1 class=\"brand\">Rezeption<small id=\"weekday\">–</small></h1>\n    <div class=\"clock\" id=\"clock\">--:--</div>\n    <div class=\"presence\" id=\"presence\" role=\"group\" aria-label=\"Eingecheckt\"></div>\n    <button class=\"btn outbtn\" id=\"outBtn\" hidden>Auschecken</button>\n    <div class=\"tabs\" role=\"tablist\">\n      <button class=\"tab\" role=\"tab\" data-view=\"schicht\"><b>Schicht</b><span class=\"meta\" id=\"meta-shift\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"erstattung\" hidden><b>Check-ins</b><span class=\"meta\" id=\"meta-ci\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"dienst\"><b>Dienstplan</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"zeiten\"><b>Arbeitszeiten</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"admin\"><b>Verwaltung</b></button>\n    </div>\n    <div class=\"datenav\">\n      <button class=\"iconbtn calbtn\" id=\"calbtn\" aria-label=\"Anderen Tag ansehen\" title=\"Anderen Tag ansehen\"><svg aria-hidden=\"true\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><rect x=\"3\" y=\"5\" width=\"18\" height=\"16\" rx=\"2\"></rect><path d=\"M3 10h18M8 3v4M16 3v4\"></path></svg></button>\n      <span class=\"dnmore\" id=\"dnmore\">\n      <button class=\"iconbtn\" id=\"prev\" aria-label=\"Vorheriger Tag\">‹</button>\n      <label class=\"datebtn\"><span id=\"datelabel\">–</span><span class=\"src\" id=\"datesrc\"></span><input type=\"date\" id=\"datepick\" aria-label=\"Datum wählen\"></label>\n      <button class=\"iconbtn\" id=\"next\" aria-label=\"Nächster Tag\">›</button>\n      <button class=\"todaybtn\" id=\"today\">Heute</button>\n      </span>\n      <button class=\"iconbtn fontbtn\" id=\"fontbtn\" aria-label=\"Schrift größer oder kleiner\" title=\"Schriftgröße\">A<small>A</small></button>\n    </div>\n    <div class=\"status\" id=\"status\">Verbinde…</div>\n  </header>\n  <div class=\"vobar\" id=\"vobar\" hidden><b>Nur ansehen</b><span>Abhaken und Eintragen sind gesperrt.</span><button class=\"btn primary\" data-pres-add=\"1\">Einchecken</button></div>\n  <main id=\"main\"></main>\n  <div id=\"ciwrap\" class=\"ciwrap\" hidden></div>\n</div>\n<input type=\"file\" id=\"rzfile\" class=\"rzfile\" tabindex=\"-1\" aria-hidden=\"true\"><div id=\"picker\" hidden></div><div id=\"remind\" hidden></div><div id=\"toast\" class=\"toast\" role=\"status\" hidden></div>";
 
 /* Rezeption Schichtcheck – App-Kern.
    Wird von tools/build.mjs in index.html (Mac-App und Webversion) eingebaut.
@@ -1238,7 +1238,7 @@ export function mount(container, opts = {}) {
       const info = canLog ? dueInfo(plan, key, a, ctx) : null;
       let sub = a.every % 60 === 0 ? (a.every === 60 ? "1× pro Stunde" : `alle ${a.every / 60} Std.`) : `alle ${a.every} Min.`;
       if (info && info.due !== null) sub += info.state === "ok" ? ` · nächster um <b>${fmtMin(info.due)}</b>` : ` · <b>fällig seit ${fmtMin(info.due)}</b>`;
-      return { show: !!(info && info.state !== "ok"), html: `<li class="${[a.important ? "important" : "", info ? info.state : ""].join(" ")}">
+      return { show: !!(info && info.state !== "ok"), rank: info && info.state === "over" ? 0 : info && info.state === "due" ? 1 : 2, at: info && info.due !== null ? info.due : 9999, html: `<li class="${[a.important ? "important" : "", info ? info.state : ""].join(" ")}">
         <button class="tap" data-log="${esc(a.id)}" data-shift="${key}" ${canLog ? "" : 'disabled title="Nur am heutigen Tag"'} aria-label="${esc(a.t)} erledigt – eintragen">
           <span class="ic" aria-hidden="true">${LOOP_SVG}</span>
           <span><span class="label">${esc(a.t)}</span><span class="sub">${sub}</span>${last ? `<span class="last">zuletzt ${lastLine(last)}</span>` : ""}</span>
@@ -1251,14 +1251,15 @@ export function mount(container, opts = {}) {
     const confirmL = list.filter(a => a.kind === "confirm").map(a => {
       const st = confirmState(key, a, ctx), last = st.last;
       const flag = !st.ok && !st.later && state.coFlag === key && state.date === isoDate(new Date());
-      const cls = st.ok ? "ok" : st.later ? "later" : "open";
+      const soon = !st.ok && !st.later && typeof ctx === "number" && toMin(plan[key].end) - ctx <= 30;
+      const cls = st.ok ? "ok" : st.later ? "later" : soon ? "open soon" : "open";
       const bell = a.remind && (!st.ok || a.remindAlways) ? `<span class="remtag">${BELL_SVG}${esc(a.remind)}</span>` : "";
       const sub = st.ok
         ? `<span class="last">bestätigt ${lastLine(last)}${st.early ? ` · eigentlich ab ${esc(a.from)}` : ""}</span>`
         : st.later ? `<span class="sub">ab ${esc(a.from)} · noch nicht fällig${a.s ? " · " + esc(a.s) : ""}</span>`
         : st.again ? `<span class="sub">bestätigt ${lastLine(last)} – ab ${esc(a.from)} bitte erneut bestätigen</span>`
         : `<span class="sub">${a.s ? esc(a.s) + " · " : ""}vor Schichtende bestätigen</span>`;
-      return { show: true, html: `<li class="confirm ${cls}${a.important ? " important" : ""}${flag ? " flag" : ""}">
+      return { show: true, ok: st.ok, html: `<li class="confirm ${cls}${a.important ? " important" : ""}${flag ? " flag" : ""}">
         <button class="tap" data-log="${esc(a.id)}" data-shift="${key}" ${canLog && !st.ok ? "" : "disabled"} aria-label="${esc(a.t)} bestätigen">
           <span class="box" aria-hidden="true">${CHECK_SVG}</span>
           <span><span class="label">${esc(a.t)}</span>${sub}</span>${bell}${st.early ? `<span class="again">ab ${esc(a.from)} erneut</span>` : ""}
@@ -1272,11 +1273,27 @@ export function mount(container, opts = {}) {
       const vis = items.filter(x => x.show || open.has(kind)), hidden = items.length - items.filter(x => x.show).length;
       return vis.map(x => x.html).join("") + more(kind, hidden, text(hidden));
     };
-    const rhythm = part(rhythmL, "rhythm", n => `${n} weitere im Takt`);
-    const confirm = confirmL.map(x => x.html).join("");
+    // Heute: „Als Nächstes“ = Rundgänge und Aufgaben-Erinnerungen in einer Liste nach Uhrzeit; Fälliges oben, dazu bis zu 3 kommende.
+    let rhythm;
+    if (canLog) {
+      const remL = [];
+      for (const p of plan[key].phases) for (const i of p.items) {
+        if (!i.remind || state.checks[i.id]) continue;
+        const at = toMin(i.remind), past = ctx >= at;
+        remL.push({ rank: past ? 1 : 2, at, show: past, html: `<li class="remrow${past ? " due" : ""}"><button class="tap" data-jump="phase-${esc(p.id)}" aria-label="${esc(i.t)} im Fahrplan zeigen">
+          <span class="ic" aria-hidden="true">${BELL_SVG}</span><span><span class="label">${esc(i.t)}</span><span class="sub">Erinnerung ${esc(i.remind)} · ${esc(p.title)}</span></span></button></li>` });
+      }
+      const all = [...rhythmL, ...remL].sort((x, y) => x.rank - y.rank || x.at - y.at);
+      const vis = all.filter(x => x.rank < 2), rest = all.filter(x => x.rank === 2);
+      const head = rest.slice(0, 3), more2 = rest.slice(3);
+      rhythm = [...vis, ...head, ...(open.has("next") ? more2 : [])].map(x => x.html).join("") + more("next", more2.length, `${more2.length} weitere`);
+    } else rhythm = part(rhythmL, "rhythm", n => `${n} weitere im Takt`);
+    // Pflicht: offene oben, bestätigte darunter; Zähler „x von y“.
+    const cOk = confirmL.filter(x => x.ok).length;
+    const confirm = [...confirmL.filter(x => !x.ok), ...confirmL.filter(x => x.ok)].map(x => x.html).join("");
     const hintN = list.filter(a => a.kind === "hint").length;
-    return `${rhythm ? `<div class="sublabel">Regelmäßig</div><ul class="always">${rhythm}</ul>` : ""}
-      ${confirm ? `<div class="sublabel">Pflicht · einmal pro Schicht bestätigen</div><ul class="always">${confirm}</ul>` : ""}
+    return `${rhythm ? `${canLog ? "" : `<div class="sublabel">Regelmäßig</div>`}<ul class="always">${rhythm}</ul>` : ""}
+      ${confirm ? `<div class="sublabel">Pflicht vor Schichtende · ${cOk} von ${confirmL.length}</div><ul class="always">${confirm}</ul>` : ""}
       ${hint ? `<div class="sublabel">Im Blick behalten</div>${open.has("hint") ? `<ul class="hints">${hint}</ul>` : ""}<ul class="always">${more("hint", hintN, `${hintN} ${hintN === 1 ? "Hinweis" : "Hinweise"} anzeigen`)}</ul>` : ""}`;
   }
 
@@ -1346,6 +1363,56 @@ export function mount(container, opts = {}) {
 
   // ---------- Schicht (eine Ansicht für Früh und Spät) ----------
   // Links der Fahrplan der gewählten Schicht, rechts Immer im Blick, Dienst und Übergabe.
+  // ---------- Jetzt-Leiste mit Zeitstrahl (nur heute) ----------
+  function ringSvg(done, total) {
+    const r = 22, c = 2 * Math.PI * r, pct = total ? done / total : 0;
+    return `<svg class="ring" width="58" height="58" viewBox="0 0 58 58" role="img" aria-label="${done} von ${total} erledigt"><circle cx="29" cy="29" r="${r}" fill="none" stroke="var(--line)" stroke-width="6"></circle><circle cx="29" cy="29" r="${r}" fill="none" stroke="var(--done)" stroke-width="6" stroke-linecap="round" stroke-dasharray="${(c * pct).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 29 29)"></circle><text x="29" y="34" text-anchor="middle">${done}/${total}</text></svg>`;
+  }
+  function jetztHtml(plan, key, sts, pr, ctx, o) {
+    const s = plan[key], meta = SHIFT_META[key];
+    const now = sts.find(x => x.st === "now"), late = sts.filter(x => x.st === "late"), next = sts.find(x => x.st === "later");
+    const title = now ? `Jetzt: ${esc(now.p.title)} · bis ${esc(now.p.to)}` : late.length ? `Überfällig: ${esc(late[0].p.title)}` : next ? `Als Nächstes: ${esc(next.p.title)} ab ${esc(next.p.from)}` : "Schicht erledigt";
+    const tone = now ? "now" : late.length ? "late" : "calm";
+    const chip = (cls, txt, attr = "") => attr ? `<button class="jchip ${cls}" ${attr}>${txt}</button>` : `<span class="jchip ${cls}">${txt}</span>`;
+    const chips = [];
+    if (late.length) { const nOpen = late.reduce((n, x) => n + x.p.items.filter(i => !state.checks[i.id]).length, 0); chips.push(chip("late", `${nOpen} überfällig`, `data-jump="phase-${esc(late[0].p.id)}"`)); }
+    if (now) { const nOpen = now.p.items.filter(i => !state.checks[i.id]).length; if (nOpen) chips.push(chip("now", `${nOpen} ${nOpen === 1 ? "Aufgabe" : "Aufgaben"} offen`, `data-jump="phase-${esc(now.p.id)}"`)); }
+    const rh = plan.always[key].filter(a => a.kind === "rhythm").map(a => ({ a, i: dueInfo(plan, key, a, ctx) })).filter(x => x.i && x.i.state !== "ok");
+    if (rh.length) { const over = rh.some(x => x.i.state === "over"); chips.push(chip(over ? "late" : "now", `${LOOP_SVG}${esc(rh[0].a.t)}${rh.length > 1 ? ` +${rh.length - 1}` : ""} ${over ? "überfällig" : "fällig"}`, `data-jump="side-next"`)); }
+    // Nächste Erinnerung (Aufgabe oder eigene) ab jetzt
+    const rems = [];
+    for (const x of sts) for (const i of x.p.items) if (i.remind && !state.checks[i.id] && toMin(i.remind) >= ctx) rems.push({ at: i.remind, t: i.t, jump: `phase-${x.p.id}` });
+    for (const r of Object.values(state.rem)) if (r.shift === key && !r.done && toMin(r.at) >= ctx) rems.push({ at: r.at, t: r.t, jump: "phase-own" });
+    rems.sort((x, y) => x.at.localeCompare(y.at));
+    if (rems[0]) chips.push(chip("rem", `${BELL_SVG}${esc(rems[0].at)} ${esc(rems[0].t.length > 28 ? rems[0].t.slice(0, 27) + "…" : rems[0].t)}`, `data-jump="${esc(rems[0].jump)}"`));
+    const hb = handIn(key);
+    if (hb && handRead(key, hb)) chips.push(chip("ok", "✓ Übergabe gelesen", `data-hopen="${key}"`));
+    if (o.otherOpen) chips.push(chip("muted", `${SHIFT_META[o.other].label}: ${o.otherOpen} offen`, o.role ? "" : `data-shiftsel="${o.other}"`));
+    // Zeitstrahl: Abschnitte als Balken über die Schicht, Markierung „jetzt“, Glocken für Erinnerungen
+    const t0 = toMin(s.start), span = Math.max(1, toMin(s.end) - t0), pos = (m) => Math.min(100, Math.max(0, (m - t0) / span * 100));
+    const segs = sts.map(({ p, st }) => {
+      const l = pos(toMin(p.from)), w = Math.max(0.8, pos(toMin(p.to)) - l);
+      return `<button class="tseg is-${st}" style="left:${l.toFixed(2)}%;width:${w.toFixed(2)}%" data-jump="phase-${esc(p.id)}" title="${esc(p.from)}–${esc(p.to)} ${esc(p.title)}" aria-label="${esc(p.title)} ${esc(p.from)} bis ${esc(p.to)}">${w > 7 ? `<span>${esc(p.from)} ${esc(p.title)}</span>` : ""}</button>`;
+    }).join("");
+    const bells = rems.map(r => `<span class="tbell" style="left:${pos(toMin(r.at)).toFixed(2)}%" title="${esc(r.at)} ${esc(r.t)}">${BELL_SVG}</span>`).join("");
+    const nowMark = ctx >= t0 && ctx <= t0 + span ? `<span class="tnow" style="left:${pos(ctx).toFixed(2)}%"><b>${fmtMin(ctx)}</b></span>` : "";
+    return `<section class="jetzt tone-${tone}" aria-label="Jetzt">
+      <div class="jrow">${ringSvg(pr.done, pr.total)}
+        <div class="jtxt"><div class="jtitle">${title}</div><div class="jsub">${meta.label} ${esc(s.start)}–${esc(s.end)}</div></div>
+        <div class="jchips">${chips.join("")}</div></div>
+      <div class="tline">${segs}${bells}${nowMark}</div>
+    </section>`;
+  }
+  // Sprung aus Jetzt-Leiste/Zeitstrahl: Abschnitt öffnen (falls eingeklappt), hinscrollen, kurz hervorheben.
+  function jumpTo(id) {
+    if (id.startsWith("phase-") && id !== "phase-own") {
+      const pid = id.slice(6), el0 = $(id);
+      if (!el0 || !el0.querySelector("ul.items")) { state.expanded.add(pid); render(); }
+    }
+    const el = $(id); if (!el) return;
+    el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash");
+  }
   function renderSchicht() {
     const plan = P(), ctx = timeCtx(), d = derive(plan);
     const cp = currentPerson(), role = lockedShift();
@@ -1353,7 +1420,7 @@ export function mount(container, opts = {}) {
     const auto = role || focusShift(plan, ctx), key = role || state.shiftSel || auto, s = plan[key], meta = SHIFT_META[key];
     const MARK = { done: "✓", now: "▶", late: "!", later: "" };
     const isToday = state.date === isoDate(new Date()), canRem = isToday && !state.readOnly;
-    const stops = s.phases.map(p => {
+    const stopHtml = (p) => {
       const st = phaseState(p, ctx);
       const done = p.items.filter(i => state.checks[i.id]).length;
       // Übersicht: offen sind nur der laufende und überfällige Abschnitte (und nach „Zurück zur Schicht“ alle mit offenen Punkten);
@@ -1368,9 +1435,32 @@ export function mount(container, opts = {}) {
         ? `<button class="stop-head" data-toggle="${esc(p.id)}" aria-expanded="${!collapsed}" aria-label="${esc(p.title)}, ${label}, ${collapsed ? "aufklappen" : "zuklappen"}">${head}</button>`
         : `<div class="stop-head">${head}</div>`;
       const hint = p.hint && (st === "now" || st === "late") ? `<div class="phint">${esc(p.hint)}</div>` : "";
-      const items = collapsed ? "" : `<ul class="items">${p.items.map(i => itemHtml(d.item[i.id])).join("") || '<li class="empty">Keine Aufgaben.</li>'}</ul>`;
+      const items = collapsed ? "" : `<ul class="items">${[...p.items].sort((x, y) => (state.checks[x.id] ? 1 : 0) - (state.checks[y.id] ? 1 : 0)).map(i => itemHtml(d.item[i.id])).join("") || '<li class="empty">Keine Aufgaben.</li>'}</ul>`;
       return `<section class="stop is-${st}" id="phase-${esc(p.id)}">${headEl}${hint}${items}</section>`;
-    }).join("") || `<div class="empty">Für diese Schicht sind keine Abschnitte geplant (Verwaltung › Aufgaben-Plan).</div>`;
+    };
+    const noPhases = `<div class="empty">Für diese Schicht sind keine Abschnitte geplant (Verwaltung › Aufgaben-Plan).</div>`;
+    const isLive = isToday && typeof ctx === "number";
+    const sts = s.phases.map(p => ({ p, st: phaseState(p, ctx) }));
+    let stops;
+    if (!isLive) stops = s.phases.map(stopHtml).join("") || noPhases;
+    else {
+      // Heute: groß nur laufende/überfällige (und von Hand geöffnete) Abschnitte; der Rest als drei Kacheln Danach · Erledigt · Später.
+      const flagged = (p) => state.coFlag === key && p.items.some(i => !state.checks[i.id]);
+      const big = sts.filter(x => x.st === "now" || x.st === "late" || flagged(x.p) || state.expanded.has(x.p.id));
+      const doneL = sts.filter(x => x.st === "done" && !big.includes(x)), laterL = sts.filter(x => x.st === "later" && !big.includes(x));
+      const next = laterL[0], restLater = laterL.slice(1);
+      const active = big.some(x => x.st === "now" || x.st === "late");
+      const clear = !s.phases.length ? noPhases : active ? "" : `<div class="allclear"><span class="mark" aria-hidden="true">✓</span><span>${next ? `Alles erledigt bis ${esc(next.p.from)} – als Nächstes: <b>${esc(next.p.title)}</b>` : "Alle Abschnitte dieser Schicht sind erledigt."}</span></div>`;
+      const n = (k) => `${k} ${k === 1 ? "Abschnitt" : "Abschnitte"}`;
+      const tile = (attr, lbl, txt, cls = "") => `<button class="tile${cls}" ${attr}><small>${lbl}</small><span>${txt}</span></button>`;
+      const tiles = (next || doneL.length || restLater.length) ? `<div class="tiles">${
+        next ? tile(`data-toggle="${esc(next.p.id)}" aria-expanded="false"`, `Danach · ${esc(next.p.from)}`, `<b>${esc(next.p.title)}</b> · ${next.p.items.length} ${next.p.items.length === 1 ? "Aufgabe" : "Aufgaben"} ›`) : ""}${
+        doneL.length ? tile(`data-toggle="_done" aria-expanded="${state.expanded.has("_done")}"`, "Erledigt", `${n(doneL.length)} ✓ ${state.expanded.has("_done") ? "‹" : "›"}`, " done") : ""}${
+        restLater.length ? tile(`data-toggle="_later" aria-expanded="${state.expanded.has("_later")}"`, "Später", `${n(restLater.length)} · bis ${esc(s.end)} ${state.expanded.has("_later") ? "‹" : "›"}`) : ""}</div>` : "";
+      stops = clear + big.map(x => stopHtml(x.p)).join("") + tiles
+        + (state.expanded.has("_done") ? doneL.map(x => stopHtml(x.p)).join("") : "")
+        + (state.expanded.has("_later") ? restLater.map(x => stopHtml(x.p)).join("") : "");
+    }
     // Eigene Erinnerungen: eigener Abschnitt unter dem Fahrplan, nur wenn welche da sind; nach Uhrzeit sortiert.
     // Offen, solange etwas offen ist; sind alle erledigt, eine Zeile zum Aufklappen. Zählen nicht zum Fortschritt.
     const lay = getLayout();
@@ -1399,17 +1489,19 @@ export function mount(container, opts = {}) {
     const hb = state.date === isoDate(new Date()) && cp && !state.readOnly ? handIn(key) : null;
     const banner = hb && !handRead(key, hb) ? `<div class="handbar${hb.important ? " imp" : ""}"><span class="imptag">Übergabe</span><span class="htxt"><b>${key === "frueh" ? "Von der Spätschicht" : "Von der Frühschicht"}:</b> ${esc(hb.text)}</span><button class="btn" data-hopen="${key}">Öffnen</button><button class="btn primary" data-hread="${key}">Gelesen</button></div>` : "";
     if (state.coFlag === key && !shiftOpenList(key).items.length && !shiftOpenList(key).confirms.length) state.coFlag = null;
-    return `${banner}<div class="schicht cols-1" style="--side:${lay.side}px">
+    const leader = !!state.cfg.adminPin && !pinOff() && isUnlocked();
+    const jetzt = isLive ? jetztHtml(plan, key, sts, pr, ctx, { other, otherOpen, role, hb }) : "";
+    return `${banner}${jetzt}<div class="schicht cols-1" style="--side:${lay.side}px">
       <section class="card boardcard">
-        <div class="chead"><h2>${title} ${meta.label}</h2><span class="hint">${s.start}–${s.end} · ${pr.done}/${pr.total} erledigt</span>${role ? "" : `<div class="seg" role="group" aria-label="Schicht wählen">${seg}</div>`}${canRem ? `<button class="btn sm remadd" data-remadd="${key}">${BELL_SVG}+ Erinnerung</button>` : ""}</div>
-        <div class="bar flat"><i style="width:${pr.pct}%"></i></div>
-        ${otherOpen ? (role ? `<div class="othersum">${SHIFT_META[other].label}: <b>${otherOpen} offen geblieben</b></div>` : `<button class="othersum" data-shiftsel="${other}">${SHIFT_META[other].label}: <b>${otherOpen} offen geblieben</b> – ansehen</button>`) : ""}
+        <div class="chead"><h2>${title} ${meta.label}</h2><span class="hint">${s.start}–${s.end}${isLive ? "" : ` · ${pr.done}/${pr.total} erledigt`}</span>${role ? "" : `<div class="seg" role="group" aria-label="Schicht wählen">${seg}</div>`}${canRem ? `<button class="btn sm remadd" data-remadd="${key}">${BELL_SVG}+ Erinnerung</button>` : ""}</div>
+        ${isLive ? "" : `<div class="bar flat"><i style="width:${pr.pct}%"></i></div>`}
+        ${otherOpen && (!isLive || leader) ? (role ? `<div class="othersum">${SHIFT_META[other].label}: <b>${otherOpen} offen geblieben</b></div>` : `<button class="othersum" data-shiftsel="${other}">${SHIFT_META[other].label}: <b>${otherOpen} offen geblieben</b> – ansehen</button>`) : ""}
         <div class="cbody board"><div class="board-in">${stops}</div></div>
         ${ownSec ? `<div class="hsplit" data-split="rem" role="separator" aria-orientation="horizontal" aria-label="Höhe der eigenen Erinnerungen – ziehen oder Pfeiltasten, Doppelklick passt sich wieder dem Inhalt an" tabindex="0" title="Ziehen zum Anpassen · Doppelklick = automatisch"></div>${ownSec}` : ""}
       </section>
       <div class="splitter" data-split="side" role="separator" aria-orientation="vertical" aria-label="Spaltenbreite – ziehen oder Pfeiltasten, Doppelklick setzt zurück" tabindex="0" title="Ziehen zum Anpassen · Doppelklick = Standard"></div>
       <div class="side${lay.hand ? " has-hand" : ""}"${lay.hand ? ` style="--hand:${lay.hand}px"` : ""}>
-        <section class="card grow"><div class="chead"><h2>Immer im Blick</h2><span class="hint">${meta.label}</span></div><div class="cbody">${alwaysHtml(plan, key, ctx)}</div></section>
+        <section class="card grow" id="side-next"><div class="chead"><h2>${isLive ? "Als Nächstes" : "Immer im Blick"}</h2><span class="hint">${meta.label}</span></div><div class="cbody">${alwaysHtml(plan, key, ctx)}</div></section>
         <div class="hsplit" data-split="hand" role="separator" aria-orientation="horizontal" aria-label="Höhe von Dienst und Übergabe – ziehen oder Pfeiltasten, Doppelklick setzt zurück" tabindex="0" title="Ziehen zum Anpassen · Doppelklick = Standard"></div>
         <section class="card hand"><div class="chead"><h2>Dienst &amp; Übergabe</h2></div><div class="cbody">${dutyLine(state.date)}${handoverHtml(key)}</div></section>
       </div>
@@ -1429,6 +1521,7 @@ export function mount(container, opts = {}) {
       side: Number.isFinite(l.side) ? clampSide(l.side) : LAYOUT_DEFAULT.side,
       hand: Number.isFinite(l.hand) ? clampHand(l.hand) : LAYOUT_DEFAULT.hand,
       rem: Number.isFinite(l.rem) ? clampRem(l.rem) : LAYOUT_DEFAULT.rem,
+      font: l.font === "big" ? "big" : "normal",
     };
   }
   function saveLayout(patch) {
@@ -3477,6 +3570,11 @@ export function mount(container, opts = {}) {
     const vo = state.viewOnly && !p && !!state.cfg.people.length;
     $("vobar").hidden = !vo;
     container.classList.toggle("viewonly", vo);
+    const today0 = isoDate(new Date());
+    $("dnmore").hidden = state.date === today0 && !state.dateOpen;
+    $("calbtn").classList.toggle("on", state.date !== today0 || !!state.dateOpen);
+    const big = getLayout().font === "big";
+    container.classList.toggle("bigfont", big); $("fontbtn").setAttribute("aria-pressed", String(big));
     const mc = $("mk-clock");
     if (mc) mc.textContent = fmtMin(nowMin());
   }
@@ -3613,7 +3711,11 @@ export function mount(container, opts = {}) {
 
   $("prev").addEventListener("click", () => goDate(addDays(state.date, -1)));
   $("next").addEventListener("click", () => goDate(addDays(state.date, 1)));
-  $("today").addEventListener("click", () => goDate(isoDate(new Date())));
+  $("today").addEventListener("click", () => { state.dateOpen = false; goDate(isoDate(new Date())); });
+  // Datum wird selten gebraucht: hinter dem Kalender-Knopf; an einem anderen Tag bleiben die Pfeile sichtbar.
+  $("calbtn").addEventListener("click", () => { state.dateOpen = !state.dateOpen; renderHeader(); if (state.dateOpen) { const d = $("datepick"); try { d.showPicker && d.showPicker(); } catch { /* egal */ } } });
+  // Schriftgröße pro Person (Normal/Groß), gespeichert wie die Spaltenbreite.
+  $("fontbtn").addEventListener("click", () => { saveLayout({ font: getLayout().font === "big" ? "normal" : "big" }); render(); });
   $("datepick").addEventListener("change", (e) => goDate(e.target.value));
   root.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => setView(t.dataset.view)));
 
@@ -3755,6 +3857,7 @@ export function mount(container, opts = {}) {
     if (t.dataset.log) return logAlways(t.dataset.shift, t.dataset.log);
     if (t.dataset.unlog) return unlogAlways(t.dataset.shift, t.dataset.unlog);
     if (t.dataset.sideopen) { const k = t.dataset.sideopen; state.sideOpen.has(k) ? state.sideOpen.delete(k) : state.sideOpen.add(k); render(); return; }
+    if (t.dataset.jump) { jumpTo(t.dataset.jump); return; }
     if (t.dataset.toggle) { const id = t.dataset.toggle; state.expanded.has(id) ? state.expanded.delete(id) : state.expanded.add(id); render(); return; }
     if (t.id === "mprev") return shiftMonths(-1);
     if (t.id === "mnext") return shiftMonths(1);
@@ -3801,7 +3904,7 @@ export function mount(container, opts = {}) {
     // Enter in einem Fenster = Speichern: Werte sind schon gelesen bzw. stehen im DOM; Fokus lösen, damit sofort neu gezeichnet wird.
     if (e.target.id === "teform") { blurActive(); if (isUnlocked()) saveTimeEdit(); return; }
     if (e.target.id === "pinform") return submitPin($("pin-in").value);
-    if (e.target.id === "addperson") return addPerson($("newperson").value);
+    if (e.target.id === "addperson") { const v = $("newperson").value; if (drafts) delete drafts.vals.newperson; return addPerson(v); }
     if (e.target.id === "edpop") return submitEdPop();
     if (e.target.id === "rempop") return submitRemPop();
     if (e.target.id === "decform") { const i = $("dec-secret"); decryptPendingImport(i ? i.value : ""); return; }
@@ -3845,7 +3948,7 @@ export function mount(container, opts = {}) {
     toast(`${personName(id)} ist jetzt aktiv`);
   });
   // „Nur ansehen“: in Schicht und Erstattung nur Anzeige-Bedienelemente zulassen.
-  const VIEW_OK = "[data-shiftsel],[data-toggle],[data-sideopen],[data-split],[data-view]";
+  const VIEW_OK = "[data-shiftsel],[data-toggle],[data-sideopen],[data-split],[data-view],[data-jump]";
   const blockViewOnly = (e) => {
     if (!state.viewOnly || currentPerson() || !["schicht", "erstattung"].includes(state.view)) return;
     const el = e.target.closest && e.target.closest("button, input, textarea, select, label, a");

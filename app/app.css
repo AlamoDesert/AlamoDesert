@@ -670,3 +670,73 @@ ul.items li.ownrem .skip.danger { color: var(--warn); font-weight: 700 }
   .boardcard .ownpanel.fixed .items { flex: 1 }
 }
 @media (orientation: portrait), (max-width: 899px) { .boardcard .hsplit[data-split="rem"] { display: none } .boardcard .ownpanel { margin-top: 10px } }
+
+/* ---------- 1.19: Übersicht (Vorschlag A) ---------- */
+/* Kopfzeile ruhiger: Marke · Uhr · Reiter … Kalender · Schrift · Anwesende · Auschecken; Status nur bei Problemen */
+header.top > .brand { order: 1 } header.top > .clock { order: 2 } header.top > .tabs { order: 3 }
+header.top > .datenav { order: 4; margin-left: auto } header.top > .presence { order: 5 } header.top > .outbtn { order: 6 } header.top > .status { order: 7 }
+.status:not(.err) { display: none }
+.dnmore { display: inline-flex; align-items: center; gap: 4px }
+.dnmore[hidden] { display: none }
+.calbtn, .fontbtn { width: 40px; height: 40px; display: inline-grid; place-items: center; color: var(--muted) }
+.calbtn.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft) }
+.fontbtn { font-weight: 700; font-size: 15px; display: inline-flex; align-items: baseline; justify-content: center; gap: 1px }
+.fontbtn small { font-size: 11px }
+.fontbtn[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft) }
+.outbtn { height: 42px }
+/* Schrift groß (pro Person) */
+.rz-root.bigfont { font-size: 17px }
+.rz-root.bigfont .txt .label, .rz-root.bigfont .always .label { font-size: 18px }
+.rz-root.bigfont .txt .sub, .rz-root.bigfont .always .sub { font-size: 14px }
+.rz-root.bigfont .stop-head .ttl, .rz-root.bigfont .stop-head .time { font-size: 20px }
+/* Jetzt-Leiste */
+.jetzt { flex: none; margin-top: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px 8px }
+.jrow { display: flex; align-items: center; gap: 14px; flex-wrap: wrap }
+.ring { flex: none } .ring text { font-family: var(--f-display); font-weight: 700; font-size: 15px; fill: var(--ink) }
+.jtxt { flex: 1 1 260px; min-width: 0 }
+.jtitle { font-family: var(--f-display); font-weight: 700; font-size: 24px; letter-spacing: .02em; text-transform: uppercase; line-height: 1.1 }
+.jetzt.tone-now .jtitle { color: var(--now) } .jetzt.tone-late .jtitle { color: var(--warn) } .jetzt.tone-calm .jtitle { color: var(--done) }
+.jsub { color: var(--muted); font-weight: 600; font-size: 14px }
+.jchips { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end }
+.jchip { display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 99px; padding: 7px 12px; font: inherit; font-weight: 700; font-size: 14px; white-space: nowrap; background: var(--surface-2); color: var(--muted) }
+button.jchip { cursor: pointer }
+.jchip svg { width: 14px; height: 14px }
+.jchip.now, .jchip.rem { background: var(--now-soft); color: var(--now) }
+.jchip.late { background: var(--warn-soft); color: var(--warn) }
+.jchip.ok { background: var(--done-soft); color: var(--done) }
+.jchip.muted { box-shadow: inset 0 0 0 1px var(--line); background: var(--surface) }
+/* Zeitstrahl */
+.tline { position: relative; height: 40px; margin: 22px 2px 4px }
+.tseg { position: absolute; top: 0; height: 14px; border: 0; border-radius: 4px; padding: 0; background: #c9d3de; cursor: pointer }
+.tseg span { position: absolute; top: 18px; left: 0; font-size: 11.5px; font-weight: 600; color: var(--muted); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; pointer-events: none }
+.tseg.is-done { background: var(--done) } .tseg.is-now { background: var(--now) } .tseg.is-now span { color: var(--now) } .tseg.is-late { background: var(--warn) } .tseg.is-late span { color: var(--warn) }
+.tnow { position: absolute; top: -8px; width: 2px; height: 30px; background: var(--ink); transform: translateX(-1px); pointer-events: none }
+.tnow b { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 11.5px; background: var(--ink); color: var(--bg); border-radius: 4px; padding: 0 5px; white-space: nowrap }
+.tbell { position: absolute; top: -17px; transform: translateX(-50%); color: var(--now); pointer-events: none }
+.tbell svg { width: 12px; height: 12px }
+/* Kacheln Danach · Erledigt · Später, „alles erledigt“ */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; margin: 2px 0 8px; break-inside: avoid }
+.tile { text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 9px 12px; font: inherit; color: var(--muted); display: flex; flex-direction: column; gap: 2px; cursor: pointer }
+.tile small { font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase }
+.tile b { color: var(--ink) }
+.tile.done { background: transparent; border-style: dashed }
+.tile:hover { border-color: var(--accent) }
+.allclear { display: flex; align-items: center; gap: 12px; padding: 14px 16px; margin-bottom: 8px; border-radius: var(--r); background: var(--done-soft); color: var(--ink); font-size: 16px; break-inside: avoid }
+.allclear .mark { width: 26px; height: 26px; border-radius: 50%; background: var(--done); color: #fff; display: grid; place-items: center; font-weight: 700; flex: none }
+.flash { animation: rzflash 1.2s ease-out 1 }
+@keyframes rzflash { 0% { box-shadow: 0 0 0 4px var(--accent) } 100% { box-shadow: 0 0 0 0 transparent } }
+/* Farbregeln: Rot nur überfällig. Offene Pflicht neutral, in den letzten 30 Min. gelb, nach „Zurück zur Schicht“ rot. */
+.always li.confirm.open { background: none }
+.always li.confirm.open .box { border-color: var(--line) }
+.always li.confirm .sub { color: var(--muted) }
+.always li.confirm.open.soon { background: var(--now-soft) }
+.always li.confirm.open.soon .box { border-color: var(--now) }
+.always li.confirm.open.soon .sub { color: var(--now) }
+.always li.confirm.flag { background: var(--warn-soft) }
+.always li.confirm.flag .box { border-color: var(--warn) }
+.always li.remrow .ic { background: var(--now-soft); color: var(--now) }
+.always li.remrow .ic svg { width: 14px; height: 14px }
+.always li.remrow.due { background: var(--now-soft) }
+.always li.remrow.due .ic { background: var(--now); color: #fff }
+/* Im Querformat: Jetzt-Leiste ohne Rand nach oben quetschen */
+@media (orientation: landscape) and (min-width: 900px) { .schicht { margin-top: 12px } }
