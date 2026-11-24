@@ -2,6 +2,14 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.20.0 – 24.11.2026
+- Flexible Zeiten: Abschnitte richten sich nach **Beginn** („0–30 Min. nach Beginn“) oder **Schluss** („90–60 Min. vor Schluss“). Nur „Licht aus“ behält eine feste Uhrzeit. Bestehende Pläne stellen sich ohne Zutun um: vordere Abschnitte hängen an Beginn, hintere an Schluss.
+- Beginn = Einchecken der Früh-/Spätschicht, Schluss = Dienstplan bzw. Plan. Beides lässt sich heute in der Jetzt-Leiste ändern („ändern“, Schnellknöpfe −30/−15/+15/+30, optionaler Grund) – von jeder eingecheckten Person, mit Name und Uhrzeit festgehalten. Abbau, Abschließen, Erinnerungen und „Noch da?“ ziehen mit.
+- Alle Zeiten sind Richtwerte („ca.“). Rot erst 15 Min. nach der Zeit; der Puffer ist unter Verwaltung › Zeiten & Sonnenuntergang einstellbar.
+- Erinnerungen an Aufgaben und Pflichtpunkten: „mit dem Abschnitt“, „x Min. nach Beginn“, „x Min. vor Schluss“ oder feste Uhrzeit.
+- Sonnenuntergang (ohne Internet berechnet, Standort Halstenbek, änderbar): in der Jetzt-Leiste, als Sonne im Zeitstrahl und als Schnellknopf „zum Sonnenuntergang“ in „Neue Erinnerung“.
+- Aufgaben-Plan: jeder Abschnitt zeigt „nach Beginn“, „vor Schluss“ oder „feste Uhrzeit“; im Fenster „Richtet sich nach“ mit Minutenfeldern.
+
 ## 1.19.0 – 24.11.2026
 - Neue Übersicht in der Schicht-Ansicht: Jetzt-Leiste mit Fortschrittsring, „Jetzt: … bis …“ und antippbaren Hinweisen (offene Aufgaben, Überfälliges, fällige Rundgänge, nächste Erinnerung, Übergabe gelesen, andere Schicht). Darunter ein Zeitstrahl der ganzen Schicht mit Jetzt-Markierung und Glocken für Erinnerungen.
 - Fahrplan: groß nur der laufende (und überfällige) Abschnitt, der Rest als Kacheln „Danach“, „Erledigt“, „Später“. Ist gerade nichts dran: „Alles erledigt bis … – als Nächstes …“. Erledigtes rutscht im Abschnitt nach unten.

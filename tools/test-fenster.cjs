@@ -45,6 +45,18 @@ srv.listen(0, async () => {
   await q(p, "[data-remadd]").click(); await q(p, "#rp-t").fill("Zweite"); await q(p, "#rp-t").press("Enter"); await step(300);
   check(await q(p, "#rempop").count() === 0 && await q(p, "li.ownrem").count() === 2, "Erinnerung: Enter speichert und schließt");
 
+  // Flexible Zeiten: Beginn aus dem Einchecken, Schluss heute ändern, Sonnenuntergang
+  const bTxt = await q(p, '[data-adj="spaet:start"]').innerText();
+  check(/Beginn ca\.\s*16:00/.test(bTxt), "Flexibel: Beginn = Einchecken (16:00) – " + bTxt.replace(/\s+/g, " "));
+  check(/1[56]:\d\d/.test(await q(p, ".jsun").innerText()), "Flexibel: Sonnenuntergang wird angezeigt");
+  await q(p, '[data-adj="spaet:end"]').click(); await step();
+  await q(p, '[data-adjq="-30"]').click(); await q(p, "#ad-r").fill("letzte Buchung"); await step(31000);
+  await q(p, "#ad-r").press("Enter"); await step(300);
+  const adj = await p.evaluate(() => (JSON.parse(localStorage.getItem("rz2:2026-11-24")).adj || {}).spaet);
+  check(await q(p, "#adjpop").count() === 0 && adj && adj.end.t === "22:30" && adj.end.reason === "letzte Buchung" && adj.end.by === "pa", "Flexibel: Schluss −30 mit Grund gespeichert");
+  const titles = await q(p, ".tseg").evaluateAll(els => els.map(e => e.title));
+  check(titles.includes("22:00–22:30 Abschließen") && /Schluss ca\.\s*22:30/.test(await q(p, '[data-adj="spaet:end"]').innerText()), "Flexibel: Abschließen zieht mit – " + titles.join(" | "));
+
   // Leitung: Aufgabe mit Enter, kein Doppel
   await q(p, '[data-view="admin"]').click(); await q(p, "#pin-in").fill("1234"); await q(p, "#pinform button[type=submit]").click(); await step(800);
   await q(p, '[data-act2="open-plan"]').click(); await step();
@@ -63,6 +75,15 @@ srv.listen(0, async () => {
   check(await q(p, "#ep-t").inputValue().catch(() => "") === "Geändert" && await q(p, "#ep-imp").isChecked().catch(() => false), "Leitung: Eingaben überleben die PIN-Abfrage");
   await q(p, "#edpop button[type=submit]").click(); await step(300);
 
+  // Abschnitt: Bezug wählen (nach Beginn → vor Schluss), Uhrzeiten rechnen sich aus dem Schluss
+  await q(p, "[data-edphase]").first().click(); await step();
+  check(await q(p, "#ep-p-anc").inputValue() === "s" && await q(p, ".edpop .tgrid").isHidden(), "Editor: vorderer Abschnitt hängt an Beginn");
+  await q(p, "#ep-p-anc").selectOption("t"); await step();
+  check(await q(p, ".edpop .tgrid").isVisible(), "Editor: feste Uhrzeit zeigt Zeitfelder");
+  await q(p, "#ep-p-anc").selectOption("e"); await q(p, "#ep-a").fill("45"); await q(p, "#ep-b").fill("15"); await q(p, "#ep-a").press("Enter"); await step(300);
+  const ph = await p.evaluate(() => JSON.parse(localStorage.getItem("rz2cfg")).master.plan.frueh.phases.find(x => x.anc === "e" && x.a === 45));
+  check(ph && ph.b === 15 && ph.from === "14:45" && ph.to === "15:15", "Editor: vor Schluss 45–15 Min. gespeichert");
+
   // Team: Enter legt an, Feld wird leer
   await q(p, '[data-view="admin"]').click(); await step();
   await q(p, '[data-adminpop="team"]').click(); await q(p, "#newperson").fill("Test Ben"); await q(p, "#newperson").press("Enter"); await step(300);
@@ -73,6 +94,17 @@ srv.listen(0, async () => {
   await q(p, '[data-act2="open-times"]').click(); await step(300);
   await q(p, '[data-act2="t-add"]').click(); await q(p, "#te-note").fill("per Enter"); await q(p, "#te-note").press("Enter"); await step(300);
   check(await q(p, "#teform").count() === 0, "Arbeitszeiten: Enter speichert und schließt");
+
+  // Puffer: Schichtstart (ca. 16:00–16:30) wird erst 15 Min. nach dem Ende rot
+  await p.evaluate(() => { const d = JSON.parse(localStorage.getItem("rz2:2026-11-24")); d.rem = {}; localStorage.setItem("rz2:2026-11-24", JSON.stringify(d)); });
+  while (await q(p, "#remind [data-stillok], #remind [data-hlater]").count()) { await q(p, "#remind [data-stillok], #remind [data-hlater]").first().click(); await step(); }
+  await q(p, '[data-view="schicht"]').click(); await step();
+  const tsegState = async () => (await q(p, '.tseg[title*="Schichtstart"]').getAttribute("class")) || "";
+  const nowMs = await p.evaluate(() => Date.now()), at = (h, m) => new Date(2026, 10, 24, h, m).getTime() - nowMs;
+  await p.clock.runFor(Math.max(0, at(16, 40))); await step(300);
+  const s1 = await tsegState();
+  await p.clock.runFor(6 * 60000); await step(300);
+  check(/is-now/.test(s1) && /is-late/.test(await tsegState()), "Puffer: rot erst 15 Min. nach der Zeit");
 
   check(!errs.length, "keine Skriptfehler" + (errs.length ? ": " + errs.join(" | ") : ""));
   await b.close(); srv.close();

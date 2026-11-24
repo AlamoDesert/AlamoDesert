@@ -740,3 +740,31 @@ button.jchip { cursor: pointer }
 .always li.remrow.due .ic { background: var(--now); color: #fff }
 /* Im Querformat: Jetzt-Leiste ohne Rand nach oben quetschen */
 @media (orientation: landscape) and (min-width: 900px) { .schicht { margin-top: 12px } }
+/* 1.20 Flexible Zeiten */
+.rz-root [hidden] { display: none !important }
+.jsub { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 3px }
+.jlbl { font-weight: 700 }
+.jbound { display: inline-flex; align-items: baseline; gap: 4px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 99px; padding: 3px 10px; font: inherit; font-weight: 600; font-size: 14px; cursor: pointer }
+.jbound b { color: var(--ink); font-variant-numeric: tabular-nums }
+.jbound .jedit { font-size: 12px; color: var(--accent); margin-left: 2px }
+.jbound.is-adj { border-color: var(--now); background: var(--now-soft) }
+.jbound:hover { border-color: var(--accent) }
+.jsun { display: inline-flex; align-items: center; gap: 4px; color: #b9770e; font-variant-numeric: tabular-nums }
+.jsun svg, .tsun svg, .rempop .chip svg { width: 15px; height: 15px }
+.rempop .chip { display: inline-flex; align-items: center; gap: 5px }
+.tsun { position: absolute; top: -18px; transform: translateX(-50%); color: #b9770e; pointer-events: none }
+.tsun::after { content: ""; position: absolute; left: 50%; top: 15px; width: 0; height: 22px; border-left: 1.5px dashed #b9770e; opacity: .7 }
+.adjpop .rpwhen { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap }
+.adjpop .rpwhen .tin { width: 90px }
+.adjpop .quick { display: flex; gap: 6px; flex-wrap: wrap; padding-bottom: 4px }
+.adjpop .chip { min-width: 52px; font-variant-numeric: tabular-nums }
+.ancb { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--now); border: 1px solid currentColor; border-radius: 4px; padding: 0 6px; white-space: nowrap }
+.ancb.fixed { color: #b9770e }
+.ancrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-weight: 600 }
+.ancrow .num { width: 80px }
+.ancrow .ancsel { width: auto }
+.anct { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center }
+.anct label { display: inline-flex; gap: 8px; align-items: center }
+.remfs .ancrow, .remfs .anct { flex-basis: 100% }
+.adminpop .aph { margin: 14px 0 4px; font-size: 15px }
+.adminpop .trow .fld { flex: 1 1 120px }

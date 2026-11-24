@@ -480,6 +480,8 @@ export function mount(container, opts = {}) {
   // ---------- Plan prüfen (Daten aus der DB sind unvertrauenswürdig) ----------
   const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
   const ID_RE = /^[A-Za-z0-9_-]{1,60}$/;
+  const ANC = ["s", "e", "t"];
+  const offOk = (n) => Number.isInteger(n) && n >= -600 && n <= 900;
   const str = (v, max) => (typeof v === "string" ? v.slice(0, max) : "");
   // Akzeptiert 7:30, 0730, 730, 7.30, 7 → "07:30"/"07:00"; sonst null.
   function normTime(v) {
@@ -490,6 +492,8 @@ export function mount(container, opts = {}) {
   }
   const sortPhases = (phases) => phases.map((p, i) => [p, i]).sort((a, b) => (toMin(a[0].from) - toMin(b[0].from)) || (a[1] - b[1])).map(x => x[0]);
 
+  // Gespeicherter Bezug eines Zeitpunkts (s = nach Beginn, e = vor Schluss, t = feste Uhrzeit); ungültig → abgeleitet.
+  const ancOf = (anc, m, ka, km) => anc === "t" ? { [ka]: "t" } : (anc === "s" || anc === "e") && offOk(m) ? { [ka]: anc, [km]: m } : {};
   function normalizePlan(raw) {
     if (!raw || typeof raw !== "object") return null;
     const out = { always: {} };
@@ -504,9 +508,10 @@ export function mount(container, opts = {}) {
           const t = str(i.t, 200).trim();
           if (!t) return null;
           seen.add(i.id);
-          return { id: i.id, t, s: str(i.s, 300), important: i.important === true, optional: i.optional === true, ...(TIME_RE.test(i.remind) ? { remind: i.remind, ...(i.remindAlways === true ? { remindAlways: true } : {}) } : {}) };
+          return { id: i.id, t, s: str(i.s, 300), important: i.important === true, optional: i.optional === true, ...(TIME_RE.test(i.remind) ? { remind: i.remind, ...(i.remindAlways === true ? { remindAlways: true } : {}), ...ancOf(i.ra, i.rm, "ra", "rm") } : {}) };
         }).filter(Boolean);
-        return { id: ID_RE.test(p.id) ? p.id : newId("p"), title: str(p.title, 60).trim() || "Abschnitt", from: p.from, to: p.to, hint: str(p.hint, 80), items };
+        const an = p.anc === "t" ? { anc: "t" } : ANC.includes(p.anc) && offOk(p.a) && offOk(p.b) && p.a !== p.b ? { anc: p.anc, a: p.a, b: p.b } : {};
+        return { id: ID_RE.test(p.id) ? p.id : newId("p"), title: str(p.title, 60).trim() || "Abschnitt", from: p.from, to: p.to, hint: str(p.hint, 80), ...an, items };
       }).filter(Boolean);
       out[key] = {
         start: TIME_RE.test(s.start) ? s.start : def.start,
@@ -525,7 +530,7 @@ export function mount(container, opts = {}) {
         // Pflicht: from = fällig ab (vorher Bestätigtes gilt ab dann nicht mehr), remind = Erinnerungs-Popup (remindAlways: auch wenn bestätigt).
         // Regelmäßig: remindOver = Popup, sobald überfällig.
         const extra = kind === "confirm"
-          ? { ...(TIME_RE.test(a.from) ? { from: a.from } : {}), ...(TIME_RE.test(a.remind) ? { remind: a.remind, ...(a.remindAlways === true ? { remindAlways: true } : {}) } : {}) }
+          ? { ...(TIME_RE.test(a.from) ? { from: a.from, ...ancOf(a.fa, a.fm, "fa", "fm") } : {}), ...(TIME_RE.test(a.remind) ? { remind: a.remind, ...(a.remindAlways === true ? { remindAlways: true } : {}), ...ancOf(a.ra, a.rm, "ra", "rm") } : {}) }
           : kind === "rhythm" && a.remindOver === true ? { remindOver: true } : {};
         return { id: ID_RE.test(a.id) ? a.id : newId("a"), t, s: str(a.s, 200), important: a.important === true, kind, every: kind === "rhythm" ? (every || 60) : 0, ...extra };
       }).filter(Boolean);
@@ -569,7 +574,7 @@ export function mount(container, opts = {}) {
     logs: {},            // Daueraufgaben: { frueh|spaet: { <id>: { <key>: {at, by} | null } } }
     dayPlan: null,       // Tagesanpassung (normalisiert) oder null
     daySnap: null,       // festgehaltener Plan-Stand des Tages (gilt nur für vergangene Tage)
-    cfg: { base: null, weekday: {}, people: [], roster: {}, adminPin: null, features: { checkins: false, sound: true }, master: null, backupKey: null }, // Pläne, Team, Dienstplan, Leitungs-PIN, Funktionen
+    cfg: { base: null, weekday: {}, people: [], roster: {}, adminPin: null, features: { checkins: false, sound: true, grace: 15 }, location: null, master: null, backupKey: null }, // Pläne, Team, Dienstplan, Leitungs-PIN, Funktionen
     docExists: false, cfgExists: false,
     month: {},           // date -> { checks, plan }
     names: {},
@@ -596,6 +601,8 @@ export function mount(container, opts = {}) {
     pendingImport: null, // verschlüsselte Sicherung, die auf Passwort/Code wartet
     encCode: null,       // frisch erzeugter Wiederherstellungscode (nur bis „Fertig“ im Speicher)
     taskRem: null,       // gerade angezeigte Erinnerung { id, key, kind: "item"|"confirm"|"rhythm"|"own", item }
+    adj: {},             // Beginn/Schluss heute geändert: { frueh|spaet: { start|end: { t, by, at, reason } } }
+    adjPop: null,        // Fenster „Beginn/Schluss ändern“: { key, which, t, reason }
     rem: {},             // eigene Erinnerungen des Tages: { <id>: { t, at, shift, by, created, done?: { by, at } } }
     remPop: null,        // Fenster „Neue Erinnerung“: { shift }
     stillHere: null,     // Fenster „Noch da?“: { id, entry, end }
@@ -620,7 +627,7 @@ export function mount(container, opts = {}) {
       else if (state.cfg.base) r = { plan: state.cfg.base, source: "base" };
       else r = { plan: DEFAULT, source: "default" };
     }
-    return raw ? r : { ...r, plan: withRosterTimes(r.plan, date) };
+    return raw ? r : { ...r, plan: withLive(r.plan, withRosterTimes(r.plan, date), date) };
   }
   // Schichtbeginn/-ende des Tages aus dem eingelesenen Arbeitsplan übernehmen (Abschnitte bleiben unverändert).
   const timesCache = new Map();
@@ -637,6 +644,144 @@ export function mount(container, opts = {}) {
     return out;
   }
   const P = () => resolvePlan(state.date, state.dayPlan, false, state.daySnap).plan;
+
+  // ---------- Flexible Zeiten (ab 1.20) ----------
+  // Abschnitte hängen an Beginn („nach Beginn“, a–b Min.) oder Schluss („vor Schluss“, a–b Min.) der Schicht; nur „Licht aus“ hat eine feste Uhrzeit.
+  // Gespeichert: Abschnitt anc/a/b, Aufgaben-Erinnerung ra/rm, Daueraufgabe fa/fm (fällig ab) und ra/rm. Fehlt der Bezug,
+  // leitet ihn derive*Anchor aus den Uhrzeiten ab (vordere Hälfte → Beginn, hintere → Schluss) – alte Pläne laufen so ohne Umbau flexibel.
+  const FIXED_RE = /licht\s*aus/i;
+  const clampDay = (m) => Math.max(0, Math.min(1439, m));
+  function phaseAnchor(p, s) {
+    if (p.anc === "t") return { anc: "t" };
+    if ((p.anc === "s" || p.anc === "e") && offOk(p.a) && offOk(p.b)) return { anc: p.anc, a: p.a, b: p.b };
+    if (FIXED_RE.test(p.title)) return { anc: "t" };
+    const S = toMin(s.start), E = toMin(s.end), f = toMin(p.from), t = toMin(p.to);
+    return (f + t) / 2 - S <= E - (f + t) / 2 ? { anc: "s", a: f - S, b: t - S } : { anc: "e", a: E - f, b: E - t };
+  }
+  // Zeitpunkt (Erinnerung, „fällig ab“) mit eigenem Bezug; ohne Bezug: nächstgelegenes Ende der Schicht.
+  function pointAnchor(anc, m, time, s, text) {
+    if (anc === "t") return { anc: "t" };
+    if ((anc === "s" || anc === "e") && offOk(m)) return { anc, m };
+    if (FIXED_RE.test(text || "") || !TIME_RE.test(time || "")) return { anc: "t" };
+    const S = toMin(s.start), E = toMin(s.end), x = toMin(time);
+    return x - S <= E - x ? { anc: "s", m: x - S } : { anc: "e", m: E - x };
+  }
+  const phaseTimes = (an, S, E, p) => an.anc === "s" ? { from: fmtMin(clampDay(S + an.a)), to: fmtMin(clampDay(Math.max(S + an.b, S + an.a + 5))) }
+    : an.anc === "e" ? { from: fmtMin(clampDay(E - an.a)), to: fmtMin(clampDay(Math.max(E - an.b, E - an.a + 5))) } : { from: p.from, to: p.to };
+  const pointTime = (an, S, E, fallback) => an.anc === "s" ? fmtMin(clampDay(S + an.m)) : an.anc === "e" ? fmtMin(clampDay(E - an.m)) : fallback;
+  // Beschriftung „nach Beginn“ / „vor Schluss“ für Editor und Fenster.
+  function anchorLabel(an, p) {
+    const mm = (n) => n === 0 ? "0" : String(n);
+    if (an.anc === "s") return an.a === 0 ? `erste ${an.b} Min. nach Beginn` : `${mm(an.a)}–${mm(an.b)} Min. nach Beginn`;
+    if (an.anc === "e") return an.b === 0 ? `letzte ${an.a} Min. vor Schluss` : `${mm(an.a)}–${mm(an.b)} Min. vor Schluss`;
+    return `feste Uhrzeit ${p.from}–${p.to}`;
+  }
+  const pointLabel = (an, time) => an.anc === "s" ? `${an.m} Min. nach Beginn` : an.anc === "e" ? (an.m >= 0 ? `${an.m} Min. vor Schluss` : `${-an.m} Min. nach Schluss`) : `um ${time}`;
+  // Pflegt die gespeicherten Uhrzeiten angebundener Abschnitte/Erinnerungen nach (für Vorlagen und ältere Versionen).
+  function syncAnchored(s, al) {
+    const S = toMin(s.start), E = toMin(s.end);
+    for (const p of s.phases) {
+      const f0 = toMin(p.from);
+      if (p.anc === "s" || p.anc === "e") Object.assign(p, phaseTimes(phaseAnchor(p, s), S, E, p));
+      const d = toMin(p.from) - f0;
+      for (const i of p.items) {
+        if (!i.remind) continue;
+        if (i.ra === "s" || i.ra === "e") i.remind = pointTime(pointAnchor(i.ra, i.rm, i.remind, s), S, E, i.remind);
+        else if (!i.ra && d) i.remind = fmtMin(clampDay(toMin(i.remind) + d));
+      }
+    }
+    for (const a of al || []) {
+      if (a.from && (a.fa === "s" || a.fa === "e")) a.from = pointTime(pointAnchor(a.fa, a.fm, a.from, s), S, E, a.from);
+      if (a.remind && (a.ra === "s" || a.ra === "e")) a.remind = pointTime(pointAnchor(a.ra, a.rm, a.remind, s), S, E, a.remind);
+    }
+  }
+  const graceMin = () => { const g = state.cfg.features && state.cfg.features.grace; return Number.isInteger(g) && g >= 0 && g <= 60 ? g : 15; };
+  // Tagesänderung von Beginn/Schluss: days/<datum>.adj = { frueh|spaet: { start|end: { t, by, at, reason? } | null } }
+  function normAdj(raw) {
+    const out = {};
+    if (!raw || typeof raw !== "object") return out;
+    for (const k of KEYS) {
+      const v = raw[k]; if (!v || typeof v !== "object") continue;
+      const o = {};
+      for (const w of ["start", "end"]) {
+        const e = v[w];
+        if (e && typeof e === "object" && TIME_RE.test(e.t || "")) o[w] = { t: e.t, by: typeof e.by === "string" ? e.by : null, at: typeof e.at === "string" ? e.at : null, reason: str(e.reason, 120).trim() };
+      }
+      if (Object.keys(o).length) out[k] = o;
+    }
+    return out;
+  }
+  // Beginn/Schluss einer Schicht am angezeigten Tag: Tagesänderung > Einchecken (nur Beginn) > Dienstplan > Plan.
+  function shiftBounds(nominal, k, date) {
+    const S0 = toMin(nominal.start), E0 = toMin(nominal.end);
+    const r = { start: S0, end: E0, sSrc: "plan", eSrc: "plan" };
+    if (date !== state.date) return r;
+    const adj = state.adj[k] || {};
+    if (adj.start) { r.start = toMin(adj.start.t); r.sSrc = "adj"; }
+    else {
+      const ins = Object.values(state.time).filter(e => e && e.role === k && TIME_RE.test(e.in)).map(e => toMin(e.in)).filter(m => m >= S0 - 180 && m <= S0 + 240);
+      if (ins.length) { r.start = Math.min(...ins); r.sSrc = "in"; }
+    }
+    if (adj.end) { r.end = toMin(adj.end.t); r.eSrc = "adj"; }
+    if (r.end <= r.start) r.end = Math.min(1439, r.start + 30);
+    return r;
+  }
+  // Plan mit den tatsächlichen Zeiten des Tages: Bezüge aus der Vorlage (base = ohne Dienstplan-Zeiten), Beginn/Schluss live.
+  const liveCache = new WeakMap();
+  function withLive(base, rost, date) {
+    const b = {}; for (const k of KEYS) b[k] = shiftBounds(rost[k], k, date);
+    const key = date + JSON.stringify(b);
+    const hit = liveCache.get(rost);
+    if (hit && hit.key === key && hit.base === base) return hit.plan;
+    const out = { ...rost, always: { ...rost.always }, live: b };
+    for (const k of KEYS) {
+      const s0 = base[k], S = b[k].start, E = b[k].end;
+      const phases = s0.phases.map(p => {
+        const an = phaseAnchor(p, s0), t = phaseTimes(an, S, E, p), d = toMin(t.from) - toMin(p.from);
+        const items = p.items.map(i => {
+          if (!i.remind) return i;
+          let rem;
+          if (i.ra) rem = pointTime(pointAnchor(i.ra, i.rm, i.remind, s0, i.t), S, E, i.remind);
+          else rem = an.anc === "t" || FIXED_RE.test(i.t) ? i.remind : fmtMin(clampDay(toMin(i.remind) + d));
+          return rem === i.remind ? i : { ...i, remind: rem };
+        });
+        return { ...p, ...t, an, items };
+      });
+      out[k] = { ...rost[k], start: fmtMin(S), end: fmtMin(E), phases: sortPhases(phases) };
+      out.always[k] = base.always[k].map(a => {
+        const x = { ...a };
+        if (a.from) x.from = pointTime(pointAnchor(a.fa, a.fm, a.from, s0, a.t), S, E, a.from);
+        if (a.remind) x.remind = pointTime(pointAnchor(a.ra, a.rm, a.remind, s0, a.t), S, E, a.remind);
+        return x;
+      });
+    }
+    liveCache.set(rost, { key, base, plan: out });
+    return out;
+  }
+
+  // ---------- Sonnenuntergang (NOAA, offline) ----------
+  const DEFAULT_LOC = { name: "Halstenbek", lat: 53.633, lon: 9.85 };
+  const locOf = () => (state.cfg.location && Number.isFinite(state.cfg.location.lat)) ? state.cfg.location : DEFAULT_LOC;
+  const sunCache = new Map();
+  function sunsetMin(iso) {
+    const loc = locOf(), ck = iso + loc.lat + "," + loc.lon;
+    if (sunCache.has(ck)) return sunCache.get(ck);
+    const d = parseIso(iso), y = d.getFullYear();
+    const n = Math.round((Date.UTC(y, d.getMonth(), d.getDate()) - Date.UTC(y, 0, 1)) / 864e5) + 1;
+    const g = 2 * Math.PI / 365 * (n - 1 + (18 - 12) / 24);
+    const eqt = 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g) - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g));
+    const decl = 0.006918 - 0.399912 * Math.cos(g) + 0.070257 * Math.sin(g) - 0.006758 * Math.cos(2 * g) + 0.000907 * Math.sin(2 * g) - 0.002697 * Math.cos(3 * g) + 0.00148 * Math.sin(3 * g);
+    const rad = Math.PI / 180, cosH = (Math.cos(90.833 * rad) - Math.sin(loc.lat * rad) * Math.sin(decl)) / (Math.cos(loc.lat * rad) * Math.cos(decl));
+    let res = null;
+    if (cosH >= -1 && cosH <= 1) {
+      const utc = 720 - 4 * (loc.lon - Math.acos(cosH) / rad) - eqt;
+      const t = new Date(Date.UTC(y, d.getMonth(), d.getDate()) + Math.round(utc) * 60000);
+      res = t.getHours() * 60 + t.getMinutes();
+    }
+    if (sunCache.size > 400) sunCache.clear();
+    sunCache.set(ck, res);
+    return res;
+  }
 
   // ---------- Speicher ----------
   const LS = {
@@ -668,6 +813,7 @@ export function mount(container, opts = {}) {
     state.read = (data && data.read && typeof data.read === "object") ? data.read : {};
     state.logs = (data && data.logs && typeof data.logs === "object") ? data.logs : {};
     state.rem = normRem(data && data.rem);
+    state.adj = normAdj(data && data.adj);
     state.time = normTimes(data && data.time);
     state.dayPlan = data ? normalizePlan(data.plan) : null;
     state.daySnap = data ? normalizePlan(data.snap) : null;
@@ -709,18 +855,26 @@ export function mount(container, opts = {}) {
       }
     }
     state.cfg = { base: data ? normalizePlan(data.base) : null, weekday, people, roster, adminPin: data && typeof data.adminPin === "string" ? data.adminPin.slice(0, 200) : null,
-      features: { checkins: !!(data && data.features && data.features.checkins === true), sound: !(data && data.features && data.features.sound === false) },
+      features: { checkins: !!(data && data.features && data.features.checkins === true), sound: !(data && data.features && data.features.sound === false),
+        grace: data && data.features && Number.isInteger(data.features.grace) && data.features.grace >= 0 && data.features.grace <= 60 ? data.features.grace : 15 },
+      location: normLoc(data && data.location),
       master: data ? normalizeMaster(data.master) : null,
       backupKey: data ? normalizeBackupKey(data.backupKey) : null };
   }
 
+  // Standort für den Sonnenuntergang: { name, lat, lon }; fehlt er, gilt Halstenbek.
+  function normLoc(l) {
+    if (!l || typeof l !== "object") return null;
+    const lat = Number(l.lat), lon = Number(l.lon);
+    return Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 66 && Math.abs(lon) <= 180 ? { name: str(l.name, 40).trim() || "Standort", lat, lon } : null;
+  }
   // Schlüssel für verschlüsselte Sicherungen: nur Form prüfen (Inhalte sind base64).
   function normalizeBackupKey(k) {
     const w = (x) => x && typeof x === "object" && ["salt", "iv", "ct"].every(f => typeof x[f] === "string" && x[f].length < 20000) && Number.isInteger(x.iter) && x.iter >= 100000;
     return k && typeof k === "object" && k.v === 1 && typeof k.pub === "string" && k.pub.length < 4000 && w(k.pw) && w(k.code) ? { v: 1, created: String(k.created || ""), pub: k.pub, pw: k.pw, code: k.code } : null;
   }
   function currentDayDoc() {
-    return { month: state.date.slice(0, 7), checks: state.checks, notes: state.notes, read: state.read, logs: state.logs, rem: state.rem, time: state.time, plan: state.dayPlan, snap: state.daySnap };
+    return { month: state.date.slice(0, 7), checks: state.checks, notes: state.notes, read: state.read, logs: state.logs, rem: state.rem, adj: state.adj, time: state.time, plan: state.dayPlan, snap: state.daySnap };
   }
 
   async function loadPrevNotes() {
@@ -882,7 +1036,7 @@ export function mount(container, opts = {}) {
   function cfgPayload() {
     const weekday = {};
     for (const k of Object.keys(state.cfg.weekday)) weekday[k] = state.cfg.weekday[k];
-    return { base: state.cfg.base, weekday, people: state.cfg.people, roster: state.cfg.roster, adminPin: state.cfg.adminPin, features: state.cfg.features, master: state.cfg.master || null, backupKey: state.cfg.backupKey || null };
+    return { base: state.cfg.base, weekday, people: state.cfg.people, roster: state.cfg.roster, adminPin: state.cfg.adminPin, features: state.cfg.features, location: state.cfg.location || null, master: state.cfg.master || null, backupKey: state.cfg.backupKey || null };
   }
   const persistCfg = (patch) => persistDoc("config/plan", patch, cfgPayload(), "rz2cfg", cfgPayload());
 
@@ -1033,9 +1187,48 @@ export function mount(container, opts = {}) {
       <h2 id="rp-title">Neue Erinnerung</h2>
       <label class="fld"><span>Was?</span><input class="in" id="rp-t" maxlength="120" autocomplete="off" placeholder="z. B. Licht einschalten, Equipment bereitlegen" value="${esc(pop.t || "")}"></label>
       <div class="rpwhen"><label class="fld"><span>Um</span>${timeIn("rp-at", def, "Uhrzeit")}</label>
-        <span class="quick">${[15, 30, 60].map(n => `<button type="button" class="chip off" data-rq="${n}">in ${n === 60 ? "1 Std." : n + " Min."}</button>`).join("")}</span></div>
+        <span class="quick">${[15, 30, 60].map(n => `<button type="button" class="chip off" data-rq="${n}">in ${n === 60 ? "1 Std." : n + " Min."}</button>`).join("")}${sunsetMin(state.date) != null && sunsetMin(state.date) > nowMin() ? `<button type="button" class="chip off" data-rqsun="1">${SUN_SVG}zum Sonnenuntergang (${fmtMin(sunsetMin(state.date))})</button>` : ""}</span></div>
       <p class="perr" id="rp-err" role="alert"></p>
       <div class="row"><button type="button" class="btn ghost" data-rpclose="1">Abbrechen</button><button type="submit" class="btn primary">Speichern</button></div></form></div>`;
+  }
+  // Fenster „Beginn/Schluss heute ändern“ – jede eingecheckte Person, mit Name und Uhrzeit festgehalten.
+  function nominalShift(key) { return withRosterTimes(resolvePlan(state.date, state.dayPlan, true, state.daySnap).plan, state.date)[key]; }
+  function adjPopHtml() {
+    const pop = state.adjPop, key = pop.key, isS = pop.which === "start", nom = nominalShift(key), cur = state.adj[key] && state.adj[key][pop.which];
+    const plan = P(), lv = plan.live[key], label = isS ? "Beginn" : "Schluss";
+    if (pop.t == null) pop.t = plan[key][pop.which];
+    const src = isS ? (lv.sSrc === "in" ? "Einchecken" : "Plan") : (state.cfg.roster[state.date] && state.cfg.roster[state.date].times && state.cfg.roster[state.date].times[key] ? "Dienstplan" : "Plan");
+    const base = isS && lv.sSrc === "in" ? null : nom[pop.which];
+    return `<div class="overlay inmain" role="dialog" aria-modal="true" aria-labelledby="ad-title"><form class="dialog adjpop" id="adjpop">
+      <h2 id="ad-title">${label} heute ändern · ${SHIFT_META[key].label}</h2>
+      <p class="hint">Laut ${src}: <b>${esc(base || plan[key].start)}</b>${cur ? ` · zuletzt geändert von ${esc(personName(cur.by) || "?")}${cur.at ? " um " + fmtTime(cur.at) : ""}` : ""}</p>
+      <div class="rpwhen"><label class="fld"><span>${label} ca.</span>${timeIn("ad-t", pop.t, label)}</label>
+        <span class="quick">${[-30, -15, 15, 30].map(n => `<button type="button" class="chip off" data-adjq="${n}">${n > 0 ? "+" : "−"}${Math.abs(n)}</button>`).join("")}</span></div>
+      <label class="fld"><span>Grund (optional)</span><input class="in" id="ad-r" maxlength="120" autocomplete="off" placeholder="${isS ? "z. B. später angefangen" : "z. B. letzte Buchung 21:00"}" value="${esc(pop.reason || "")}"></label>
+      <p class="hint">${isS ? "Abschnitte nach Beginn und ihre Erinnerungen" : "Abbau, Abschließen, Erinnerungen vor Schluss und „Noch da?“"} ziehen mit. Gilt nur heute.</p>
+      <p class="perr" id="ad-err" role="alert"></p>
+      <div class="row">${cur ? `<button type="button" class="btn ghost left" data-adjreset="1">Zurück auf ${esc(src)}</button>` : ""}<button type="button" class="btn ghost" data-adjclose="1">Abbrechen</button><button type="submit" class="btn primary">Speichern</button></div></form></div>`;
+  }
+  function saveAdj(key, which, val) {
+    if (state.readOnly) { setStatus("Nur Lesezugriff – Änderungen werden nicht gespeichert", true); return; }
+    const next = { ...state.adj, [key]: { ...(state.adj[key] || {}) } };
+    if (val) next[key][which] = val; else delete next[key][which];
+    if (!Object.keys(next[key]).length) delete next[key];
+    state.adj = next;
+    persistDay(state.date, { adj: { [key]: { [which]: val || null } } });
+  }
+  function submitAdjPop() {
+    const pop = state.adjPop; if (!pop) return;
+    const t = normTime(($("ad-t") || {}).value), reason = (($("ad-r") || {}).value || "").replace(/\s+/g, " ").trim().slice(0, 120);
+    const err = (m) => { const e = $("ad-err"); if (e) e.textContent = m; };
+    if (!t) return err("Bitte eine Uhrzeit als HH:MM angeben.");
+    const other = P()[pop.key][pop.which === "start" ? "end" : "start"];
+    if (pop.which === "start" ? toMin(t) >= toMin(other) : toMin(t) <= toMin(other)) return err(pop.which === "start" ? `Beginn muss vor dem Schluss (${other}) liegen.` : `Schluss muss nach dem Beginn (${other}) liegen.`);
+    blurActive();
+    state.adjPop = null;
+    saveAdj(pop.key, pop.which, { t, by: actorId(), at: new Date().toISOString(), ...(reason ? { reason } : {}) });
+    toast(`${pop.which === "start" ? "Beginn" : "Schluss"} heute ca. ${t} – Zeiten angepasst`);
+    render();
   }
   function submitRemPop() {
     const pop = state.remPop; if (!pop) return;
@@ -1142,7 +1335,8 @@ export function mount(container, opts = {}) {
     if (!open) return "done";
     if (ctx === "future") return "later";
     if (ctx === "past") return "late";
-    if (ctx >= toMin(phase.to)) return "late";
+    // Richtwerte: rot erst nach dem Puffer (Verwaltung › System, Standard 15 Min.).
+    if (ctx >= toMin(phase.to) + graceMin()) return "late";
     if (ctx >= toMin(phase.from)) return "now";
     return "later";
   }
@@ -1368,10 +1562,13 @@ export function mount(container, opts = {}) {
     const r = 22, c = 2 * Math.PI * r, pct = total ? done / total : 0;
     return `<svg class="ring" width="58" height="58" viewBox="0 0 58 58" role="img" aria-label="${done} von ${total} erledigt"><circle cx="29" cy="29" r="${r}" fill="none" stroke="var(--line)" stroke-width="6"></circle><circle cx="29" cy="29" r="${r}" fill="none" stroke="var(--done)" stroke-width="6" stroke-linecap="round" stroke-dasharray="${(c * pct).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 29 29)"></circle><text x="29" y="34" text-anchor="middle">${done}/${total}</text></svg>`;
   }
+  // „ca.“ vor Zeiten, die an Beginn/Schluss hängen (feste Uhrzeiten ohne).
+  const caT = (p) => p.an && p.an.anc !== "t" ? "ca. " : "";
+  const SUN_SVG = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2 12h12M4.5 12a3.5 3.5 0 0 1 7 0M8 4.5V6M3.3 6.6l1 1M12.7 6.6l-1 1M1.5 9.5h1.3M13.2 9.5h1.3"/></svg>';
   function jetztHtml(plan, key, sts, pr, ctx, o) {
     const s = plan[key], meta = SHIFT_META[key];
     const now = sts.find(x => x.st === "now"), late = sts.filter(x => x.st === "late"), next = sts.find(x => x.st === "later");
-    const title = now ? `Jetzt: ${esc(now.p.title)} · bis ${esc(now.p.to)}` : late.length ? `Überfällig: ${esc(late[0].p.title)}` : next ? `Als Nächstes: ${esc(next.p.title)} ab ${esc(next.p.from)}` : "Schicht erledigt";
+    const title = now ? `Jetzt: ${esc(now.p.title)} · bis ${caT(now.p)}${esc(now.p.to)}` : late.length ? `Überfällig: ${esc(late[0].p.title)}` : next ? `Als Nächstes: ${esc(next.p.title)} ab ${caT(next.p)}${esc(next.p.from)}` : "Schicht erledigt";
     const tone = now ? "now" : late.length ? "late" : "calm";
     const chip = (cls, txt, attr = "") => attr ? `<button class="jchip ${cls}" ${attr}>${txt}</button>` : `<span class="jchip ${cls}">${txt}</span>`;
     const chips = [];
@@ -1390,17 +1587,27 @@ export function mount(container, opts = {}) {
     if (o.otherOpen) chips.push(chip("muted", `${SHIFT_META[o.other].label}: ${o.otherOpen} offen`, o.role ? "" : `data-shiftsel="${o.other}"`));
     // Zeitstrahl: Abschnitte als Balken über die Schicht, Markierung „jetzt“, Glocken für Erinnerungen
     const t0 = toMin(s.start), span = Math.max(1, toMin(s.end) - t0), pos = (m) => Math.min(100, Math.max(0, (m - t0) / span * 100));
-    const segs = sts.map(({ p, st }) => {
+    const segs = sts.map(({ p, st }, ix) => {
       const l = pos(toMin(p.from)), w = Math.max(0.8, pos(toMin(p.to)) - l);
-      return `<button class="tseg is-${st}" style="left:${l.toFixed(2)}%;width:${w.toFixed(2)}%" data-jump="phase-${esc(p.id)}" title="${esc(p.from)}–${esc(p.to)} ${esc(p.title)}" aria-label="${esc(p.title)} ${esc(p.from)} bis ${esc(p.to)}">${w > 7 ? `<span>${esc(p.from)} ${esc(p.title)}</span>` : ""}</button>`;
+      // Beschriftung nur bis zum nächsten Abschnitt (Abschnitte können sich überlappen)
+      const nx = sts[ix + 1], room = nx ? Math.min(w, pos(toMin(nx.p.from)) - l) : 100 - l;
+      return `<button class="tseg is-${st}" style="left:${l.toFixed(2)}%;width:${w.toFixed(2)}%" data-jump="phase-${esc(p.id)}" title="${esc(p.from)}–${esc(p.to)} ${esc(p.title)}" aria-label="${esc(p.title)} ${esc(p.from)} bis ${esc(p.to)}">${room > 7 ? `<span style="max-width:${(room / w * 100).toFixed(1)}%">${esc(p.from)} ${esc(p.title)}</span>` : ""}</button>`;
     }).join("");
     const bells = rems.map(r => `<span class="tbell" style="left:${pos(toMin(r.at)).toFixed(2)}%" title="${esc(r.at)} ${esc(r.t)}">${BELL_SVG}</span>`).join("");
     const nowMark = ctx >= t0 && ctx <= t0 + span ? `<span class="tnow" style="left:${pos(ctx).toFixed(2)}%"><b>${fmtMin(ctx)}</b></span>` : "";
+    const sun = sunsetMin(state.date), sunMark = sun != null && sun > t0 && sun < t0 + span ? `<span class="tsun" style="left:${pos(sun).toFixed(2)}%" title="Sonnenuntergang ${fmtMin(sun)} (${esc(locOf().name)})">${SUN_SVG}</span>` : "";
+    const lv = (plan.live && plan.live[key]) || {}, adj = state.adj[key] || {};
+    const bound = (w, label, t, src) => {
+      const e = adj[w], who = e ? personName(e.by) : "";
+      const tip = src === "adj" ? `geändert${who ? " von " + who : ""}${e && e.at ? " um " + fmtTime(e.at) : ""}${e && e.reason ? ": " + e.reason : ""}` : src === "in" ? "aus dem Einchecken" : "laut Plan/Dienstplan";
+      return `<button class="jbound${src === "adj" ? " is-adj" : ""}" data-adj="${key}:${w}" title="${esc(tip)}" aria-label="${label} ca. ${esc(t)} ändern (${esc(tip)})">${label} ca. <b>${esc(t)}</b><span class="jedit">ändern</span></button>`;
+    };
+    const subline = `<span class="jlbl">${meta.label}</span>${bound("start", "Beginn", s.start, lv.sSrc)}${bound("end", "Schluss", s.end, lv.eSrc)}${sun != null ? `<span class="jsun" title="Sonnenuntergang in ${esc(locOf().name)}">${SUN_SVG}${fmtMin(sun)}</span>` : ""}`;
     return `<section class="jetzt tone-${tone}" aria-label="Jetzt">
       <div class="jrow">${ringSvg(pr.done, pr.total)}
-        <div class="jtxt"><div class="jtitle">${title}</div><div class="jsub">${meta.label} ${esc(s.start)}–${esc(s.end)}</div></div>
+        <div class="jtxt"><div class="jtitle">${title}</div><div class="jsub">${subline}</div></div>
         <div class="jchips">${chips.join("")}</div></div>
-      <div class="tline">${segs}${bells}${nowMark}</div>
+      <div class="tline">${segs}${bells}${sunMark}${nowMark}</div>
     </section>`;
   }
   // Sprung aus Jetzt-Leiste/Zeitstrahl: Abschnitt öffnen (falls eingeklappt), hinscrollen, kurz hervorheben.
@@ -1430,7 +1637,7 @@ export function mount(container, opts = {}) {
       const collapsed = foldable && !flagged && !state.expanded.has(p.id);
       const label = { done: "erledigt", now: "jetzt", late: "offen", later: "später" }[st];
       const count = st === "later" && collapsed ? `${p.items.length} ${p.items.length === 1 ? "Aufgabe" : "Aufgaben"}` : `${done}/${p.items.length}`;
-      const head = `<span class="mark" aria-hidden="true">${MARK[st]}</span><span class="time">${p.from}–${p.to}</span><span class="ttl">${esc(p.title)}<small>${count}</small></span>${PILL[st]}`;
+      const head = `<span class="mark" aria-hidden="true">${MARK[st]}</span><span class="time">${caT(p)}${p.from}–${p.to}</span><span class="ttl">${esc(p.title)}<small>${count}</small></span>${PILL[st]}`;
       const headEl = foldable
         ? `<button class="stop-head" data-toggle="${esc(p.id)}" aria-expanded="${!collapsed}" aria-label="${esc(p.title)}, ${label}, ${collapsed ? "aufklappen" : "zuklappen"}">${head}</button>`
         : `<div class="stop-head">${head}</div>`;
@@ -1505,7 +1712,7 @@ export function mount(container, opts = {}) {
         <div class="hsplit" data-split="hand" role="separator" aria-orientation="horizontal" aria-label="Höhe von Dienst und Übergabe – ziehen oder Pfeiltasten, Doppelklick setzt zurück" tabindex="0" title="Ziehen zum Anpassen · Doppelklick = Standard"></div>
         <section class="card hand"><div class="chead"><h2>Dienst &amp; Übergabe</h2></div><div class="cbody">${dutyLine(state.date)}${handoverHtml(key)}</div></section>
       </div>
-    </div>${state.remPop ? remPopHtml() : ""}`;
+    </div>${state.remPop ? remPopHtml() : ""}${state.adjPop ? adjPopHtml() : ""}`;
   }
 
   // Breite der rechten Spalte und Höhe von „Dienst & Übergabe“, gespeichert pro Person (sonst „Standard“) im Browser-Speicher des Geräts.
@@ -2103,9 +2310,24 @@ export function mount(container, opts = {}) {
         (state.mode === "loading" ? "" : row('data-adminpop="backup"', state.mode === "shared" ? "Datenspeicher" : "Datensicherung", bs.text, bs.cls)) +
         (CHECKINS_ENABLED && CHECKIN_URL ? `<div class="arow"><span><b>Check-ins</b><small>${checkinsOn() ? "Eingeschaltet" : "Ausgeschaltet"}</small></span><button class="switch${checkinsOn() ? " on" : ""}" role="switch" aria-checked="${checkinsOn()}" aria-label="Check-ins ${checkinsOn() ? "ausschalten" : "einschalten"}" data-act2="feat-checkins"><span></span></button></div>` : "") +
         `<div class="arow"><span><b>Ton bei Erinnerungen</b><small>${state.cfg.features.sound === false ? "Aus – Erinnerungen erscheinen ohne Ton" : "An – kurzer Ton bei jedem Erinnerungs-Fenster"}</small></span><button class="switch${state.cfg.features.sound === false ? "" : " on"}" role="switch" aria-checked="${state.cfg.features.sound !== false}" aria-label="Ton bei Erinnerungen ${state.cfg.features.sound === false ? "einschalten" : "ausschalten"}" data-act2="feat-sound"><span></span></button></div>` +
+        row('data-adminpop="flex"', "Zeiten & Sonnenuntergang", `Rot nach ${graceMin()} Min. Puffer · ${locOf().name}${sunsetMin(state.date) != null ? ` · Sonnenuntergang heute ${fmtMin(sunsetMin(state.date))}` : ""}`) +
         (clTxt ? row('data-adminpop="cleanup"', "Alte Daten löschen", clTxt.text, clTxt.cls) : "") +
         row('data-adminpop="pin"', "Leitungs-PIN", pinTxt.text, pinTxt.cls))}
     </div>${state.adminPop ? renderAdminPop() : ""}`;
+  }
+  // Verwaltung › Zeiten & Sonnenuntergang: Puffer und Standort speichern (bei jeder Änderung).
+  function saveFlexCfg() {
+    if (!isUnlocked()) return;
+    const err = (m) => { const e = $("fx-err"); if (e) e.textContent = m; };
+    const g = parseInt(($("fx-grace") || {}).value, 10), num = (id) => Number(String(($(id) || {}).value || "").replace(",", ".").trim());
+    const lat = num("fx-lat"), lon = num("fx-lon"), name = String(($("fx-name") || {}).value || "").trim().slice(0, 40) || "Standort";
+    const location = normLoc({ name, lat, lon });
+    if (!location) return err("Breite und Länge als Zahl angeben, z. B. 53.633 und 9.85.");
+    err("");
+    const features = { ...(state.cfg.features || {}), grace: Number.isInteger(g) ? g : 15 };
+    state.cfg = { ...state.cfg, features, location };
+    persistCfg({ features, location });
+    toast("Gespeichert");
   }
   function renderAdminPop() {
     const pop = state.adminPop, last = LS.get("rz2meta", {}).lastBackup;
@@ -2119,6 +2341,17 @@ export function mount(container, opts = {}) {
         ${people ? `<ul class="teamlist">${people}</ul>` : "<p>Noch niemand angelegt.</p>"}
         <form id="addperson" class="pkadd"><input class="in" id="newperson" maxlength="40" placeholder="Vor- und Nachname" aria-label="Neue Person"><button class="btn primary" type="submit">Hinzufügen</button></form>
         <p class="hint">Namen erscheinen bei der Anmeldung und im Dienstplan. Entfernte Personen bleiben in alten Einträgen erhalten.</p>`);
+    }
+    if (pop === "flex") {
+      const loc = locOf(), g = graceMin(), sun = sunsetMin(state.date);
+      return frame("Zeiten & Sonnenuntergang", `<div class="apbody">
+        <p>Abschnitte richten sich nach <b>Beginn</b> (Einchecken) oder <b>Schluss</b> (Dienstplan). Alle Zeiten sind Richtwerte – rot wird ein Abschnitt erst nach dem Puffer.</p>
+        <label class="fld"><span>Puffer bis „überfällig“</span><select class="in" id="fx-grace">${[0, 5, 10, 15, 20, 30, 45, 60].map(n => `<option value="${n}"${n === g ? " selected" : ""}>${n} Min.</option>`).join("")}</select></label>
+        <h3 class="aph">Standort für den Sonnenuntergang</h3>
+        <label class="fld"><span>Ort</span><input class="in" id="fx-name" maxlength="40" value="${esc(loc.name)}"></label>
+        <div class="trow"><label class="fld"><span>Breite (N)</span><input class="in" id="fx-lat" inputmode="decimal" maxlength="9" value="${loc.lat}"></label><label class="fld"><span>Länge (O)</span><input class="in" id="fx-lon" inputmode="decimal" maxlength="9" value="${loc.lon}"></label></div>
+        <p class="hint">Koordinaten z. B. aus einer Karten-App (Ort lange antippen). Berechnung ohne Internet${sun != null ? ` · heute ${fmtMin(sun)} Uhr` : ""}.</p>
+        <p class="perr" id="fx-err" role="alert"></p></div>`);
     }
     if (pop === "cleanup") {
       const sc = cleanupScan(); if (!sc) return "";
@@ -3212,13 +3445,39 @@ export function mount(container, opts = {}) {
     if (state.readOnly) { setStatus("Nur Lesezugriff – Änderungen werden nicht gespeichert", true); return false; }
     if (!isUnlocked()) { requireAdmin("plan"); return false; }
     const m = clone(getMaster());
+    freezeAnchors(m);
     if (mutator(m) === false) return false;
     if (!saveMaster(m)) return false;
     state.unlockedUntil = Date.now() + 10 * 60000;
     return true;
   }
+  // Erste Änderung im Editor: abgeleitete Bezüge festschreiben (sonst verschöbe eine neue Schichtzeit die Zuordnung).
+  function freezeAnchors(m) {
+    for (const k of KEYS) {
+      const s = m.plan[k];
+      for (const p of s.phases) if (!p.anc) { const an = phaseAnchor(p, s); p.anc = an.anc; if (an.anc !== "t") { p.a = an.a; p.b = an.b; } }
+      for (const a of m.plan.always[k]) {
+        if (a.from && !a.fa) { const an = pointAnchor(null, null, a.from, s, a.t); a.fa = an.anc; if (an.anc !== "t") a.fm = an.m; }
+        if (a.remind && !a.ra) { const an = pointAnchor(null, null, a.remind, s, a.t); a.ra = an.anc; if (an.anc !== "t") a.rm = an.m; }
+      }
+    }
+  }
+  // Uhrzeiten angebundener Abschnitte/Erinnerungen für Mo–Fr und Sa+So aus Beginn/Schluss nachrechnen.
+  function syncMasterAnchors(m) {
+    for (const k of KEYS) {
+      const wkS = m.plan[k];
+      const weS = { start: m.we[k].start, end: m.we[k].end, phases: wkS.phases.map(p => ({ ...p, ...(m.we.phases[p.id] || {}), items: p.items.map(i => i.remind ? { ...i, remind: m.we.remind[i.id] || i.remind } : i) })) };
+      const weA = m.plan.always[k].map(a => ({ ...a, ...(a.from ? { from: (m.we.afrom || {})[a.id] || a.from } : {}), ...(a.remind ? { remind: m.we.remind[a.id] || a.remind } : {}) }));
+      syncAnchored(wkS, m.plan.always[k]);
+      syncAnchored(weS, weA);
+      m.we.afrom = m.we.afrom || {};
+      for (const p of weS.phases) { m.we.phases[p.id] = { from: p.from, to: p.to }; for (const i of p.items) if (i.remind) m.we.remind[i.id] = i.remind; }
+      for (const a of weA) { if (a.from) m.we.afrom[a.id] = a.from; if (a.remind) m.we.remind[a.id] = a.remind; }
+    }
+  }
   // Plan prüfen, Vorlagen ableiten, speichern. Ohne PIN-Prüfung – nur über editMaster oder für einmalige Umstellungen.
   function saveMaster(m) {
+    syncMasterAnchors(m);
     for (const k of KEYS) {
       fitShift(m.plan[k]);
       const t = m.plan[k].phases.map(p => m.we.phases[p.id]).filter(Boolean);
@@ -3245,6 +3504,17 @@ export function mount(container, opts = {}) {
 
   const BELL_SVG = '<svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"></path></svg>';
   const KIND_LABEL = { rhythm: "regelmäßig", confirm: "Pflicht", hint: "Hinweis" };
+  const ANC_NAME = { s: "nach Beginn", e: "vor Schluss", t: "feste Uhrzeit" };
+  // Auswahl „Richtet sich nach“; Felder mit data-show="<präfix>:<werte>" blendet der change-Handler passend ein.
+  const ancSel = (pfx, val, withPhase) => `<select class="in ancsel" id="${pfx}-anc" data-pfx="${pfx}" aria-label="Richtet sich nach">${withPhase ? `<option value="p"${val === "p" ? " selected" : ""}>mit dem Abschnitt (zieht mit)</option>` : ""}${["s", "e", "t"].map(k => `<option value="${k}"${val === k ? " selected" : ""}>${ANC_NAME[k]}</option>`).join("")}</select>`;
+  const showIf = (pfx, vals, cur) => `data-show="${pfx}:${vals}"${vals.split(",").includes(cur) ? "" : " hidden"}`;
+  // Zeitpunkt mit Bezug: Minuten nach Beginn/vor Schluss oder feste Uhrzeiten (Mo–Fr, Sa+So).
+  function pointFields(pfx, an, wkId, wkV, weId, weV, withPhase, what) {
+    const cur = an.anc;
+    return `<div class="ancrow">${ancSel(pfx, cur, withPhase)}
+        <span class="ancm" ${showIf(pfx, "s,e", cur)}><input class="in num" type="number" id="${pfx}-m" min="-600" max="900" step="5" value="${an.m != null ? an.m : 15}" aria-label="Minuten"> Min. <span ${showIf(pfx, "s", cur)}>nach Beginn</span><span ${showIf(pfx, "e", cur)}>vor Schluss</span></span></div>
+      <div class="anct" ${showIf(pfx, withPhase ? "t,p" : "t", cur)}><label>Mo–Fr ${what} ${timeIn(wkId, wkV, what + " Mo–Fr")}</label><label>Sa+So ${what} ${timeIn(weId, weV, what + " Sa+So")}</label></div>`;
+  }
   function timesLabel(wk, we) {
     return wk.from === we.from && wk.to === we.to ? `täglich ${wk.from}–${wk.to}` : `Mo–Fr ${wk.from}–${wk.to} · Sa+So ${we.from}–${we.to}`;
   }
@@ -3253,9 +3523,10 @@ export function mount(container, opts = {}) {
     const shiftTimes = timesLabel({ from: s.start, to: s.end }, { from: wes.start, to: wes.end });
     const seg = KEYS.map(k => `<button class="segbtn${k === key ? " on" : ""}" data-edshift="${k}" aria-pressed="${k === key}">${SHIFT_META[k].label}</button>`).join("");
     const phases = s.phases.map(p => {
-      const open = state.edOpen.has(p.id) || state.edAdd === p.id;
+      const open = state.edOpen.has(p.id) || state.edAdd === p.id, pan = phaseAnchor(p, s);
       const rows = p.items.map(i => {
-        const rem = i.remind ? `<span class="badge rem">${BELL_SVG}${esc(i.remind === m.we.remind[i.id] ? i.remind : `${i.remind} / ${m.we.remind[i.id]}`)}${i.remindAlways ? " · immer" : ""}</span>` : "";
+        const ia = i.ra === "s" || i.ra === "e" ? pointAnchor(i.ra, i.rm, i.remind, s) : null, moves = !ia && i.ra !== "t" && pan.anc !== "t";
+        const rem = i.remind ? `<span class="badge rem">${BELL_SVG}${esc(ia ? pointLabel(ia) : (moves ? "ca. " : "") + (i.remind === m.we.remind[i.id] ? i.remind : `${i.remind} / ${m.we.remind[i.id]}`))}${i.remindAlways ? " · immer" : ""}</span>` : "";
         return `<li data-id="${esc(i.id)}"${state.edNew === i.id ? ' class="new"' : ""}><span class="grip" data-grip="1" aria-hidden="true" title="Ziehen zum Sortieren">⋮⋮</span>
           <button class="edtxt${i.important ? " imp" : ""}" data-editem="${esc(i.id)}">${esc(i.t)}${i.s ? `<small>${esc(i.s)}</small>` : ""}</button>
           ${i.optional ? '<span class="badge">darf entfallen</span>' : ""}${rem}</li>`;
@@ -3264,15 +3535,16 @@ export function mount(container, opts = {}) {
         ? `<form class="edadd" data-addto="${esc(p.id)}"><label for="ed-new">Neue Aufgabe</label><input class="in" id="ed-new" maxlength="200" autocomplete="off" placeholder="Text eingeben, Enter"><button class="btn primary" type="submit">Hinzufügen</button><button class="btn ghost" type="button" data-edaddclose="1">Fertig</button></form>`
         : `<button class="addrow" data-edadd="${esc(p.id)}">+ Aufgabe</button>`;
       return `<section class="card edphase">
-        <div class="edhead"><button class="edtoggle" data-edopen="${esc(p.id)}" aria-expanded="${open}"><span class="ttl">${esc(p.title)}</span><span class="tm">${timesLabel(p, m.we.phases[p.id])}</span>${open ? "" : `<span class="cnt">${p.items.length} ${p.items.length === 1 ? "Aufgabe" : "Aufgaben"} ›</span>`}</button>
+        <div class="edhead"><button class="edtoggle" data-edopen="${esc(p.id)}" aria-expanded="${open}"><span class="ttl">${esc(p.title)}</span><span class="ancb${pan.anc === "t" ? " fixed" : ""}">${ANC_NAME[pan.anc]}</span><span class="tm">${pan.anc === "t" ? timesLabel(p, m.we.phases[p.id]) : anchorLabel(pan, p)}</span>${open ? "" : `<span class="cnt">${p.items.length} ${p.items.length === 1 ? "Aufgabe" : "Aufgaben"} ›</span>`}</button>
           <button class="btn ghost sm" data-edphase="${esc(p.id)}">Abschnitt bearbeiten</button></div>
         ${open ? `<ul class="edlist" data-list="phase:${esc(p.id)}">${rows}</ul>${add}` : ""}
       </section>`;
     }).join("");
     const pair = (wk, we) => wk === we ? wk : `${wk} / ${we}`;
     const always = m.plan.always[key].map(a => {
-      const from = a.from ? `<span class="badge">ab ${esc(pair(a.from, m.we.afrom[a.id] || a.from))}</span>` : "";
-      const rem = a.remind ? `<span class="badge rem">${BELL_SVG}${esc(pair(a.remind, m.we.remind[a.id] || a.remind))}${a.remindAlways ? " · immer" : ""}</span>`
+      const fa = a.from ? pointAnchor(a.fa, a.fm, a.from, s, a.t) : null, ra = a.remind ? pointAnchor(a.ra, a.rm, a.remind, s, a.t) : null;
+      const from = a.from ? `<span class="badge">ab ${esc(fa.anc === "t" ? pair(a.from, m.we.afrom[a.id] || a.from) : pointLabel(fa))}</span>` : "";
+      const rem = a.remind ? `<span class="badge rem">${BELL_SVG}${esc(ra.anc === "t" ? pair(a.remind, m.we.remind[a.id] || a.remind) : pointLabel(ra))}${a.remindAlways ? " · immer" : ""}</span>`
         : a.remindOver ? `<span class="badge rem">${BELL_SVG}wenn überfällig</span>` : "";
       return `<li data-id="${esc(a.id)}"><span class="grip" data-grip="1" aria-hidden="true" title="Ziehen zum Sortieren">⋮⋮</span><button class="edtxt${a.important ? " imp" : ""}" data-edalways="${esc(a.id)}">${esc(a.t)}</button><span class="badge">${a.kind === "rhythm" ? `alle ${a.every} Min.` : KIND_LABEL[a.kind]}</span>${from}${rem}</li>`;
     }).join("");
@@ -3301,8 +3573,7 @@ export function mount(container, opts = {}) {
         <div class="checks"><label><input type="checkbox" id="ep-imp" ${i.important ? "checked" : ""}> Wichtig (rot)</label><label><input type="checkbox" id="ep-opt" ${i.optional ? "checked" : ""}> Darf entfallen</label></div>
         <fieldset class="remfs"><legend>Erinnerung als Popup</legend>
           <label><input type="checkbox" id="ep-rem" ${i.remind ? "checked" : ""}> Erinnern</label>
-          <label>Mo–Fr um ${timeIn("ep-remwk", i.remind || wkT.from, "Erinnerung Mo–Fr")}</label>
-          <label>Sa+So um ${timeIn("ep-remwe", m.we.remind[i.id] || weT.from, "Erinnerung Sa+So")}</label>
+          ${pointFields("ep-r", i.ra === "s" || i.ra === "e" ? pointAnchor(i.ra, i.rm, i.remind, m.plan[key]) : { anc: i.ra === "t" ? "t" : "p", m: 15 }, "ep-remwk", i.remind || wkT.from, "ep-remwe", m.we.remind[i.id] || weT.from, true, "um")}
           <div class="remwhen" role="radiogroup" aria-label="Wann erinnern">
             <label><input type="radio" name="ep-remwhen" id="ep-remopen" ${i.remindAlways ? "" : "checked"}> nur wenn noch offen</label>
             <label><input type="radio" name="ep-remwhen" id="ep-remalways" ${i.remindAlways ? "checked" : ""}> immer – auch wenn schon erledigt (zur Sicherheit)</label></div></fieldset>`, true, "Wirklich löschen?");
@@ -3312,13 +3583,16 @@ export function mount(container, opts = {}) {
       const s = m.plan[key], last = s.phases.length ? Math.max(...s.phases.map(x => toMin(x.to))) : toMin(s.start);
       const lastWe = s.phases.length ? Math.max(...s.phases.map(x => toMin(m.we.phases[x.id].to))) : toMin(m.we[key].start);
       const d = p ? { title: p.title, hint: p.hint, wk: p, we: m.we.phases[p.id] } : { title: "", hint: "", wk: { from: fmtMin(Math.min(last, 1409)), to: fmtMin(Math.min(last + 30, 1439)) }, we: { from: fmtMin(Math.min(lastWe, 1409)), to: fmtMin(Math.min(lastWe + 30, 1439)) } };
-      const n = p ? p.items.length : 0;
+      const n = p ? p.items.length : 0, an = p ? phaseAnchor(p, s) : { anc: "e", a: 30, b: 0 };
       return frame(p ? "Abschnitt bearbeiten" : "Neuer Abschnitt", `
         ${fld("Name", `<input class="in" id="ep-t" maxlength="60" value="${esc(d.title)}" placeholder="z. B. Nachmittag" required>`)}
         ${fld("Hinweis (optional)", `<input class="in" id="ep-s" maxlength="80" value="${esc(d.hint || "")}" placeholder="z. B. direkt bei Schichtbeginn">`)}
-        <div class="tgrid"><span></span><b>von</b><b>bis</b>
+        <label class="fld"><span>Richtet sich nach</span>${ancSel("ep-p", an.anc, false)}</label>
+        <div class="ancrow" ${showIf("ep-p", "s,e", an.anc)}>von <input class="in num" type="number" id="ep-a" min="-600" max="900" step="5" value="${an.anc === "t" ? 0 : an.a}" aria-label="von Minuten"> bis <input class="in num" type="number" id="ep-b" min="-600" max="900" step="5" value="${an.anc === "t" ? 30 : an.b}" aria-label="bis Minuten"> Min. <span ${showIf("ep-p", "s", an.anc)}>nach Beginn</span><span ${showIf("ep-p", "e", an.anc)}>vor Schluss</span></div>
+        <div class="tgrid" ${showIf("ep-p", "t", an.anc)}><span></span><b>von</b><b>bis</b>
           <b>Mo–Fr</b>${timeIn("ep-wkf", d.wk.from, "Mo–Fr von")}${timeIn("ep-wkt", d.wk.to, "Mo–Fr bis")}
-          <b>Sa + So</b>${timeIn("ep-wef", d.we.from, "Sa+So von")}${timeIn("ep-wet", d.we.to, "Sa+So bis")}</div>`, !!p, n ? `Mit ${n} ${n === 1 ? "Aufgabe" : "Aufgaben"} löschen?` : "Wirklich löschen?");
+          <b>Sa + So</b>${timeIn("ep-wef", d.we.from, "Sa+So von")}${timeIn("ep-wet", d.we.to, "Sa+So bis")}</div>
+        <p class="hint">Zeiten sind Richtwerte („ca.“). Beginn = Einchecken, Schluss = Dienstplan – beides heute in der Jetzt-Leiste änderbar.</p>`, !!p, n ? `Mit ${n} ${n === 1 ? "Aufgabe" : "Aufgaben"} löschen?` : "Wirklich löschen?");
     }
     if (pop.type === "shift") {
       const s = m.plan[key], we = m.we[key];
@@ -3338,20 +3612,23 @@ export function mount(container, opts = {}) {
           <div class="checks"><label><input type="checkbox" id="ep-over" ${a && a.remindOver ? "checked" : ""}> Erinnerung als Popup, sobald überfällig</label></div></div>
         <div id="ep-conff"${kind === "confirm" ? "" : " hidden"}>
           <fieldset class="remfs"><legend>Fällig ab (optional)</legend>
-            <label><input type="checkbox" id="ep-from" ${a && a.from ? "checked" : ""}> Erst ab einer Uhrzeit</label>
-            <label>Mo–Fr ab ${timeIn("ep-fromwk", (a && a.from) || "", "Fällig ab Mo–Fr")}</label>
-            <label>Sa+So ab ${timeIn("ep-fromwe", (a && (m.we.afrom[a.id] || a.from)) || "", "Fällig ab Sa+So")}</label>
+            <label><input type="checkbox" id="ep-from" ${a && a.from ? "checked" : ""}> Erst ab einem Zeitpunkt</label>
+            ${pointFields("ep-f", a && a.from ? pointAnchor(a.fa, a.fm, a.from, m.plan[key], a.t) : { anc: "e", m: 60 }, "ep-fromwk", (a && a.from) || "", "ep-fromwe", (a && (m.we.afrom[a.id] || a.from)) || "", false, "ab")}
             <p class="hint">Vorher bestätigt? Ab dieser Uhrzeit steht der Punkt wieder offen da (z. B. Laptop und Handy laden).</p></fieldset>
           <fieldset class="remfs"><legend>Erinnerung als Popup</legend>
             <label><input type="checkbox" id="ep-rem" ${a && a.remind ? "checked" : ""}> Erinnern</label>
-            <label>Mo–Fr um ${timeIn("ep-remwk", (a && a.remind) || "", "Erinnerung Mo–Fr")}</label>
-            <label>Sa+So um ${timeIn("ep-remwe", (a && (m.we.remind[a.id] || a.remind)) || "", "Erinnerung Sa+So")}</label>
+            ${pointFields("ep-r", a && a.remind ? pointAnchor(a.ra, a.rm, a.remind, m.plan[key], a.t) : { anc: "e", m: 30 }, "ep-remwk", (a && a.remind) || "", "ep-remwe", (a && (m.we.remind[a.id] || a.remind)) || "", false, "um")}
             <div class="remwhen" role="radiogroup" aria-label="Wann erinnern">
               <label><input type="radio" name="ep-remwhen" id="ep-remopen" ${a && a.remindAlways ? "" : "checked"}> nur wenn noch offen</label>
               <label><input type="radio" name="ep-remwhen" id="ep-remalways" ${a && a.remindAlways ? "checked" : ""}> immer – auch wenn schon bestätigt</label></div></fieldset></div>
         <div class="checks"><label><input type="checkbox" id="ep-imp" ${a && a.important ? "checked" : ""}> Wichtig (rot)</label></div>`, !!a, "Wirklich löschen?");
     }
     return "";
+  }
+  // Bezug aus dem Fenster lesen: { anc: "s"|"e"|"t"|"p", m, rel }
+  function readPoint(pfx) {
+    const sel = $(pfx + "-anc"), anc = sel ? sel.value : "t", m = parseInt((($(pfx + "-m") || {}).value || ""), 10);
+    return { anc, m, rel: anc === "s" || anc === "e" };
   }
   function closeEdPop() { blurActive(); state.edPop = null; state.edConfirmDel = false; render(); }
   // Fenster „Speichern“: Felder lesen, prüfen, übernehmen.
@@ -3365,13 +3642,19 @@ export function mount(container, opts = {}) {
     let ok = true;
     if (pop.type === "item") {
       if (!t) return err("Bitte einen Text eingeben.");
-      const rem = c("ep-rem"), rwk = tv("ep-remwk"), rwe = tv("ep-remwe");
-      if (rem && (!TIME_RE.test(rwk) || !TIME_RE.test(rwe))) return err("Bitte beide Erinnerungszeiten angeben.");
+      const rem = c("ep-rem"), rwk = tv("ep-remwk"), rwe = tv("ep-remwe"), r = readPoint("ep-r");
+      if (rem && r.rel && !offOk(r.m)) return err("Bitte die Minuten als Zahl angeben (0 bis 900).");
+      if (rem && !r.rel && (!TIME_RE.test(rwk) || !TIME_RE.test(rwe))) return err("Bitte beide Erinnerungszeiten angeben.");
       ok = editMaster(m => {
         const f = findItem(m, key, pop.id); if (!f) return false;
         const i = f.item;
         i.t = t; i.s = v("ep-s").trim(); i.important = c("ep-imp"); i.optional = c("ep-opt");
-        if (rem) { i.remind = rwk; m.we.remind[i.id] = rwe; if (c("ep-remalways")) i.remindAlways = true; else delete i.remindAlways; }
+        delete i.ra; delete i.rm;
+        if (rem) {
+          i.remind = TIME_RE.test(rwk) ? rwk : m.plan[key].start; m.we.remind[i.id] = TIME_RE.test(rwe) ? rwe : i.remind;
+          if (r.rel) { i.ra = r.anc; i.rm = r.m; } else if (r.anc === "t") i.ra = "t";
+          if (c("ep-remalways")) i.remindAlways = true; else delete i.remindAlways;
+        }
         else { delete i.remind; delete i.remindAlways; delete m.we.remind[i.id]; }
         const target = findPhase(m, key, v("ep-phase"));
         if (target && target !== f.phase) { f.phase.items.splice(f.idx, 1); target.items.push(i); }
@@ -3379,12 +3662,19 @@ export function mount(container, opts = {}) {
     } else if (pop.type === "phase") {
       if (!t) return err("Bitte einen Namen eingeben.");
       const wk = { from: tv("ep-wkf"), to: tv("ep-wkt") }, we = { from: tv("ep-wef"), to: tv("ep-wet") };
-      if (!range(wk.from, wk.to) || !range(we.from, we.to)) return err("Bitte Uhrzeiten als HH:MM eingeben – „bis“ muss nach „von“ liegen.");
+      const anc = ["s", "e", "t"].includes(v("ep-p-anc")) ? v("ep-p-anc") : "t";
+      let a = parseInt(v("ep-a"), 10), b = parseInt(v("ep-b"), 10);
+      if (anc === "t" && (!range(wk.from, wk.to) || !range(we.from, we.to))) return err("Bitte Uhrzeiten als HH:MM eingeben – „bis“ muss nach „von“ liegen.");
+      if (anc !== "t") {
+        if (!offOk(a) || !offOk(b) || a === b) return err("Bitte zwei verschiedene Minutenwerte angeben (z. B. 30 bis 0).");
+        if ((anc === "s" && a > b) || (anc === "e" && a < b)) [a, b] = [b, a];
+      }
       ok = editMaster(m => {
         let p = pop.id ? findPhase(m, key, pop.id) : null;
         if (!p) { p = { id: newId("p"), items: [] }; m.plan[key].phases.push(p); state.edOpen.add(p.id); }
-        Object.assign(p, { title: t, hint: v("ep-s").trim(), from: wk.from, to: wk.to });
-        m.we.phases[p.id] = we;
+        const ph = range(wk.from, wk.to) ? wk : { from: m.plan[key].start, to: m.plan[key].end };
+        Object.assign(p, { title: t, hint: v("ep-s").trim(), from: ph.from, to: ph.to, anc });
+        if (anc === "t") { delete p.a; delete p.b; m.we.phases[p.id] = we; } else { p.a = a; p.b = b; m.we.phases[p.id] = range(we.from, we.to) ? we : { ...ph }; }
       });
     } else if (pop.type === "shift") {
       const wk = { from: tv("ep-wkf"), to: tv("ep-wkt") }, we = { from: tv("ep-wef"), to: tv("ep-wet") };
@@ -3393,19 +3683,21 @@ export function mount(container, opts = {}) {
     } else if (pop.type === "always") {
       if (!t) return err("Bitte einen Text eingeben.");
       const kind = v("ep-kind"), every = Math.min(480, Math.max(5, parseInt(v("ep-every"), 10) || 60));
-      const from = kind === "confirm" && c("ep-from"), fwk = tv("ep-fromwk"), fwe = tv("ep-fromwe");
-      const rem = kind === "confirm" && c("ep-rem"), rwk = tv("ep-remwk"), rwe = tv("ep-remwe");
-      if (from && (!TIME_RE.test(fwk) || !TIME_RE.test(fwe))) return err("Bitte beide Uhrzeiten für „Fällig ab“ angeben (HH:MM).");
-      if (rem && (!TIME_RE.test(rwk) || !TIME_RE.test(rwe))) return err("Bitte beide Erinnerungszeiten angeben (HH:MM).");
+      const from = kind === "confirm" && c("ep-from"), fwk = tv("ep-fromwk"), fwe = tv("ep-fromwe"), fp = readPoint("ep-f");
+      const rem = kind === "confirm" && c("ep-rem"), rwk = tv("ep-remwk"), rwe = tv("ep-remwe"), rp = readPoint("ep-r");
+      if ((from && fp.rel && !offOk(fp.m)) || (rem && rp.rel && !offOk(rp.m))) return err("Bitte die Minuten als Zahl angeben (0 bis 900).");
+      if (from && !fp.rel && (!TIME_RE.test(fwk) || !TIME_RE.test(fwe))) return err("Bitte beide Uhrzeiten für „Fällig ab“ angeben (HH:MM).");
+      if (rem && !rp.rel && (!TIME_RE.test(rwk) || !TIME_RE.test(rwe))) return err("Bitte beide Erinnerungszeiten angeben (HH:MM).");
       ok = editMaster(m => {
         const list = m.plan.always[key];
         let a = pop.id ? list.find(x => x.id === pop.id) : null;
         if (!a) { a = { id: newId("a") }; list.push(a); }
-        for (const k of ["from", "remind", "remindAlways", "remindOver"]) delete a[k];
+        for (const k of ["from", "remind", "remindAlways", "remindOver", "fa", "fm", "ra", "rm"]) delete a[k];
         delete m.we.afrom[a.id]; delete m.we.remind[a.id];
         Object.assign(a, { t, s: v("ep-s").trim(), kind, every: kind === "rhythm" ? every : 0, important: c("ep-imp") });
-        if (from) { a.from = fwk; m.we.afrom[a.id] = fwe; }
-        if (rem) { a.remind = rwk; m.we.remind[a.id] = rwe; if (c("ep-remalways")) a.remindAlways = true; }
+        const st = m.plan[key].start;
+        if (from) { a.from = TIME_RE.test(fwk) ? fwk : st; m.we.afrom[a.id] = TIME_RE.test(fwe) ? fwe : a.from; if (fp.rel) { a.fa = fp.anc; a.fm = fp.m; } else a.fa = "t"; }
+        if (rem) { a.remind = TIME_RE.test(rwk) ? rwk : st; m.we.remind[a.id] = TIME_RE.test(rwe) ? rwe : a.remind; if (rp.rel) { a.ra = rp.anc; a.rm = rp.m; } else a.ra = "t"; if (c("ep-remalways")) a.remindAlways = true; }
         if (kind === "rhythm" && c("ep-over")) a.remindOver = true;
       });
     }
@@ -3596,7 +3888,7 @@ export function mount(container, opts = {}) {
     for (const [id, d] of Object.entries(drafts.vals)) {
       const el = $(id); if (!el || !$("main").contains(el)) continue;
       if ("c" in d) el.checked = d.c; else el.value = d.v;
-      if (el.id === "ep-kind") el.dispatchEvent(new Event("change", { bubbles: true }));
+      if (el.id === "ep-kind" || el.classList.contains("ancsel")) el.dispatchEvent(new Event("change", { bubbles: true }));
     }
   }
   function render() {
@@ -3734,6 +4026,19 @@ export function mount(container, opts = {}) {
       state.remPop = { shift: t.dataset.remadd }; render(); const i = $("rp-t"); if (i) i.focus(); return;
     }
     if (t.dataset.rpclose) { blurActive(); state.remPop = null; render(); return; }
+    if (t.dataset.rqsun) { const sm = sunsetMin(state.date); if (sm == null) return; const v = fmtMin(sm), i = $("rp-at"); if (i) i.value = v; if (state.remPop) { state.remPop.at = v; const tt = $("rp-t"); if (tt && !tt.value.trim()) { tt.value = "Licht einschalten (Sonnenuntergang)"; state.remPop.t = tt.value; } } return; }
+    // Beginn/Schluss heute ändern
+    if (t.dataset.adj) {
+      if (state.readOnly || state.date !== isoDate(new Date())) return;
+      if (needPerson()) return;
+      const [key, which] = t.dataset.adj.split(":");
+      if (!KEYS.includes(key) || !["start", "end"].includes(which)) return;
+      const prev = state.adj[key] && state.adj[key][which];
+      state.adjPop = { key, which, reason: prev ? prev.reason || "" : "" }; render(); const i = $("ad-t"); if (i) { i.focus(); i.select(); } return;
+    }
+    if (t.dataset.adjclose) { blurActive(); state.adjPop = null; render(); return; }
+    if (t.dataset.adjq) { const i = $("ad-t"), cur = normTime(i && i.value) || (state.adjPop && state.adjPop.t); if (!cur || !i) return; const v = fmtMin(clampDay(toMin(cur) + Number(t.dataset.adjq))); i.value = v; if (state.adjPop) state.adjPop.t = v; return; }
+    if (t.dataset.adjreset) { const pop = state.adjPop; if (!pop) return; blurActive(); state.adjPop = null; saveAdj(pop.key, pop.which, null); toast(`${pop.which === "start" ? "Beginn" : "Schluss"} wieder laut Plan`); render(); return; }
     if (t.dataset.rq) { const v = fmtMin(Math.min(1435, Math.ceil((nowMin() + Number(t.dataset.rq)) / 5) * 5)); const i = $("rp-at"); if (i) i.value = v; if (state.remPop) state.remPop.at = v; return; }
     if (t.dataset.remcheck) { if (needPerson()) return; const r = state.rem[t.dataset.remcheck]; if (r) setRemDone(t.dataset.remcheck, !r.done); return; }
     if (t.dataset.remdel) {
@@ -3893,10 +4198,16 @@ export function mount(container, opts = {}) {
     if (el.id === "rhi") { state.rosterHi = el.value.slice(0, 40); return applyRosterHi(); }
     if (state.remPop && el.id === "rp-t") state.remPop.t = el.value;
     if (state.remPop && el.id === "rp-at") state.remPop.at = el.value;
+    if (state.adjPop && el.id === "ad-t") state.adjPop.t = el.value;
+    if (state.adjPop && el.id === "ad-r") state.adjPop.reason = el.value;
   });
   main.addEventListener("change", (e) => {
     if (e.target.dataset && e.target.dataset.rnote) return setRosterNote(e.target.dataset.rnote, e.target.dataset.shift, e.target.value);
     if (e.target.id === "enc-noted") { const b = $("enc-done"); if (b) b.disabled = !e.target.checked; }
+    if (e.target.classList && e.target.classList.contains("ancsel")) {
+      const pfx = e.target.dataset.pfx, val = e.target.value;
+      main.querySelectorAll("[data-show]").forEach(x => { const [p2, vals] = x.dataset.show.split(":"); if (p2 === pfx) x.hidden = !vals.split(",").includes(val); });
+    }
     if (e.target.id === "ep-kind") { const f = $("ep-everyf"), g = $("ep-conff"); if (f) f.hidden = e.target.value !== "rhythm"; if (g) g.hidden = e.target.value !== "confirm"; }
   });
   main.addEventListener("submit", (e) => {
@@ -3907,6 +4218,7 @@ export function mount(container, opts = {}) {
     if (e.target.id === "addperson") { const v = $("newperson").value; if (drafts) delete drafts.vals.newperson; return addPerson(v); }
     if (e.target.id === "edpop") return submitEdPop();
     if (e.target.id === "rempop") return submitRemPop();
+    if (e.target.id === "adjpop") return submitAdjPop();
     if (e.target.id === "decform") { const i = $("dec-secret"); decryptPendingImport(i ? i.value : ""); return; }
     if (e.target.id === "encform") return setupEncryption();
     if (e.target.dataset && e.target.dataset.addto) { const i = $("ed-new"); addTask(e.target.dataset.addto, i ? i.value : ""); return; }
@@ -3915,6 +4227,7 @@ export function mount(container, opts = {}) {
     const el = e.target;
     rememberDraft(el);
     if (el.dataset.person) return renamePerson(el.dataset.person, el.value);
+    if (["fx-grace", "fx-name", "fx-lat", "fx-lon"].includes(el.id)) return saveFlexCfg();
     if (el.id === "t-person") { state.timesPerson = el.value || (state.timesAll ? "" : null); render(); return; }
     if (el.id === "rhi-sel") { state.rosterHi = el.value; return applyRosterHi(); }
     if (el.id === "autostart" && NATIVE) {
