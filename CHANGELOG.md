@@ -2,6 +2,9 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.27.2 – 25.11.2026
+- Heute zeigt der Fahrplan nicht mehr an, wie viele Aufgaben die andere Schicht offen gelassen hat (Feld „Früh: n offen“ und rote Leiste für die Leitung entfallen). Im Rückblick auf vergangene Tage bleibt der Hinweis.
+
 ## 1.27.1 – 25.11.2026
 - Liegen Erinnerungen oder Rundgänge dicht beieinander, zeigt die Zeitlinie nur noch eine Glocke mit einer Linie und der Anzahl statt mehrerer Linien untereinander.
 - Pflicht-Punkte („Den ganzen Tag“) stehen als Leiste oben im Fahrplan und sind die ganze Schicht sichtbar: offen neutral, in den letzten 30 Min. orange, nach „Zurück zur Schicht“ rot, bestätigt grün (↶ nimmt zurück), „ab …“ gestrichelt. Der Kasten vor Schluss entfällt.
