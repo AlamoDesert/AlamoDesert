@@ -1658,7 +1658,7 @@ export function mount(container, opts = {}) {
     ev.sort((x, y) => (x.m - y.m) || (x.ord - y.ord));
     // Zeitspanne jeder Zeile als data-m/data-e (Ende = e, sonst m) – placeNow setzt daraus die mitlaufende Uhrzeit.
     const withSpan = (x) => x.html.replace('<div class="tlrow', `<div data-m="${x.m}" data-e="${x.e != null ? x.e : x.m}" class="tlrow`);
-    return `<div class="tl${laneHtml ? " has-lane" : ""}" style="--remw:${getLayout().remw}px">${ev.map(withSpan).join("")}${laneHtml}<div class="tlnowline" id="tl-nowline" aria-hidden="true"></div><div class="tlnow" id="tl-now" role="img" aria-label="Jetzt ${fmtMin(ctx)}"><b>${fmtMin(ctx)}</b></div></div>`;
+    return `<div class="tl${laneHtml ? " has-lane" : ""}" style="--remw:${getLayout().remw}px">${ev.map(withSpan).join("")}${laneHtml}<div class="tlpast" id="tl-past" aria-hidden="true"></div><div class="tlnowline" id="tl-nowline" aria-hidden="true"></div><div class="tlnow" id="tl-now" role="img" aria-label="Jetzt ${fmtMin(ctx)}"><b>${fmtMin(ctx)}</b></div></div>`;
   }
   // Sprung aus dem Tagesablauf oder „Als Nächstes“: Abschnitt öffnen (falls eingeklappt), hinscrollen, kurz hervorheben.
   // Mitlaufende Uhrzeit links am Tagesablauf: liegt „jetzt“ in einer Zeile (Abschnitt von–bis), steht die Marke anteilig darin,
@@ -1682,6 +1682,8 @@ export function mount(container, opts = {}) {
     const ctx = nowMin(), y = yAt(ctx), t = fmtMin(ctx), b = mk.querySelector("b");
     if (b && b.textContent !== t) { b.textContent = t; mk.setAttribute("aria-label", "Jetzt " + t); }
     mk.style.top = ln.style.top = Math.round(y) + "px";
+    // Vergangenes leicht getönt (ab 1.27.5): Fläche vom oberen Rand bis „jetzt“.
+    const past = tl.querySelector("#tl-past"); if (past) past.style.height = Math.max(0, Math.round(y)) + "px";
     // Erinnerungen: Glocke + Verbindung genau auf der Uhrzeit; die Karten rechts so nah wie möglich daran, ohne sich zu überdecken.
     for (const el of tl.querySelectorAll(".tlbell, .tlconn")) el.style.top = Math.round(yAt(+el.dataset.at)) + "px";
     // Liegen Erinnerungen dicht beieinander, nur eine Glocke + eine Linie (mit Anzahl) – sonst stapeln sich die Linien (ab 1.27.1).

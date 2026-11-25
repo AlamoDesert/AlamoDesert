@@ -931,3 +931,10 @@ header.top.otherday .datelink { color: var(--other); font-weight: 700 }
 .pin.important .pintap { font-weight: 700 }
 .pinundo { border: 0; border-left: 1px solid var(--done); background: none; color: var(--done); padding: 4px 9px; cursor: pointer; font-size: 13px }
 .pintap:not(:disabled):hover .box { border-color: var(--accent) }
+
+/* 1.27.5 Mitlaufende Uhrzeit: Vergangenes getönt, gestrichelte graublaue Linie, Punkt mit Ring auf der Zeitlinie */
+.tl { isolation: isolate }
+.tlpast { position: absolute; left: -12px; right: -12px; top: -2px; z-index: -1; pointer-events: none; background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--logo) 9%, transparent)); border-bottom: 0 }
+.tlnowline { border-top: 1.5px dashed var(--logo); opacity: .7 }
+.tlnow b { background: var(--logo); color: #fff; border-radius: 6px; padding: 1px 6px }
+.tlnow::after { left: 67px; top: -5px; width: 10px; height: 10px; background: var(--logo); box-shadow: 0 0 0 3px color-mix(in srgb, var(--logo) 22%, var(--surface)) }

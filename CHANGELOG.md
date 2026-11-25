@@ -2,6 +2,9 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.27.5 – 25.11.2026
+- Mitlaufende Uhrzeit dezenter: Vergangenes im Tagesablauf leicht getönt, gestrichelte graublaue Linie hinter den Karten, Uhrzeit in einer graublauen Marke, Punkt mit hellem Ring auf der Zeitlinie (statt schwarzem Strich).
+
 ## 1.27.4 – 25.11.2026
 - Der Fortschrittsbalken („0/18“) im Kopf des Fahrplans entfällt heute. Im Rückblick auf andere Tage bleibt „n/m erledigt“ stehen.
 
