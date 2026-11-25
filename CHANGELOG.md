@@ -2,6 +2,10 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.22.5 – 25.11.2026
+- Monatsstatistik: Wer einen Tag öffnet, sieht oben „‹ Zurück zur Monatsstatistik“ und kommt mit einem Klick zurück (statt über die Verwaltung).
+- Der Hinweis „Stand vom Tag“ neben dem Datum vergangener Tage entfällt. Die Funktion bleibt: Vergangene Tage zeigen weiter den Plan, der an dem Tag galt.
+
 ## 1.22.4 – 25.11.2026
 - Knopf für die Schriftgröße als Liniensymbol (großes und kleines A) im Stil von Kalender und Zahnrad statt Text „AA“.
 

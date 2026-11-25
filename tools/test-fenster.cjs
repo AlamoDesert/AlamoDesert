@@ -111,6 +111,15 @@ srv.listen(0, async () => {
   check(await p.evaluate(() => localStorage.getItem("rz2cfg").includes("Test Ben")) && await q(p, "#newperson").inputValue() === "", "Team: Enter legt an und leert das Feld");
   await q(p, "[data-adminpop-close]").click(); await step();
 
+  // Monatsstatistik → Tag → „Zurück zur Monatsstatistik“
+  await q(p, '[data-act2="open-month"]').click(); await step(300);
+  await q(p, ".mcell").first().click(); await step(300);
+  const hasBack = await q(p, ".backbar [data-backto]").count() === 1;
+  await q(p, "[data-backto]").click(); await step(300);
+  check(hasBack && await q(p, "#mprev").count() === 1, "Statistik: Tag öffnen und mit einem Klick zurück");
+  if (await q(p, "#today").isVisible()) { await q(p, "#today").click(); await step(); }
+  await q(p, '[data-view="admin"]').click(); await step();
+
   // Arbeitszeiten: Enter im Korrektur-Fenster speichert
   await q(p, '[data-act2="open-times"]').click(); await step(300);
   await q(p, '[data-act2="t-add"]').click(); await q(p, "#te-note").fill("per Enter"); await q(p, "#te-note").press("Enter"); await step(300);

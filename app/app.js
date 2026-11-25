@@ -610,6 +610,7 @@ export function mount(container, opts = {}) {
     stillHere: null,     // Fenster „Noch da?“: { id, entry, end }
     rosterHi: null,      // Dienstplan: Name, dessen Tage hervorgehoben werden (null = eingecheckte Person, "" = alle)
     importPreview: null, // eingelesener Arbeitsplan vor dem Übernehmen
+    backTo: null,        // Rückweg aus einem Tag (z. B. "monat" nach Klick in der Monatsstatistik)
     updErr: null, updBusy: false, // App-Update: letzte Fehlermeldung, Einspielen läuft
   };
   let db = null, user = null, myId = null, unsubDay = null, unsubMonth = null, unsubCfg = null, monthKey = null;
@@ -1721,7 +1722,8 @@ export function mount(container, opts = {}) {
     const banner = hb && !handRead(key, hb) ? `<div class="handbar${hb.important ? " imp" : ""}"><span class="imptag">Übergabe</span><span class="htxt"><b>${key === "frueh" ? "Von der Spätschicht" : "Von der Frühschicht"}:</b> ${esc(hb.text)}</span><button class="btn" data-hopen="${key}">Öffnen</button><button class="btn primary" data-hread="${key}">Gelesen</button></div>` : "";
     if (state.coFlag === key && !shiftOpenList(key).items.length && !shiftOpenList(key).confirms.length) state.coFlag = null;
     const leader = !!state.cfg.adminPin && !pinOff() && isUnlocked();
-    return `${banner}<div class="schicht cols-1" style="--side:${lay.side}px">
+    const back = state.backTo === "monat" ? `<div class="backbar"><button class="btn" data-backto="1">‹ Zurück zur Monatsstatistik</button><span>${WD[parseIso(state.date).getDay()]}, ${state.date.split("-").reverse().join(".")} · ${meta.label}</span></div>` : "";
+    return `${back}${banner}<div class="schicht cols-1" style="--side:${lay.side}px">
       <section class="card boardcard">
         <div class="chead"><h2>${title} ${meta.label}</h2>${isLive ? `<span class="tlprog" role="img" aria-label="${pr.done} von ${pr.total} erledigt"><i><b style="width:${pr.pct}%"></b></i>${pr.done}/${pr.total}</span>${otherOpen ? (role ? `<span class="othchip">${SHIFT_META[other].short}: ${otherOpen} offen</span>` : `<button class="othchip" data-shiftsel="${other}">${SHIFT_META[other].short}: ${otherOpen} offen</button>`) : ""}` : `<span class="hint">${s.start}–${s.end} · ${pr.done}/${pr.total} erledigt</span>`}${role ? "" : `<div class="seg" role="group" aria-label="Schicht wählen">${seg}</div>`}${canRem ? `<button class="btn sm remadd" data-remadd="${key}">${BELL_SVG}+ Erinnerung</button>` : ""}</div>
         ${isLive ? "" : `<div class="bar flat"><i style="width:${pr.pct}%"></i></div>`}
@@ -3909,7 +3911,7 @@ export function mount(container, opts = {}) {
     const { source } = resolvePlan(state.date, state.dayPlan, false, state.daySnap);
     $("weekday").textContent = WD[d.getDay()] + (state.date === isoDate(new Date()) ? " · heute" : "");
     $("datelabel").textContent = `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
-    $("datesrc").textContent = source === "day" ? "angepasst" : source === "snap" ? "Stand vom Tag" : source === "weekday" && !state.cfg.master ? WD[d.getDay()].slice(0, 2) + "-Plan" : "";
+    $("datesrc").textContent = source === "day" ? "angepasst" : source === "weekday" && !state.cfg.master ? WD[d.getDay()].slice(0, 2) + "-Plan" : "";
     $("datepick").value = state.date;
     const act = activeShift(plan, ctx);
     $("clock").innerHTML = `${fmtMin(nowMin())}${act ? `<small>${SHIFT_META[act].label} bis ${plan[act].end}</small>` : ""}`;
@@ -4055,6 +4057,7 @@ export function mount(container, opts = {}) {
     subscribeDay();
   }
   function setView(v) {
+    state.backTo = null;
     if (v !== "plan") { state.edPop = null; state.edAdd = null; state.edNew = null; }
     if (v !== "admin") state.adminPop = null;
     else if (state.view !== "plan") openFirstPhase();
@@ -4241,7 +4244,9 @@ export function mount(container, opts = {}) {
     if (t.dataset.toggle) { const id = t.dataset.toggle; state.expanded.has(id) ? state.expanded.delete(id) : state.expanded.add(id); render(); return; }
     if (t.id === "mprev") return shiftMonths(-1);
     if (t.id === "mnext") return shiftMonths(1);
-    if (t.dataset.date) { const sh = t.dataset.shift; goDate(t.dataset.date); state.view = "schicht"; state.shiftSel = sh; render(); return; }
+    // Aus der Monatsstatistik in einen Tag: Rückweg merken (Leiste „Zurück zur Monatsstatistik“ über dem Fahrplan).
+    if (t.dataset.date) { const sh = t.dataset.shift; if (state.view === "monat") state.backTo = "monat"; goDate(t.dataset.date); state.view = "schicht"; state.shiftSel = sh; render(); return; }
+    if (t.dataset.backto) { const to = state.backTo; state.backTo = null; setView(to || "schicht"); return; }
     const stamp = (s) => ({ s, by: actorId(), at: new Date().toISOString() });
     if (t.dataset.id) { const c = state.checks[t.dataset.id]; if (c && c.s === "na") return; setCheck(t.dataset.id, c && c.s === "done" ? null : stamp("done")); }
     else if (t.dataset.skip) { const c = state.checks[t.dataset.skip]; setCheck(t.dataset.skip, c && c.s === "na" ? null : stamp("na")); }
@@ -4337,7 +4342,7 @@ export function mount(container, opts = {}) {
     toast(`${personName(id)} ist jetzt aktiv`);
   });
   // „Nur ansehen“: in Schicht und Erstattung nur Anzeige-Bedienelemente zulassen.
-  const VIEW_OK = "[data-shiftsel],[data-toggle],[data-sideopen],[data-split],[data-view],[data-jump]";
+  const VIEW_OK = "[data-shiftsel],[data-toggle],[data-sideopen],[data-split],[data-view],[data-jump],[data-backto]";
   const blockViewOnly = (e) => {
     if (!state.viewOnly || currentPerson() || !["schicht", "erstattung"].includes(state.view)) return;
     const el = e.target.closest && e.target.closest("button, input, textarea, select, label, a");

@@ -793,3 +793,7 @@ button.othchip { cursor: pointer }
 .tab.gearbtn { width: 40px; height: 40px; padding: 0; display: inline-grid; place-items: center; color: var(--muted) }
 .tab.gearbtn[aria-selected="true"] { color: var(--accent) }
 .tab.gearbtn:hover { color: var(--ink) }
+
+/* 1.22.5 Rückweg aus einem Tag zur Monatsstatistik */
+.backbar { display: flex; align-items: center; gap: 12px; margin-top: 12px; flex: none; color: var(--muted); font-weight: 600 }
+.backbar .btn { font-weight: 700 }
