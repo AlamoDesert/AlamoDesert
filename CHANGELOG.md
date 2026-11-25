@@ -2,6 +2,9 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.26.2 – 25.11.2026
+- Oben links steht das ganze padel-amigos-Logo mit Schriftzug (Graublau). In schmalen Fenstern unter 1100 px nur das Zeichen, damit die Kopfzeile in eine Zeile passt.
+
 ## 1.26.1 – 25.11.2026
 - Eigene Erinnerungen lassen sich ändern: Antippen des Textes im Erinnerungs-Bereich öffnet „Erinnerung ändern“ mit Text und Uhrzeit. Ändern darf, wer sie angelegt hat, oder die Leitung – wie beim Löschen.
 
