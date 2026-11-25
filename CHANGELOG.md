@@ -2,6 +2,9 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.22.7 – 25.11.2026
+- Zusammengeklappte Zeile „✓ n Abschnitte erledigt“ ohne Aufzählung der Abschnittsnamen.
+
 ## 1.22.6 – 25.11.2026
 - Keine Uhrzeit mehr beim Abhaken: Aufgaben, Pflichtpunkte und eigene Erinnerungen zeigen nur noch „erledigt · Name“ bzw. „bestätigt · Name“. Die Zeit wird weiter intern gespeichert (z. B. für den Rundgang-Takt), aber nicht angezeigt.
 - Rundgänge zeigen „zuletzt HH:MM“ und „nächster um HH:MM“, ohne Namen – als Orientierung für die Person an der Rezeption.

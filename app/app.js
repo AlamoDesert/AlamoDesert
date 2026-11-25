@@ -1600,7 +1600,7 @@ export function mount(container, opts = {}) {
       const open = state.expanded.has("_done"), n = doneL.length;
       const m0 = Math.min(...doneL.map(x => toMin(x.p.from)));
       ev.push({ m: m0, e: Math.max(...doneL.map(x => toMin(x.p.to))), ord: 1, html: tlRow(fmtMin(m0), "done",
-        `<button class="tldone" data-toggle="_done" aria-expanded="${open}">✓ ${n} ${n === 1 ? "Abschnitt" : "Abschnitte"} erledigt${open ? "" : ` · ${esc(doneL.map(x => x.p.title).join(", "))}`} <span aria-hidden="true">${open ? "‹" : "›"}</span></button>`, " small") });
+        `<button class="tldone" data-toggle="_done" aria-expanded="${open}">✓ ${n} ${n === 1 ? "Abschnitt" : "Abschnitte"} erledigt <span aria-hidden="true">${open ? "‹" : "›"}</span></button>`, " small") });
       if (open) for (const { p } of doneL) {
         ev.push({ m: toMin(p.from), e: toMin(p.to), ord: 2, html: state.expanded.has(p.id) ? tlRow(p.from, "done", stopHtml(p, true)) :
           tlRow(p.from, "done", `<button class="tlsmall" data-toggle="${esc(p.id)}" aria-expanded="false">✓ ${esc(p.title)} <span>· ${p.items.length}/${p.items.length}</span></button>`, " small") });
