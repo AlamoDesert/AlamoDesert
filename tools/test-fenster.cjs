@@ -45,6 +45,8 @@ srv.listen(0, async () => {
   await q(p, "[data-remadd]").click(); await q(p, "#rp-t").fill("Zweite"); await q(p, "#rp-t").press("Enter"); await step(300);
   check(await q(p, "#rempop").count() === 0 && await q(p, "li.ownrem").count() === 2, "Erinnerung: Enter speichert und schließt");
   check(await q(p, ".tl .tlrow ul.tlown li.ownrem").count() === 2 && await q(p, "#phase-own").count() === 0, "Erinnerung: steht im Tagesablauf an ihrer Uhrzeit");
+  await q(p, "[data-remadd]").click(); await q(p, "#rp-t").fill("Dritte"); await q(p, "#rp-at").fill("16:20"); await q(p, "#rp-t").press("Enter"); await step(300);
+  check(await q(p, "#phase-start li.ownrem").filter({ hasText: "Dritte" }).count() === 1, "Erinnerung: fällt in einen Abschnitt und steht darin");
 
   // Flexible Zeiten: Beginn aus dem Einchecken, Schluss heute ändern, Sonnenuntergang
   const bTxt = await q(p, ".tlrow.is-bound").first().innerText();
@@ -113,7 +115,9 @@ srv.listen(0, async () => {
   await q(p, "[data-adminpop-close]").click(); await step();
 
   // Monatsstatistik → Tag → „Zurück zur Monatsstatistik“
-  await q(p, '[data-act2="open-month"]').click(); await step(300);
+  const closePops = async () => { for (let i = 0; i < 6 && await q(p, "#remind .overlay").count(); i++) { await q(p, "#remind button").last().click(); await step(200); } };
+  await closePops();
+  await q(p, '[data-act2="open-month"]').click(); await step(300); await closePops();
   await q(p, ".mcell").first().click(); await step(300);
   const hasBack = await q(p, ".backbar [data-backto]").count() === 1;
   await q(p, "[data-backto]").click(); await step(300);

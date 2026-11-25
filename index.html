@@ -1623,8 +1623,8 @@ function mount(container, opts = {}) {
       const open = state.expanded.has("_done"), n = doneL.length, k = ownDone.length;
       const parts = [n ? `${n} ${n === 1 ? "Abschnitt" : "Abschnitte"}` : "", k ? `${k} ${k === 1 ? "Erinnerung" : "Erinnerungen"}` : ""].filter(Boolean).join(" · ");
       const m0 = Math.min(...doneL.map(x => toMin(x.p.from)), ...ownDone.map(([, r]) => toMin(r.at)));
-      const e0 = Math.max(...doneL.map(x => toMin(x.p.to)), ...ownDone.map(([, r]) => toMin(r.at)));
-      ev.push({ m: m0, e: e0, ord: 1, html: tlRow(fmtMin(m0), "done",
+      // Die Erledigt-Zeile ist nur ein Punkt (e = m): sonst „fängt“ sie die mitlaufende Uhrzeit über ihren ganzen Zeitraum.
+      ev.push({ m: m0, e: m0, ord: 1, html: tlRow(fmtMin(m0), "done",
         `<button class="tldone" data-toggle="_done" aria-expanded="${open}">✓ ${parts} erledigt <span aria-hidden="true">${open ? "‹" : "›"}</span></button>`, " small") });
       if (open) for (const { p } of doneL) {
         ev.push({ m: toMin(p.from), e: toMin(p.to), ord: 2, html: state.expanded.has(p.id) ? tlRow(p.from, "done", stopHtml(p, true)) :
@@ -1632,19 +1632,29 @@ function mount(container, opts = {}) {
       }
       if (open) for (const x of ownDone) ev.push({ m: toMin(x[1].at), ord: 2, html: ownRow(x, "done", " small") });
     }
+    // Offene eigene Erinnerungen, die in die Zeit eines noch offenen Abschnitts fallen, kommen in diesen Abschnitt
+    // (bei Überschneidung der zuletzt begonnene). Ist der Abschnitt erledigt, stehen sie wieder als eigene Zeile.
+    const inPhase = new Map(), placed = new Set();
+    for (const x of own) {
+      if (x[1].done) continue;
+      const at = toMin(x[1].at);
+      const host = sts.filter(({ p, st }) => (st !== "done" || flagged(p)) && toMin(p.from) <= at && at < toMin(p.to)).pop();
+      if (host) { (inPhase.get(host.p.id) || inPhase.set(host.p.id, []).get(host.p.id)).push(x); placed.add(x[0]); }
+    }
     for (const { p, st } of sts) {
       if (st === "done" && !flagged(p)) continue;
+      const rems = (inPhase.get(p.id) || []).sort((a, b) => a[1].at.localeCompare(b[1].at)), nr = rems.length;
       const soon = st === "now" && isSoon(p, ctx);
       const ahead = st === "later" && toMin(p.from) - ctx <= OPEN_AHEAD;
       const tone = st === "now" ? (soon ? "soon" : "now") : st;
-      if (st === "now" || st === "late" || flagged(p) || ahead || state.expanded.has(p.id)) ev.push({ m: toMin(p.from), e: toMin(p.to), ord: 3, html: tlRow(p.from, tone, stopHtml(p, ahead)) });
-      else ev.push({ m: toMin(p.from), e: toMin(p.to), ord: 3, html: tlRow(p.from, "later", `<button class="tllater" data-toggle="${esc(p.id)}" aria-expanded="false"><b>${esc(p.title)}</b> <span>· ${p.items.length} ${p.items.length === 1 ? "Aufgabe" : "Aufgaben"} ›</span></button>`) });
+      if (st === "now" || st === "late" || flagged(p) || ahead || state.expanded.has(p.id)) ev.push({ m: toMin(p.from), e: toMin(p.to), ord: 3, html: tlRow(p.from, tone, stopHtml(p, ahead, rems)) });
+      else ev.push({ m: toMin(p.from), e: toMin(p.to), ord: 3, html: tlRow(p.from, "later", `<button class="tllater" data-toggle="${esc(p.id)}" aria-expanded="false"><b>${esc(p.title)}</b> <span>· ${p.items.length} ${p.items.length === 1 ? "Aufgabe" : "Aufgaben"}${nr ? ` · ${nr} ${nr === 1 ? "Erinnerung" : "Erinnerungen"}` : ""} ›</span></button>`) });
     }
     // Erinnerungen ab jetzt (Aufgaben mit Uhrzeit und eigene) an ihrer Uhrzeit
     const short = (t) => esc(t.length > 48 ? t.slice(0, 47) + "…" : t);
     for (const { p } of sts) for (const i of p.items) if (i.remind && !state.checks[i.id] && toMin(i.remind) >= ctx)
       ev.push({ m: toMin(i.remind), ord: 4, html: tlRow(i.remind, "rem", `<button class="tlrem" data-jump="phase-${esc(p.id)}">${BELL_SVG}${short(i.t)}</button>`) });
-    for (const x of own) if (!x[1].done) ev.push({ m: toMin(x[1].at), ord: 4, html: ownRow(x, toMin(x[1].at) <= ctx ? "soon" : "rem") });
+    for (const x of own) if (!x[1].done && !placed.has(x[0])) ev.push({ m: toMin(x[1].at), ord: 4, html: ownRow(x, toMin(x[1].at) <= ctx ? "soon" : "rem") });
     const sun = sunsetMin(state.date);
     if (sun != null && sun >= S - 60 && sun <= E) ev.push({ m: sun, ord: 5, html: tlRow(fmtMin(sun), "sun", `<span class="tlsun" title="Sonnenuntergang in ${esc(locOf().name)}">${SUN_SVG}Sonnenuntergang</span>`, " small") });
     ev.push({ m: E, ord: 9, html: boundRow("end", "Schluss", s.end, lv.eSrc) });
@@ -1693,7 +1703,7 @@ function mount(container, opts = {}) {
     const auto = role || focusShift(plan, ctx), key = role || state.shiftSel || auto, s = plan[key], meta = SHIFT_META[key];
     const MARK = { done: "✓", now: "▶", late: "!", later: "" };
     const isToday = state.date === isoDate(new Date()), canRem = isToday && !state.readOnly;
-    const stopHtml = (p, forceOpen = false) => {
+    const stopHtml = (p, forceOpen = false, rems = []) => {
       const st = phaseState(p, ctx), soon = st === "now" && isSoon(p, ctx);
       const done = p.items.filter(i => state.checks[i.id]).length;
       // Übersicht: offen sind nur der laufende und überfällige Abschnitte (und nach „Zurück zur Schicht“ alle mit offenen Punkten);
@@ -1708,14 +1718,17 @@ function mount(container, opts = {}) {
         ? `<button class="stop-head" data-toggle="${esc(p.id)}" aria-expanded="${!collapsed}" aria-label="${esc(p.title)}, ${label}, ${collapsed ? "aufklappen" : "zuklappen"}">${head}</button>`
         : `<div class="stop-head">${head}</div>`;
       const hint = p.hint && (st === "now" || st === "late") ? `<div class="phint">${esc(p.hint)}</div>` : "";
-      const items = collapsed ? "" : `<ul class="items">${[...p.items].sort((x, y) => (state.checks[x.id] ? 1 : 0) - (state.checks[y.id] ? 1 : 0)).map(i => itemHtml(d.item[i.id])).join("") || '<li class="empty">Keine Aufgaben.</li>'}</ul>`;
+      // Eigene Erinnerungen in der Zeit des Abschnitts stehen nach den offenen Aufgaben, vor den erledigten.
+      const sorted = [...p.items].sort((x, y) => (state.checks[x.id] ? 1 : 0) - (state.checks[y.id] ? 1 : 0)), nOpen = sorted.filter(i => !state.checks[i.id]).length;
+      const remLis = rems.map(([id, r]) => remHtml(id, r, !state.readOnly)).join("");
+      const items = collapsed ? "" : `<ul class="items">${sorted.slice(0, nOpen).map(i => itemHtml(d.item[i.id])).join("")}${remLis}${sorted.slice(nOpen).map(i => itemHtml(d.item[i.id])).join("")}${!p.items.length && !rems.length ? '<li class="empty">Keine Aufgaben.</li>' : ""}</ul>`;
       return `<section class="stop is-${st}${soon ? " soon" : ""}" id="phase-${esc(p.id)}">${headEl}${hint}${items}</section>`;
     };
     const noPhases = `<div class="empty">Für diese Schicht sind keine Abschnitte geplant (Verwaltung › Aufgaben-Plan).</div>`;
     const isLive = isToday && typeof ctx === "number";
     const sts = s.phases.map(p => ({ p, st: phaseState(p, ctx) }));
     let stops;
-    if (!isLive) stops = s.phases.map(stopHtml).join("") || noPhases;
+    if (!isLive) stops = s.phases.map(p => stopHtml(p)).join("") || noPhases;
     else {
       // Heute: Tagesablauf (Erledigtes zusammengeklappt, laufende/überfällige groß, nächster ab 15 Min. vorher offen).
       stops = s.phases.length ? timelineHtml(plan, key, sts, ctx, stopHtml) : noPhases;

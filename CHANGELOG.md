@@ -2,6 +2,11 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.23.1 – 25.11.2026
+- Eigene Erinnerungen, die in die Zeit eines offenen Abschnitts fallen, stehen in diesem Abschnitt (nach den offenen Aufgaben). Bei einem zugeklappten späteren Abschnitt zählt die Zeile mit („· 1 Erinnerung“).
+- Ist der Abschnitt erledigt und zugeklappt, bleibt eine offene Erinnerung als eigene Zeile an ihrer Uhrzeit stehen.
+- Fehler behoben: An vergangenen Tagen brach der Fahrplan ab (Skriptfehler); die mitlaufende Uhrzeit landete fälschlich in der Erledigt-Zeile.
+
 ## 1.23.0 – 25.11.2026
 - Eigene Erinnerungen stehen heute direkt im Tagesablauf an ihrer Uhrzeit – mit Haken und Löschen (×). Fällige haben einen orangen Punkt. Erledigte wandern in die Zeile „✓ … erledigt“ (z. B. „1 Abschnitt · 2 Erinnerungen erledigt“) und erscheinen beim Aufklappen.
 - Der eigene Bereich „Eigene Erinnerungen“ unten im Fahrplan entfällt für heute; an anderen Tagen bleibt er.
