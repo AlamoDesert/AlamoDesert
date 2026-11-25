@@ -2,6 +2,9 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.27.8 – 25.11.2026
+- Das Zeichen ↶ („letzten Eintrag zurücknehmen“) ist überall entfernt – bei Rundgängen im Erinnerungs-Bereich und in der Liste an anderen Tagen. Pflicht-Punkte nimmt man über den Haken zurück.
+
 ## 1.27.7 – 25.11.2026
 - Fehler behoben: Als „Wichtig“ markierte Punkte bekamen im Aufgaben-Plan eine Leerzeile davor (CSS-Regel des Dienstplan-Imports griff auch dort).
 - Mehr Abstand zwischen Zeitstrahl und Karten im Tagesablauf.

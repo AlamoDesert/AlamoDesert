@@ -1476,11 +1476,10 @@ function mount(container, opts = {}) {
         : st.again ? `<span class="sub">bestätigt${lastWho(last)} – ab ${esc(a.from)} bitte erneut bestätigen</span>`
         : a.s ? `<span class="sub">${esc(a.s)}</span>` : "";
       return { show: true, ok: st.ok, html: `<li class="confirm ${cls}${a.important ? " important" : ""}${flag ? " flag" : ""}">
-        <button class="tap" data-log="${esc(a.id)}" data-shift="${key}" ${canLog && !st.ok ? "" : "disabled"} aria-label="${esc(a.t)} bestätigen">
+        <button class="tap" ${st.ok ? "data-unlog" : "data-log"}="${esc(a.id)}" data-shift="${key}" ${canLog ? "" : "disabled"} aria-label="${esc(a.t)} ${st.ok ? "Bestätigung zurücknehmen" : "bestätigen"}">
           <span class="box" aria-hidden="true">${CHECK_SVG}</span>
           <span><span class="label">${esc(a.t)}</span>${sub}</span>${bell}${st.early ? `<span class="again">ab ${esc(a.from)} erneut</span>` : ""}
         </button>
-        ${last && st.ok && canLog ? `<button class="undo" data-unlog="${esc(a.id)}" data-shift="${key}" aria-label="Bestätigung zurücknehmen">↶</button>` : ""}
       </li>` };
     });
   }
@@ -1504,7 +1503,6 @@ function mount(container, opts = {}) {
           <span><span class="label">${esc(a.t)}</span><span class="sub">${sub}</span>${last ? `<span class="last">zuletzt ${lastTime(last)}</span>` : ""}</span>
           <span class="cnt${entries.length ? "" : " zero"}" title="heute in dieser Schicht">${entries.length}×</span>
         </button>
-        ${last && canLog ? `<button class="undo" data-unlog="${esc(a.id)}" data-shift="${key}" aria-label="Letzten Eintrag zurücknehmen">↶</button>` : ""}
       </li>` };
     });
     const confirmL = confirmLis(plan, key, ctx);
@@ -1664,10 +1662,10 @@ function mount(container, opts = {}) {
       if (a.kind !== "rhythm") continue;
       const info = dueInfo(plan, key, a, ctx);
       if (a.every && (!info || info.due == null)) continue;
-      const m = info && info.due != null ? info.due : ctx, n = logEntries(key, a.id).length, stc = info && info.state !== "ok" ? " " + info.state : "";
+      const m = info && info.due != null ? info.due : ctx, stc = info && info.state !== "ok" ? " " + info.state : "";
       lane.push({ m, rh: true, html: `<div class="tlrchip rh${stc}" data-at="${m}">
         <button class="rcheck" data-log="${esc(a.id)}" data-shift="${key}" aria-label="${esc(a.t)} erledigt – eintragen" title="Erledigt – nächster Termin rückt nach" ${canRem ? "" : "disabled"}><span class="box">${CHECK_SVG}</span></button>
-        <span class="rtxt"><b>${LOOP_SVG}${a.every ? fmtMin(m) : "jederzeit"}</b> ${short(a.t)}${stc === " over" ? ` <em>überfällig</em>` : ""}</span>${n && canRem ? `<button class="rdel" data-unlog="${esc(a.id)}" data-shift="${key}" aria-label="Letzten Eintrag zurücknehmen" title="Letzten Eintrag zurücknehmen (heute ${n}×)">↶</button>` : ""}</div>` });
+        <span class="rtxt"><b>${LOOP_SVG}${a.every ? fmtMin(m) : "jederzeit"}</b> ${short(a.t)}${stc === " over" ? ` <em>überfällig</em>` : ""}</span></div>` });
     }
     lane.sort((x, y) => x.m - y.m);
     laneHtml = !lane.length && !nDone ? "" : `<div class="tlsplit" data-split="remw" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Breite der Erinnerungen – ziehen oder Pfeiltasten, Doppelklick = Standard" title="Ziehen zum Verschieben · Doppelklick = Standard"></div>
