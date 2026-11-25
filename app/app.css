@@ -790,3 +790,8 @@ button.othchip { cursor: pointer }
 .pout:hover { text-decoration: underline }
 .tab.warn { position: relative }
 .tab.warn::after { content: ""; position: absolute; top: 5px; right: 6px; width: 9px; height: 9px; border-radius: 50%; background: var(--warn); box-shadow: 0 0 0 2px var(--surface) }
+
+/* 1.22.3 Verwaltung als Zahnrad neben Kalender und Schriftgröße */
+.tab.gearbtn { width: 40px; height: 40px; padding: 0; display: inline-grid; place-items: center; color: var(--muted) }
+.tab.gearbtn[aria-selected="true"] { color: var(--accent) }
+.tab.gearbtn:hover { color: var(--ink) }

@@ -2,6 +2,9 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.22.3 – 25.11.2026
+- Verwaltung ist ein Zahnrad-Knopf neben Kalender und Schriftgröße (statt Reiter mit Text). Aktiv blau; der rote Punkt bei überfälliger Sicherung sitzt am Zahnrad.
+
 ## 1.22.2 – 25.11.2026
 - Kopfzeile: „Auschecken“ sitzt wie im Mockup im Namens-Chip der aktiven Person (Name · Rolle | Auschecken), kein eigener roter Knopf mehr.
 - Kein Sicherungs-Text mehr oben rechts („Noch keine Sicherung …“). Ist die Sicherung wirklich überfällig (Ordner fehlt oder 7+ Tage alt), zeigt ein roter Punkt am Reiter Verwaltung das an; Details unter Verwaltung › Datensicherung.
