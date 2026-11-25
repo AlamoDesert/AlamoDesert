@@ -1,4 +1,4 @@
-const MARKUP = "<div class=\"wrap\">\n  <header class=\"top\">\n    <h1 class=\"brand\">Rezeption<small id=\"weekday\">–</small></h1>\n    <div class=\"clock\" id=\"clock\">--:--</div>\n    <div class=\"presence\" id=\"presence\" role=\"group\" aria-label=\"Eingecheckt\"></div>\n    <div class=\"tabs\" role=\"tablist\">\n      <button class=\"tab\" role=\"tab\" data-view=\"schicht\"><b>Schicht</b><span class=\"meta\" id=\"meta-shift\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"erstattung\" hidden><b>Check-ins</b><span class=\"meta\" id=\"meta-ci\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"dienst\"><b>Dienstplan</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"zeiten\"><b>Arbeitszeiten</b></button>\n    </div>\n    <div class=\"datenav\">\n      <button class=\"iconbtn calbtn\" id=\"calbtn\" aria-label=\"Anderen Tag ansehen\" title=\"Anderen Tag ansehen\"><svg aria-hidden=\"true\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><rect x=\"3\" y=\"5\" width=\"18\" height=\"16\" rx=\"2\"></rect><path d=\"M3 10h18M8 3v4M16 3v4\"></path></svg></button>\n      <span class=\"dnmore\" id=\"dnmore\">\n      <button class=\"iconbtn\" id=\"prev\" aria-label=\"Vorheriger Tag\">‹</button>\n      <label class=\"datebtn\"><span id=\"datelabel\">–</span><span class=\"src\" id=\"datesrc\"></span><input type=\"date\" id=\"datepick\" aria-label=\"Datum wählen\"></label>\n      <button class=\"iconbtn\" id=\"next\" aria-label=\"Nächster Tag\">›</button>\n      <button class=\"todaybtn\" id=\"today\">Heute</button>\n      </span>\n      <button class=\"iconbtn fontbtn\" id=\"fontbtn\" aria-label=\"Schrift größer oder kleiner\" title=\"Schriftgröße\"><svg aria-hidden=\"true\" width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M2.5 19 8 5l5.5 14M4.4 14.2h7.2\"></path><path d=\"M14.5 19l3.5-8.5 3.5 8.5M15.7 16.2h4.6\"></path></svg></button>\n      <button class=\"tab iconbtn gearbtn\" data-view=\"admin\" aria-label=\"Verwaltung\" title=\"Verwaltung\"><svg aria-hidden=\"true\" width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"3\"></circle><path d=\"M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z\"></path></svg></button>\n    </div>\n    <div class=\"status\" id=\"status\">Verbinde…</div>\n  </header>\n  <div class=\"vobar\" id=\"vobar\" hidden><b>Nur ansehen</b><span>Abhaken und Eintragen sind gesperrt.</span><button class=\"btn primary\" data-pres-add=\"1\">Einchecken</button></div>\n  <main id=\"main\"></main>\n  <div id=\"ciwrap\" class=\"ciwrap\" hidden></div>\n</div>\n<input type=\"file\" id=\"rzfile\" class=\"rzfile\" tabindex=\"-1\" aria-hidden=\"true\"><div id=\"picker\" hidden></div><div id=\"remind\" hidden></div><div id=\"toast\" class=\"toast\" role=\"status\" hidden></div>";
+const MARKUP = "<div class=\"wrap\">\n  <header class=\"top\">\n    <h1 class=\"brand\">Rezeption<small id=\"weekday\">–</small></h1>\n    <div class=\"clock\" id=\"clock\">--:--</div>\n    <div class=\"presence\" id=\"presence\" role=\"group\" aria-label=\"Eingecheckt\"></div>\n    <div class=\"tabs\" role=\"tablist\">\n      <button class=\"tab\" role=\"tab\" data-view=\"schicht\"><b>Schicht</b><span class=\"meta\" id=\"meta-shift\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"erstattung\" hidden><b>Check-ins</b><span class=\"meta\" id=\"meta-ci\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"dienst\"><b>Dienstplan</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"zeiten\"><b>Arbeitszeiten</b></button>\n    </div>\n    <div class=\"datenav\">\n      <button class=\"iconbtn calbtn\" id=\"calbtn\" aria-label=\"Anderen Tag ansehen\" title=\"Anderen Tag ansehen\"><svg aria-hidden=\"true\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><rect x=\"3\" y=\"5\" width=\"18\" height=\"16\" rx=\"2\"></rect><path d=\"M3 10h18M8 3v4M16 3v4\"></path></svg></button>\n      <span class=\"dnmore\" id=\"dnmore\">\n      <button class=\"iconbtn\" id=\"prev\" aria-label=\"Vorheriger Tag\">‹</button>\n      <label class=\"datebtn\"><span id=\"datelabel\">–</span><span class=\"src\" id=\"datesrc\"></span><input type=\"date\" id=\"datepick\" aria-label=\"Datum wählen\"></label>\n      <button class=\"iconbtn\" id=\"next\" aria-label=\"Nächster Tag\">›</button>\n      <button class=\"todaybtn\" id=\"today\">Heute</button>\n      </span>\n      <button class=\"iconbtn fontbtn\" id=\"fontbtn\" aria-label=\"Schriftgröße einstellen\" aria-haspopup=\"dialog\" aria-expanded=\"false\" title=\"Schriftgröße\"><svg aria-hidden=\"true\" width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M2.5 19 8 5l5.5 14M4.4 14.2h7.2\"></path><path d=\"M14.5 19l3.5-8.5 3.5 8.5M15.7 16.2h4.6\"></path></svg></button>\n      <button class=\"tab iconbtn gearbtn\" data-view=\"admin\" aria-label=\"Verwaltung\" title=\"Verwaltung\"><svg aria-hidden=\"true\" width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"3\"></circle><path d=\"M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z\"></path></svg></button>\n    </div>\n    <div class=\"status\" id=\"status\">Verbinde…</div>\n  </header>\n  <div class=\"vobar\" id=\"vobar\" hidden><b>Nur ansehen</b><span>Abhaken und Eintragen sind gesperrt.</span><button class=\"btn primary\" data-pres-add=\"1\">Einchecken</button></div>\n  <main id=\"main\"></main>\n  <div id=\"ciwrap\" class=\"ciwrap\" hidden></div>\n</div>\n<input type=\"file\" id=\"rzfile\" class=\"rzfile\" tabindex=\"-1\" aria-hidden=\"true\"><div id=\"picker\" hidden></div><div id=\"remind\" hidden></div><div id=\"toast\" class=\"toast\" role=\"status\" hidden></div><div class=\"fontpop\" id=\"fontpop\" role=\"dialog\" aria-label=\"Schriftgröße\" hidden><div class=\"fphead\"><b>Schriftgröße</b><output id=\"fzval\">100 %</output></div><div class=\"fprow\"><button class=\"fpstep\" data-fzstep=\"-5\" aria-label=\"Kleiner\" title=\"Kleiner\">A</button><input type=\"range\" id=\"fzrange\" min=\"80\" max=\"160\" step=\"1\" value=\"100\" aria-label=\"Schriftgröße in Prozent\"><button class=\"fpstep big\" data-fzstep=\"5\" aria-label=\"Größer\" title=\"Größer\">A</button></div><button class=\"fpreset\" id=\"fzreset\">Zurück auf 100 %</button></div>";
 
 /* Rezeption Schichtcheck – App-Kern.
    Wird von tools/build.mjs in index.html (Mac-App und Webversion) eingebaut.
@@ -1770,6 +1770,16 @@ export function mount(container, opts = {}) {
   const clampSide = (v) => Math.min(900, Math.max(280, Math.round(v)));
   const clampHand = (v) => Math.min(1200, Math.max(120, Math.round(v)));
   const clampRem = (v) => Math.min(1200, Math.max(70, Math.round(v)));
+  // Schriftgröße in Prozent (ab 1.25: stufenlos per Schieberegler). Ältere Einstellung font "big" entspricht 115 %.
+  const FZ_MIN = 80, FZ_MAX = 160;
+  const clampFz = (v) => Math.min(FZ_MAX, Math.max(FZ_MIN, Math.round(v)));
+  // Umgesetzt als CSS-zoom (--zf) auf alle Bereiche außer dem Schriftgrößen-Fenster: Text, Haken, Knöpfe und Abstände wachsen gemeinsam.
+  const zoomFactor = () => { const v = parseFloat(container.style.getPropertyValue("--zf")); return v > 0 ? v : 1; };
+  function applyZoom(fz) {
+    const f = clampFz(fz) / 100;
+    if (zoomFactor() !== f || !container.style.getPropertyValue("--zf")) container.style.setProperty("--zf", String(f));
+    const b = $("fontbtn"); if (b) b.classList.toggle("on", f !== 1);
+  }
   const layoutKey = () => { const p = currentPerson(); return p ? p.id : "_"; };
   function getLayout() {
     const all = LS.get("rz2layout", {}), l = (all && all[layoutKey()]) || (all && all._) || {};
@@ -1778,12 +1788,14 @@ export function mount(container, opts = {}) {
       hand: Number.isFinite(l.hand) ? clampHand(l.hand) : LAYOUT_DEFAULT.hand,
       rem: Number.isFinite(l.rem) ? clampRem(l.rem) : LAYOUT_DEFAULT.rem,
       remw: Number.isFinite(l.remw) ? clampRemw(l.remw) : LAYOUT_DEFAULT.remw,
-      font: l.font === "big" ? "big" : "normal",
+      fz: Number.isFinite(l.fz) ? clampFz(l.fz) : l.font === "big" ? 115 : 100,
     };
   }
   function saveLayout(patch) {
     const all = LS.get("rz2layout", {}) || {}, key = layoutKey();
-    all[key] = { ...getLayout(), ...patch };
+    const next = { ...getLayout(), ...patch };
+    next.font = next.fz >= 110 ? "big" : "normal"; // für ältere App-Versionen
+    all[key] = next;
     LS.set("rz2layout", all);
   }
   let drag = null;
@@ -1791,22 +1803,22 @@ export function mount(container, opts = {}) {
   function startDrag(e, el) {
     const kind = el.dataset.split, wrap = el.closest(kind === "hand" ? ".side" : kind === "rem" ? ".boardcard" : kind === "remw" ? ".tl" : ".schicht"); if (!wrap) return;
     e.preventDefault();
-    const rect = wrap.getBoundingClientRect();
+    const rect = wrap.getBoundingClientRect(), z = zoomFactor();
     drag = { kind, value: null };
     el.setPointerCapture && el.setPointerCapture(e.pointerId);
     const move = (ev) => {
       if (kind === "remw") {
         // Trennlinie Blöcke | Erinnerungen: Breite des Erinnerungs-Bereichs rechts
-        drag.value = Math.round(Math.min(600, rect.width - 340, Math.max(160, rect.right - ev.clientX - 8)));
+        drag.value = Math.round(Math.min(600, rect.width / z - 340, Math.max(160, (rect.right - ev.clientX) / z - 8)));
         wrap.style.setProperty("--remw", drag.value + "px"); placeNow();
       } else if (kind === "rem") {
-        drag.value = Math.round(Math.min(rect.height - 180, Math.max(70, rect.bottom - ev.clientY - 6)));
+        drag.value = Math.round(Math.min(rect.height / z - 180, Math.max(70, (rect.bottom - ev.clientY) / z - 6)));
         const pn = wrap.querySelector(".ownpanel"); if (pn) { pn.classList.add("fixed"); pn.style.setProperty("--remh", drag.value + "px"); }
       } else if (kind === "hand") {
-        drag.value = Math.round(Math.min(rect.height - 140, Math.max(120, rect.bottom - ev.clientY - 6)));
+        drag.value = Math.round(Math.min(rect.height / z - 140, Math.max(120, (rect.bottom - ev.clientY) / z - 6)));
         wrap.classList.add("has-hand"); wrap.style.setProperty("--hand", drag.value + "px");
       } else {
-        drag.value = Math.round(Math.min(rect.width - 380, Math.max(280, rect.right - ev.clientX - 6)));
+        drag.value = Math.round(Math.min(rect.width / z - 380, Math.max(280, (rect.right - ev.clientX) / z - 6)));
         wrap.style.setProperty("--side", drag.value + "px");
       }
     };
@@ -3973,8 +3985,7 @@ export function mount(container, opts = {}) {
     const today0 = isoDate(new Date());
     $("dnmore").hidden = state.date === today0 && !state.dateOpen;
     $("calbtn").classList.toggle("on", state.date !== today0 || !!state.dateOpen);
-    const big = getLayout().font === "big";
-    container.classList.toggle("bigfont", big); $("fontbtn").setAttribute("aria-pressed", String(big));
+    applyZoom(getLayout().fz);
     const mc = $("mk-clock");
     if (mc) mc.textContent = fmtMin(nowMin());
   }
@@ -4117,8 +4128,36 @@ export function mount(container, opts = {}) {
   $("today").addEventListener("click", () => { state.dateOpen = false; goDate(isoDate(new Date())); });
   // Datum wird selten gebraucht: hinter dem Kalender-Knopf; an einem anderen Tag bleiben die Pfeile sichtbar.
   $("calbtn").addEventListener("click", () => { state.dateOpen = !state.dateOpen; renderHeader(); if (state.dateOpen) { const d = $("datepick"); try { d.showPicker && d.showPicker(); } catch { /* egal */ } } });
-  // Schriftgröße pro Person (Normal/Groß), gespeichert wie die Spaltenbreite.
-  $("fontbtn").addEventListener("click", () => { saveLayout({ font: getLayout().font === "big" ? "normal" : "big" }); render(); });
+  // Schriftgröße pro Person, stufenlos 80–160 %, gespeichert wie die Spaltenbreite.
+  // Das Fenster liegt außerhalb der vergrößerten Bereiche, damit der Regler beim Ziehen nicht mitwächst.
+  const fontPop = $("fontpop"), fzRange = $("fzrange");
+  function setFz(v) {
+    const fz = clampFz(v);
+    fzRange.value = String(fz); $("fzval").textContent = fz + " %";
+    if (fz !== getLayout().fz) saveLayout({ fz });
+    applyZoom(fz); placeNow();
+  }
+  function closeFontPop() { if (fontPop.hidden) return; fontPop.hidden = true; $("fontbtn").setAttribute("aria-expanded", "false"); }
+  $("fontbtn").addEventListener("click", () => {
+    if (!fontPop.hidden) { closeFontPop(); return; }
+    const fz = getLayout().fz, b = $("fontbtn").getBoundingClientRect(), r = container.getBoundingClientRect();
+    fzRange.value = String(fz); $("fzval").textContent = fz + " %";
+    fontPop.hidden = false;
+    fontPop.style.top = Math.round(b.bottom - r.top + 6) + "px";
+    fontPop.style.left = Math.round(Math.max(8, Math.min(r.width - fontPop.offsetWidth - 8, b.right - r.left - fontPop.offsetWidth))) + "px";
+    $("fontbtn").setAttribute("aria-expanded", "true");
+    fzRange.focus();
+  });
+  fzRange.addEventListener("input", () => setFz(+fzRange.value));
+  fontPop.addEventListener("click", (e) => {
+    const st = e.target.closest("[data-fzstep]");
+    if (st) setFz(getLayout().fz + Number(st.dataset.fzstep));
+    else if (e.target.closest("#fzreset")) setFz(100);
+  });
+  fontPop.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.stopPropagation(); closeFontPop(); $("fontbtn").focus(); } });
+  const fontOutside = (e) => { if (!fontPop.hidden && !e.composedPath().some(n => n === fontPop || n === $("fontbtn"))) closeFontPop(); };
+  document.addEventListener("pointerdown", fontOutside, true);
+  cleanups.push(() => document.removeEventListener("pointerdown", fontOutside, true));
   $("datepick").addEventListener("change", (e) => goDate(e.target.value));
   root.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => setView(t.dataset.view)));
 
@@ -4306,10 +4345,10 @@ export function mount(container, opts = {}) {
     e.preventDefault();
     if (kind === "side") saveLayout({ side: clampSide(getLayout().side + step) });
     else if (kind === "remw") saveLayout({ remw: clampRemw(getLayout().remw + step) });
-    else if (kind === "rem") { const pn = root.querySelector(".ownpanel"); saveLayout({ rem: clampRem((getLayout().rem || (pn ? pn.getBoundingClientRect().height : 160)) + step) }); }
+    else if (kind === "rem") { const pn = root.querySelector(".ownpanel"); saveLayout({ rem: clampRem((getLayout().rem || (pn ? pn.getBoundingClientRect().height / zoomFactor() : 160)) + step) }); }
     else {
       const card = root.querySelector(".side > .card.hand");
-      saveLayout({ hand: clampHand((getLayout().hand || (card ? card.getBoundingClientRect().height : 240)) + step) });
+      saveLayout({ hand: clampHand((getLayout().hand || (card ? card.getBoundingClientRect().height / zoomFactor() : 240)) + step) });
     }
     render(); const sp = root.querySelector(`[data-split="${kind}"]`); if (sp) sp.focus();
   });

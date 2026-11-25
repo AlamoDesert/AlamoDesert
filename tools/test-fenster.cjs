@@ -179,6 +179,30 @@ srv.listen(0, async () => {
   await q(p, ".tlrdone").click(); await step(200);
   check(nd >= 1 && await q(p, ".tllane .tlrchip.own.done").count() === 0, "Erinnerung: erledigte nur nach Klick auf „erledigte“ sichtbar");
 
+  // Schriftgröße stufenlos: Regler 130 % vergrößert die Ansicht, Trennlinie ziehen rechnet in CSS-Pixeln, 100 % setzt zurück
+  const zf = () => p.evaluate(() => getComputedStyle(document.querySelector("#rz-host").shadowRoot.querySelector(".wrap")).zoom);
+  await q(p, "#fontbtn").click(); await step(200);
+  check(await q(p, "#fontpop").isVisible(), "Schrift: Fenster mit Regler öffnet");
+  await q(p, "#fzrange").fill("130"); await step(200);
+  const lay130 = await p.evaluate(() => JSON.parse(localStorage.getItem("rz2layout")));
+  check(String(await zf()) === "1.3" && Object.values(lay130).some(l => l.fz === 130) && (await q(p, "#fzval").innerText()) === "130 %", "Schrift: 130 % gespeichert und angewendet – " + await zf());
+  await q(p, '#fontpop [data-fzstep="5"]').click(); await step(100);
+  check((await q(p, "#fzval").innerText()) === "135 %", "Schrift: A+ geht 5 % weiter");
+  await p.keyboard.press("Escape"); await step(100);
+  check(!(await q(p, "#fontpop").isVisible()), "Schrift: Escape schließt das Fenster");
+  const spl = q(p, '.tlsplit[data-split="remw"]');
+  if (await spl.count()) {
+    const bb = await spl.boundingBox();
+    const tx = bb.x + bb.width / 2 + 120;
+    await p.mouse.move(bb.x + bb.width / 2, bb.y + 40); await p.mouse.down(); await p.mouse.move(tx, bb.y + 40, { steps: 4 }); await p.mouse.up(); await step(200);
+    const nb = await q(p, '.tlsplit[data-split="remw"]').boundingBox();
+    check(Math.abs(nb.x + nb.width / 2 - tx) <= 14, `Schrift: Trennlinie bei 135 % bleibt unter der Maus (${Math.round(nb.x + nb.width / 2)} / ${Math.round(tx)})`);
+  }
+  await q(p, "#fontbtn").click(); await step(100); await q(p, "#fzreset").click(); await step(100);
+  check(String(await zf()) === "1", "Schrift: „Zurück auf 100 %“");
+  await p.mouse.click(5, 5); await step(100);
+  check(!(await q(p, "#fontpop").isVisible()), "Schrift: Klick daneben schließt das Fenster");
+
   check(!errs.length, "keine Skriptfehler" + (errs.length ? ": " + errs.join(" | ") : ""));
   await b.close(); srv.close();
   console.log(fails ? `\n${fails} Prüfung(en) fehlgeschlagen` : "\nAlle Prüfungen bestanden");

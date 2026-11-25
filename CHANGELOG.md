@@ -2,6 +2,10 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.25.0 – 25.11.2026
+- Schriftgröße stufenlos: Das Schrift-Symbol oben rechts öffnet ein Fenster mit Schieberegler von 80 % bis 160 % (dazu „A“-Knöpfe für 5 % kleiner/größer und „Zurück auf 100 %“). Text, Haken, Knöpfe und Abstände wachsen gemeinsam. Gilt pro Person; die alte Einstellung „groß“ wird zu 115 %.
+- Lange Abschnitts-Namen brechen um, statt die Markierung „überfällig“ zu überdecken.
+
 ## 1.24.3 – 25.11.2026
 - Erledigte eigene Erinnerungen sind im Erinnerungs-Bereich rechts zunächst ausgeblendet. Der Knopf „✓ n erledigte“ im Kopf des Bereichs zeigt sie, „erledigte ausblenden“ versteckt sie wieder.
 
