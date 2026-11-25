@@ -54,6 +54,8 @@ srv.listen(0, async () => {
   const g0 = (await rowOf("phase-start").getAttribute("class")) || "";
   check(/is-now/.test(g0) && await q(p, ".stop.is-now:not(.soon) .pill.ok").count() === 1, "Farbe: im Zeitrahmen grün");
   check(await q(p, ".tllater").count() >= 3, "Tagesablauf: spätere Abschnitte als eine Zeile");
+  const rb = await rowOf("phase-start").boundingBox(), nb = await q(p, "#tl-now").boundingBox();
+  check(rb && nb && nb.y >= rb.y && nb.y <= rb.y + rb.height * 0.3, "Tagesablauf: Uhrzeit läuft im laufenden Abschnitt mit (oben, kurz nach Beginn)");
   await q(p, '[data-adj="spaet:end"]').click(); await step();
   await q(p, '[data-adjq="-30"]').click(); await q(p, "#ad-r").fill("letzte Buchung"); await step(31000);
   await q(p, "#ad-r").press("Enter"); await step(300);

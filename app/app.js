@@ -1596,10 +1596,10 @@ export function mount(container, opts = {}) {
     if (doneL.length) {
       const open = state.expanded.has("_done"), n = doneL.length;
       const m0 = Math.min(...doneL.map(x => toMin(x.p.from)));
-      ev.push({ m: m0, ord: 1, html: tlRow(fmtMin(m0), "done",
+      ev.push({ m: m0, e: Math.max(...doneL.map(x => toMin(x.p.to))), ord: 1, html: tlRow(fmtMin(m0), "done",
         `<button class="tldone" data-toggle="_done" aria-expanded="${open}">✓ ${n} ${n === 1 ? "Abschnitt" : "Abschnitte"} erledigt${open ? "" : ` · ${esc(doneL.map(x => x.p.title).join(", "))}`} <span aria-hidden="true">${open ? "‹" : "›"}</span></button>`, " small") });
       if (open) for (const { p } of doneL) {
-        ev.push({ m: toMin(p.from), ord: 2, html: state.expanded.has(p.id) ? tlRow(p.from, "done", stopHtml(p, true)) :
+        ev.push({ m: toMin(p.from), e: toMin(p.to), ord: 2, html: state.expanded.has(p.id) ? tlRow(p.from, "done", stopHtml(p, true)) :
           tlRow(p.from, "done", `<button class="tlsmall" data-toggle="${esc(p.id)}" aria-expanded="false">✓ ${esc(p.title)} <span>· ${p.items.length}/${p.items.length}</span></button>`, " small") });
       }
     }
@@ -1608,8 +1608,8 @@ export function mount(container, opts = {}) {
       const soon = st === "now" && isSoon(p, ctx);
       const ahead = st === "later" && toMin(p.from) - ctx <= OPEN_AHEAD;
       const tone = st === "now" ? (soon ? "soon" : "now") : st;
-      if (st === "now" || st === "late" || flagged(p) || ahead || state.expanded.has(p.id)) ev.push({ m: toMin(p.from), ord: 3, html: tlRow(p.from, tone, stopHtml(p, ahead)) });
-      else ev.push({ m: toMin(p.from), ord: 3, html: tlRow(p.from, "later", `<button class="tllater" data-toggle="${esc(p.id)}" aria-expanded="false"><b>${esc(p.title)}</b> <span>· ${p.items.length} ${p.items.length === 1 ? "Aufgabe" : "Aufgaben"} ›</span></button>`) });
+      if (st === "now" || st === "late" || flagged(p) || ahead || state.expanded.has(p.id)) ev.push({ m: toMin(p.from), e: toMin(p.to), ord: 3, html: tlRow(p.from, tone, stopHtml(p, ahead)) });
+      else ev.push({ m: toMin(p.from), e: toMin(p.to), ord: 3, html: tlRow(p.from, "later", `<button class="tllater" data-toggle="${esc(p.id)}" aria-expanded="false"><b>${esc(p.title)}</b> <span>· ${p.items.length} ${p.items.length === 1 ? "Aufgabe" : "Aufgaben"} ›</span></button>`) });
     }
     // Erinnerungen ab jetzt (Aufgaben mit Uhrzeit und eigene) an ihrer Uhrzeit
     const short = (t) => esc(t.length > 48 ? t.slice(0, 47) + "…" : t);
@@ -1621,13 +1621,34 @@ export function mount(container, opts = {}) {
     if (sun != null && sun >= S - 60 && sun <= E) ev.push({ m: sun, ord: 5, html: tlRow(fmtMin(sun), "sun", `<span class="tlsun" title="Sonnenuntergang in ${esc(locOf().name)}">${SUN_SVG}Sonnenuntergang</span>`, " small") });
     ev.push({ m: E, ord: 9, html: boundRow("end", "Schluss", s.end, lv.eSrc) });
     ev.sort((x, y) => (x.m - y.m) || (x.ord - y.ord));
-    // Jetzt-Linie: hinter allem, was schon begonnen hat (laufende und überfällige Abschnitte bleiben darüber)
-    let at = ev.findIndex(x => x.m > ctx && x.ord !== 1 && x.ord !== 2);
-    if (at < 0) at = ev.length - 1;
-    const nowLine = `<div class="tlnow" id="tl-now"><span><b>${fmtMin(ctx)}</b></span></div>`;
-    return `<div class="tl">${ev.slice(0, at).map(x => x.html).join("")}${nowLine}${ev.slice(at).map(x => x.html).join("")}</div>`;
+    // Zeitspanne jeder Zeile als data-m/data-e (Ende = e, sonst m) – placeNow setzt daraus die mitlaufende Uhrzeit.
+    const withSpan = (x) => x.html.replace('<div class="tlrow', `<div data-m="${x.m}" data-e="${x.e != null ? x.e : x.m}" class="tlrow`);
+    return `<div class="tl">${ev.map(withSpan).join("")}<div class="tlnowline" id="tl-nowline" aria-hidden="true"></div><div class="tlnow" id="tl-now" role="img" aria-label="Jetzt ${fmtMin(ctx)}"><b>${fmtMin(ctx)}</b></div></div>`;
   }
   // Sprung aus dem Tagesablauf oder „Als Nächstes“: Abschnitt öffnen (falls eingeklappt), hinscrollen, kurz hervorheben.
+  // Mitlaufende Uhrzeit links am Tagesablauf: liegt „jetzt“ in einer Zeile (Abschnitt von–bis), steht die Marke anteilig darin,
+  // sonst anteilig in der Lücke zwischen der letzten vergangenen und der nächsten Zeile. Läuft auch, während render() wartet.
+  function placeNow() {
+    const tl = root.querySelector(".tl"), mk = tl && tl.querySelector("#tl-now"), ln = tl && tl.querySelector("#tl-nowline");
+    if (!mk) return;
+    const ctx = nowMin(), rows = [...tl.querySelectorAll(":scope > .tlrow[data-m]")].map(el => ({ el, m: +el.dataset.m, e: +el.dataset.e, top: el.offsetTop, h: el.offsetHeight }));
+    if (!rows.length) return;
+    let y;
+    const inside = rows.filter(r => r.e > r.m && r.m <= ctx && ctx < r.e).pop();
+    if (inside) y = inside.top + inside.h * (ctx - inside.m) / (inside.e - inside.m);
+    else {
+      const prev = rows.filter(r => r.m <= ctx).pop(), next = rows.find(r => r.m > ctx);
+      if (!prev) y = next.top;
+      else if (!next) y = prev.top + prev.h;
+      else {
+        const from = Math.max(prev.e, prev.m), a = prev.top + prev.h, span = next.m - from;
+        y = a + (next.top - a) * (span > 0 ? Math.min(1, Math.max(0, (ctx - from) / span)) : 0.5);
+      }
+    }
+    const t = fmtMin(ctx), b = mk.querySelector("b");
+    if (b && b.textContent !== t) { b.textContent = t; mk.setAttribute("aria-label", "Jetzt " + t); }
+    mk.style.top = ln.style.top = Math.round(y) + "px";
+  }
   function jumpTo(id) {
     if (id.startsWith("phase-") && id !== "phase-own") {
       const pid = id.slice(6), el0 = $(id);
@@ -3957,7 +3978,7 @@ export function mount(container, opts = {}) {
       else renderPicker();
     }
     maybeRemind();
-    if (v === "schicht") scrollToNow();
+    if (v === "schicht") { placeNow(); scrollToNow(); }
     if (v === "dienst") applyRosterHi();
   }
   // ---------- Erstattung (Check-in-Erstattung) ----------
@@ -4324,7 +4345,7 @@ export function mount(container, opts = {}) {
   // Uhr, Fälligkeiten und „mitlaufende" Spalten jede Minute aktualisieren (nur Anzeige).
   timers.push(setInterval(() => {
     if (["plan", "monat", "admin", "pin", "dienst", "zeiten"].includes(state.view)) { renderHeader(); maybeAskPerson(); maybeRemind(); }
-    else render();
+    else { render(); if (state.view === "schicht") placeNow(); }
   }, 30000));
 
   // ---------- Start ----------

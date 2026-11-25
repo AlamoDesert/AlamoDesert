@@ -2,6 +2,9 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.22.1 – 25.11.2026
+- Die aktuelle Uhrzeit läuft links stufenlos am Tagesablauf entlang: Liegt jetzt innerhalb eines Abschnitts, steht sie anteilig darin (z. B. ein Viertel tief bei 18:45 in 18:30–19:30), sonst anteilig in der Lücke zur nächsten Zeile. So ist sofort zu sehen, ob man im Zeitrahmen liegt.
+
 ## 1.22.0 – 25.11.2026
 - Fahrplan als Tagesablauf: Uhrzeit links, Punkt auf einer senkrechten Linie, schwarze Jetzt-Linie zwischen Vergangenem und Kommendem. Die Leiste „Jetzt“ mit dem waagerechten Zeitstrahl und die Kacheln Danach · Später · Erledigt sind entfernt – mehr Platz für den Fahrplan.
 - Beginn und Schluss sind die erste und letzte Zeile, „ändern“ direkt dort. Sonnenuntergang und kommende Erinnerungen stehen an ihrer Uhrzeit.
