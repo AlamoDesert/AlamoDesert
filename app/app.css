@@ -679,7 +679,7 @@ header.top > .datenav { order: 4; margin-left: auto } header.top > .presence { o
 .dnmore[hidden] { display: none }
 .calbtn, .fontbtn { width: 40px; height: 40px; display: inline-grid; place-items: center; color: var(--muted) }
 .calbtn.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft) }
-.fontbtn.on, .fontbtn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft) }
+.fontbtn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft) }
 /* Schrift groß (pro Person) */
 .flash { animation: rzflash 1.2s ease-out 1 }
 @keyframes rzflash { 0% { box-shadow: 0 0 0 4px var(--accent) } 100% { box-shadow: 0 0 0 0 transparent } }

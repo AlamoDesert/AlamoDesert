@@ -1778,7 +1778,6 @@ export function mount(container, opts = {}) {
   function applyZoom(fz) {
     const f = clampFz(fz) / 100;
     if (zoomFactor() !== f || !container.style.getPropertyValue("--zf")) container.style.setProperty("--zf", String(f));
-    const b = $("fontbtn"); if (b) b.classList.toggle("on", f !== 1);
   }
   const layoutKey = () => { const p = currentPerson(); return p ? p.id : "_"; };
   function getLayout() {
