@@ -1,4 +1,4 @@
-const MARKUP = "<div class=\"wrap\">\n  <header class=\"top\">\n    <h1 class=\"brand\">Rezeption<small id=\"weekday\">–</small></h1>\n    <div class=\"clock\" id=\"clock\">--:--</div>\n    <div class=\"presence\" id=\"presence\" role=\"group\" aria-label=\"Eingecheckt\"></div>\n    <button class=\"btn outbtn\" id=\"outBtn\" hidden>Auschecken</button>\n    <div class=\"tabs\" role=\"tablist\">\n      <button class=\"tab\" role=\"tab\" data-view=\"schicht\"><b>Schicht</b><span class=\"meta\" id=\"meta-shift\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"erstattung\" hidden><b>Check-ins</b><span class=\"meta\" id=\"meta-ci\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"dienst\"><b>Dienstplan</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"zeiten\"><b>Arbeitszeiten</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"admin\"><b>Verwaltung</b></button>\n    </div>\n    <div class=\"datenav\">\n      <button class=\"iconbtn calbtn\" id=\"calbtn\" aria-label=\"Anderen Tag ansehen\" title=\"Anderen Tag ansehen\"><svg aria-hidden=\"true\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><rect x=\"3\" y=\"5\" width=\"18\" height=\"16\" rx=\"2\"></rect><path d=\"M3 10h18M8 3v4M16 3v4\"></path></svg></button>\n      <span class=\"dnmore\" id=\"dnmore\">\n      <button class=\"iconbtn\" id=\"prev\" aria-label=\"Vorheriger Tag\">‹</button>\n      <label class=\"datebtn\"><span id=\"datelabel\">–</span><span class=\"src\" id=\"datesrc\"></span><input type=\"date\" id=\"datepick\" aria-label=\"Datum wählen\"></label>\n      <button class=\"iconbtn\" id=\"next\" aria-label=\"Nächster Tag\">›</button>\n      <button class=\"todaybtn\" id=\"today\">Heute</button>\n      </span>\n      <button class=\"iconbtn fontbtn\" id=\"fontbtn\" aria-label=\"Schrift größer oder kleiner\" title=\"Schriftgröße\">A<small>A</small></button>\n    </div>\n    <div class=\"status\" id=\"status\">Verbinde…</div>\n  </header>\n  <div class=\"vobar\" id=\"vobar\" hidden><b>Nur ansehen</b><span>Abhaken und Eintragen sind gesperrt.</span><button class=\"btn primary\" data-pres-add=\"1\">Einchecken</button></div>\n  <main id=\"main\"></main>\n  <div id=\"ciwrap\" class=\"ciwrap\" hidden></div>\n</div>\n<input type=\"file\" id=\"rzfile\" class=\"rzfile\" tabindex=\"-1\" aria-hidden=\"true\"><div id=\"picker\" hidden></div><div id=\"remind\" hidden></div><div id=\"toast\" class=\"toast\" role=\"status\" hidden></div>";
+const MARKUP = "<div class=\"wrap\">\n  <header class=\"top\">\n    <h1 class=\"brand\">Rezeption<small id=\"weekday\">–</small></h1>\n    <div class=\"clock\" id=\"clock\">--:--</div>\n    <div class=\"presence\" id=\"presence\" role=\"group\" aria-label=\"Eingecheckt\"></div>\n    <div class=\"tabs\" role=\"tablist\">\n      <button class=\"tab\" role=\"tab\" data-view=\"schicht\"><b>Schicht</b><span class=\"meta\" id=\"meta-shift\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"erstattung\" hidden><b>Check-ins</b><span class=\"meta\" id=\"meta-ci\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"dienst\"><b>Dienstplan</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"zeiten\"><b>Arbeitszeiten</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"admin\"><b>Verwaltung</b></button>\n    </div>\n    <div class=\"datenav\">\n      <button class=\"iconbtn calbtn\" id=\"calbtn\" aria-label=\"Anderen Tag ansehen\" title=\"Anderen Tag ansehen\"><svg aria-hidden=\"true\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><rect x=\"3\" y=\"5\" width=\"18\" height=\"16\" rx=\"2\"></rect><path d=\"M3 10h18M8 3v4M16 3v4\"></path></svg></button>\n      <span class=\"dnmore\" id=\"dnmore\">\n      <button class=\"iconbtn\" id=\"prev\" aria-label=\"Vorheriger Tag\">‹</button>\n      <label class=\"datebtn\"><span id=\"datelabel\">–</span><span class=\"src\" id=\"datesrc\"></span><input type=\"date\" id=\"datepick\" aria-label=\"Datum wählen\"></label>\n      <button class=\"iconbtn\" id=\"next\" aria-label=\"Nächster Tag\">›</button>\n      <button class=\"todaybtn\" id=\"today\">Heute</button>\n      </span>\n      <button class=\"iconbtn fontbtn\" id=\"fontbtn\" aria-label=\"Schrift größer oder kleiner\" title=\"Schriftgröße\">A<small>A</small></button>\n    </div>\n    <div class=\"status\" id=\"status\">Verbinde…</div>\n  </header>\n  <div class=\"vobar\" id=\"vobar\" hidden><b>Nur ansehen</b><span>Abhaken und Eintragen sind gesperrt.</span><button class=\"btn primary\" data-pres-add=\"1\">Einchecken</button></div>\n  <main id=\"main\"></main>\n  <div id=\"ciwrap\" class=\"ciwrap\" hidden></div>\n</div>\n<input type=\"file\" id=\"rzfile\" class=\"rzfile\" tabindex=\"-1\" aria-hidden=\"true\"><div id=\"picker\" hidden></div><div id=\"remind\" hidden></div><div id=\"toast\" class=\"toast\" role=\"status\" hidden></div>";
 
 /* Rezeption Schichtcheck – App-Kern.
    Wird von tools/build.mjs in index.html (Mac-App und Webversion) eingebaut.
@@ -812,7 +812,7 @@ export function mount(container, opts = {}) {
   function statusLine() {
     if (state.readOnly) return "Nur Lesezugriff.";
     if (state.mode === "shared") return "Live geteilt";
-    if (state.mode === "local") return backupHint() || "Gespeichert auf diesem Mac";
+    if (state.mode === "local") return "Gespeichert auf diesem Mac";
     return "Verbinde…";
   }
 
@@ -2243,6 +2243,8 @@ export function mount(container, opts = {}) {
   }
 
   // ---------- Verwaltung ----------
+  // Für den Punkt am Reiter Verwaltung: nur echte Versäumnisse (Ordner fehlt, Sicherung 7+ Tage alt) – „noch keine“ erledigt die automatische Sicherung selbst.
+  const backupWarn = () => { const h = backupHint(); return h && !h.startsWith("Noch keine") ? h.replace(" (Verwaltung)", "") : ""; };
   function backupHint() {
     if (state.mode !== "local") return "";
     const last = LS.get("rz2meta", {}).lastBackup;
@@ -2940,7 +2942,6 @@ export function mount(container, opts = {}) {
   function pulseViewOnly() {
     const b = $("vobar"); b.classList.remove("pulse"); void b.offsetWidth; b.classList.add("pulse");
   }
-  $("outBtn").addEventListener("click", () => openCheckout());
   $("remind").addEventListener("input", (e) => {
     if (!state.checkout) return;
     if (e.target.id === "co-note") state.checkout.note = e.target.value;
@@ -3919,10 +3920,13 @@ export function mount(container, opts = {}) {
     bar.hidden = !state.cfg.people.length;
     bar.innerHTML = pres.map(({ person, entry }) => {
       const on = p && p.id === person.id;
-      return `<button class="pchip${on ? " on" : ""}" data-pres="${esc(person.id)}" aria-pressed="${!!on}" title="${on ? "Gerade aktiv – Haken laufen auf diesen Namen" : "Antippen: " + esc(person.name) + " wird aktiv"}"><span class="av">${esc(initials(person.name))}</span><span>${esc(person.name)}<small>${ROLE_LABEL[entry.role] || ""} · ${entry.in}</small></span></button>`;
+      const chip = `<button class="pchip${on ? " on" : ""}" data-pres="${esc(person.id)}" aria-pressed="${!!on}" title="${on ? "Gerade aktiv – Haken laufen auf diesen Namen" : "Antippen: " + esc(person.name) + " wird aktiv"}"><span class="av">${esc(initials(person.name))}</span><span>${esc(person.name)}<small>${ROLE_LABEL[entry.role] || ""} · ${entry.in}</small></span></button>`;
+      // Aktive Person: „Auschecken“ sitzt mit im Namens-Chip (eine Pille, durch einen Strich getrennt).
+      return on ? `<span class="pgroup">${chip}<button class="pout" data-pout="1" aria-label="${esc(person.name)} auschecken">Auschecken</button></span>` : chip;
     }).join("") + `<button class="pchip add" data-pres-add="1" title="Weitere Person einchecken">${pres.length ? "+" : "+ Einchecken"}</button>`;
-    $("outBtn").hidden = !p;
-    $("outBtn").textContent = p && pres.length > 1 ? `${p.name.split(" ")[0]} auschecken` : "Auschecken";
+    // Sicherung überfällig: nur ein Punkt am Reiter Verwaltung (Details dort), kein Text in der Kopfzeile.
+    const bh = backupWarn(), adminTab = root.querySelector('.tab[data-view="admin"]');
+    adminTab.classList.toggle("warn", !!bh); adminTab.title = bh || "";
     const vo = state.viewOnly && !p && !!state.cfg.people.length;
     $("vobar").hidden = !vo;
     container.classList.toggle("viewonly", vo);
@@ -4323,8 +4327,9 @@ export function mount(container, opts = {}) {
   main.addEventListener("focusout", () => setTimeout(() => { if (renderPending && !ptrDown) render(); }, 0));
   // Anwesend-Leiste und „Nur ansehen“-Leiste
   container.addEventListener("click", (e) => {
-    const b = e.target.closest && e.target.closest("[data-pres],[data-pres-add]");
+    const b = e.target.closest && e.target.closest("[data-pres],[data-pres-add],[data-pout]");
     if (!b || !container.contains(b) || b.closest("#picker")) return;
+    if (b.dataset.pout) return openCheckout();
     if (b.dataset.presAdd) { state.viewOnly = false; state.byeSeen = true; openPicker(); return; }
     const id = b.dataset.pres, open = openEntry(isoDate(new Date()), id);
     if (!open || (state.who && state.who.id === id)) return;
@@ -4364,7 +4369,7 @@ export function mount(container, opts = {}) {
     loadWho();
     if (state.mode === "local" && NATIVE) { try { nativeInfo = await NATIVE.info(); } catch { nativeInfo = null; } }
     else if (state.mode === "local") await loadBackupDir();
-    setStatus(statusLine(), state.readOnly || !!backupHint());
+    setStatus(statusLine(), state.readOnly);
     if (disposed) return;
     subscribeCfg();
     migrateSnaps();

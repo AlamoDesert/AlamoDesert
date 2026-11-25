@@ -2,6 +2,10 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.22.2 – 25.11.2026
+- Kopfzeile: „Auschecken“ sitzt wie im Mockup im Namens-Chip der aktiven Person (Name · Rolle | Auschecken), kein eigener roter Knopf mehr.
+- Kein Sicherungs-Text mehr oben rechts („Noch keine Sicherung …“). Ist die Sicherung wirklich überfällig (Ordner fehlt oder 7+ Tage alt), zeigt ein roter Punkt am Reiter Verwaltung das an; Details unter Verwaltung › Datensicherung.
+
 ## 1.22.1 – 25.11.2026
 - Die aktuelle Uhrzeit läuft links stufenlos am Tagesablauf entlang: Liegt jetzt innerhalb eines Abschnitts, steht sie anteilig darin (z. B. ein Viertel tief bei 18:45 in 18:30–19:30), sonst anteilig in der Lücke zur nächsten Zeile. So ist sofort zu sehen, ob man im Zeitrahmen liegt.
 
