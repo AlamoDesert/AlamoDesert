@@ -42,7 +42,9 @@ srv.listen(0, async () => {
   const bb = await q(p, "#rempop button[type=submit]").boundingBox();
   await p.mouse.move(bb.x + 20, bb.y + 10); await p.mouse.down(); await step(); await p.mouse.up(); await step(300);
   check(await q(p, "#rempop").count() === 0 && await q(p, ".tlrchip.own").count() === 1, "Erinnerung: Speichern trotz Neuzeichnen");
-  await q(p, "[data-remadd]").click(); await q(p, "#rp-t").fill("Zweite"); await q(p, "#rp-t").press("Enter"); await step(300);
+  await q(p, "[data-remadd]").click(); await step();
+  check(await q(p, "#rp-t").inputValue() === "", "Erinnerung: zweites Fenster startet leer");
+  await q(p, "#rp-t").fill("Zweite"); await q(p, "#rp-t").press("Enter"); await step(300);
   check(await q(p, "#rempop").count() === 0 && await q(p, ".tlrchip.own").count() === 2, "Erinnerung: Enter speichert und schließt");
   check(await q(p, ".tllane .tlrchip.own").count() === 2 && await q(p, "#phase-own").count() === 0, "Erinnerung: eigener Bereich rechts im Tagesablauf");
   await q(p, "[data-remadd]").click(); await q(p, "#rp-t").fill("Dritte"); await q(p, "#rp-at").fill("16:20"); await q(p, "#rp-t").press("Enter"); await step(300);
@@ -117,6 +119,20 @@ srv.listen(0, async () => {
   const ri = await p.evaluate(() => JSON.parse(localStorage.getItem("rz2cfg")).master.plan.frueh.phases.flatMap(x => x.items).find(i => i.ra === "u"));
   check(ri && ri.rm === 0 && await q(p, ".badge.rem").filter({ hasText: "zum Sonnenuntergang" }).count() >= 1, "Editor: Erinnerung zum Sonnenuntergang");
 
+  // Abschnitt in die andere Schicht verschieben (und zurück), Abschnitt ausblenden
+  const master = () => p.evaluate(() => JSON.parse(localStorage.getItem("rz2cfg")).master.plan);
+  await q(p, '[data-edphase="orga"]').click(); await step(); await q(p, "#ep-shift").selectOption("spaet"); await q(p, "#ep-t").press("Enter"); await step(300);
+  let mp = await master();
+  const movedOk = mp.spaet.phases.some(x => x.id === "orga") && !mp.frueh.phases.some(x => x.id === "orga") && mp.spaet.phases.find(x => x.id === "orga").items.length === 2;
+  await q(p, '[data-edshift="spaet"]').click(); await step();
+  await q(p, '[data-edphase="orga"]').click(); await step(); await q(p, "#ep-shift").selectOption("frueh"); await q(p, "#ep-t").press("Enter"); await step(300);
+  mp = await master();
+  check(movedOk && mp.frueh.phases.some(x => x.id === "orga") && !mp.spaet.phases.some(x => x.id === "orga"), "Editor: Abschnitt Früh → Spät und zurück, Aufgaben bleiben");
+  await q(p, '[data-edphase="plaetze"]').click(); await step(); await q(p, "#ep-off").check(); await q(p, "#ep-t").press("Enter"); await step(300);
+  mp = await master();
+  check(mp.spaet.phases.find(x => x.id === "plaetze").off === true && await q(p, ".edphase.off").count() === 1, "Editor: Abschnitt ausgeblendet (bleibt im Plan)");
+  await q(p, '[data-edshift="frueh"]').click(); await step();
+
   // Team: Enter legt an, Feld wird leer
   await q(p, '[data-view="admin"]').click(); await step();
   await q(p, '[data-adminpop="team"]').click(); await q(p, "#newperson").fill("Test Ben"); await q(p, "#newperson").press("Enter"); await step(300);
@@ -143,6 +159,7 @@ srv.listen(0, async () => {
   await p.evaluate(() => { const d = JSON.parse(localStorage.getItem("rz2:2026-11-24")); d.rem = {}; localStorage.setItem("rz2:2026-11-24", JSON.stringify(d)); });
   while (await q(p, "#remind [data-stillok], #remind [data-hlater]").count()) { await q(p, "#remind [data-stillok], #remind [data-hlater]").first().click(); await step(); }
   await q(p, '[data-view="schicht"]').click(); await step();
+  check(await q(p, ".tllater").filter({ hasText: "Plätze" }).count() === 0 && await q(p, ".tllater").filter({ hasText: "Abbau" }).count() === 1, "Tagesablauf: ausgeblendeter Abschnitt erscheint nicht");
   const tsegState = async () => (await p.locator("#rz-host .tlrow").filter({ has: p.locator("#phase-start") }).getAttribute("class")) || "";
   const nowMs = await p.evaluate(() => Date.now()), at = (h, m) => new Date(2026, 10, 24, h, m).getTime() - nowMs;
   // Farben: grün solange Zeit ist, orange ab 15 Min. vor Ende (knapp) bis zum Puffer, dann rot

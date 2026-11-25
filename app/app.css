@@ -827,3 +827,8 @@ ul.items.tlown li.ownrem { border-top: 0 }
 .tlbell { position: absolute; left: 72px; width: 20px; height: 20px; transform: translate(-50%, -50%); border-radius: 50%; background: var(--now-soft); border: 2px solid var(--now); color: var(--now); display: grid; place-items: center; z-index: 3; box-sizing: border-box; pointer-events: none }
 .tlbell svg { width: 11px; height: 11px }
 .tlconn { position: absolute; left: 84px; right: calc(var(--remw) + 4px); height: 0; border-top: 1.5px dotted var(--now); opacity: .6; z-index: 1; pointer-events: none }
+
+/* 1.24.1 Ausgeblendete Abschnitte im Aufgaben-Plan */
+.edphase.off { opacity: .6 }
+.edphase.off .ttl { text-decoration: line-through }
+.ancb.offb { color: var(--muted) }

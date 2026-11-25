@@ -513,7 +513,7 @@ export function mount(container, opts = {}) {
           return { id: i.id, t, s: str(i.s, 300), important: i.important === true, optional: i.optional === true, ...(TIME_RE.test(i.remind) ? { remind: i.remind, ...(i.remindAlways === true ? { remindAlways: true } : {}), ...ancOf(i.ra, i.rm, "ra", "rm") } : {}) };
         }).filter(Boolean);
         const an = p.anc === "t" ? { anc: "t" } : ANC.includes(p.anc) && offOk(p.a) && offOk(p.b) && p.a !== p.b ? { anc: p.anc, a: p.a, b: p.b } : {};
-        return { id: ID_RE.test(p.id) ? p.id : newId("p"), title: str(p.title, 60).trim() || "Abschnitt", from: p.from, to: p.to, hint: str(p.hint, 80), ...an, items };
+        return { id: ID_RE.test(p.id) ? p.id : newId("p"), title: str(p.title, 60).trim() || "Abschnitt", from: p.from, to: p.to, hint: str(p.hint, 80), ...an, ...(p.off === true ? { off: true } : {}), items };
       }).filter(Boolean);
       out[key] = {
         start: TIME_RE.test(s.start) ? s.start : def.start,
@@ -746,7 +746,8 @@ export function mount(container, opts = {}) {
     const out = { ...rost, always: { ...rost.always }, live: b };
     for (const k of KEYS) {
       const s0 = base[k], S = b[k].start, E = b[k].end;
-      const phases = s0.phases.map(p => {
+      // Ausgeblendete Abschnitte (off) bleiben im Aufgaben-Plan, erscheinen aber nicht im Fahrplan und zählen nicht mit.
+      const phases = s0.phases.filter(p => !p.off).map(p => {
         const an = phaseAnchor(p, s0), t = phaseTimes(an, S, E, p, U), d = toMin(t.from) - toMin(p.from);
         const items = p.items.map(i => {
           if (!i.remind) return i;
@@ -3453,7 +3454,7 @@ export function mount(container, opts = {}) {
   // Abschnitte am Sonnenuntergang (anc „u“) wandern übers Jahr und verlängern die Schicht nicht.
   function fitShift(s) {
     s.phases = sortPhases(s.phases);
-    const fix = s.phases.filter(p => p.anc !== "u");
+    const fix = s.phases.filter(p => p.anc !== "u" && !p.off);
     if (!fix.length) return;
     const first = Math.min(...fix.map(p => toMin(p.from))), last = Math.max(...fix.map(p => toMin(p.to)));
     if (first < toMin(s.start)) s.start = fmtMin(first);
@@ -3627,8 +3628,8 @@ export function mount(container, opts = {}) {
       const add = state.edAdd === p.id
         ? `<form class="edadd" data-addto="${esc(p.id)}"><label for="ed-new">Neue Aufgabe</label><input class="in" id="ed-new" maxlength="200" autocomplete="off" placeholder="Text eingeben, Enter"><button class="btn primary" type="submit">Hinzufügen</button><button class="btn ghost" type="button" data-edaddclose="1">Fertig</button></form>`
         : `<button class="addrow" data-edadd="${esc(p.id)}">+ Aufgabe</button>`;
-      return `<section class="card edphase">
-        <div class="edhead"><button class="edtoggle" data-edopen="${esc(p.id)}" aria-expanded="${open}"><span class="ttl">${esc(p.title)}</span><span class="ancb${pan.anc === "t" ? " fixed" : pan.anc === "u" ? " sun" : ""}">${ANC_NAME[pan.anc]}</span><span class="tm">${pan.anc === "t" ? timesLabel(p, m.we.phases[p.id]) : anchorLabel(pan, p)}</span>${open ? "" : `<span class="cnt">${p.items.length} ${p.items.length === 1 ? "Aufgabe" : "Aufgaben"} ›</span>`}</button>
+      return `<section class="card edphase${p.off ? " off" : ""}">
+        <div class="edhead"><button class="edtoggle" data-edopen="${esc(p.id)}" aria-expanded="${open}"><span class="ttl">${esc(p.title)}</span>${p.off ? '<span class="ancb offb">ausgeblendet</span>' : ""}<span class="ancb${pan.anc === "t" ? " fixed" : pan.anc === "u" ? " sun" : ""}">${ANC_NAME[pan.anc]}</span><span class="tm">${pan.anc === "t" ? timesLabel(p, m.we.phases[p.id]) : anchorLabel(pan, p)}</span>${open ? "" : `<span class="cnt">${p.items.length} ${p.items.length === 1 ? "Aufgabe" : "Aufgaben"} ›</span>`}</button>
           <button class="btn ghost sm" data-edphase="${esc(p.id)}">Abschnitt bearbeiten</button></div>
         ${open ? `<ul class="edlist" data-list="phase:${esc(p.id)}">${rows}</ul>${add}` : ""}
       </section>`;
@@ -3686,7 +3687,9 @@ export function mount(container, opts = {}) {
         <div class="tgrid" ${showIf("ep-p", "t", an.anc)}><span></span><b>von</b><b>bis</b>
           <b>Mo–Fr</b>${timeIn("ep-wkf", d.wk.from, "Mo–Fr von")}${timeIn("ep-wkt", d.wk.to, "Mo–Fr bis")}
           <b>Sa + So</b>${timeIn("ep-wef", d.we.from, "Sa+So von")}${timeIn("ep-wet", d.we.to, "Sa+So bis")}</div>
-        <p class="hint">Zeiten sind Richtwerte („ca.“). Beginn = Einchecken, Schluss = Dienstplan – beides heute in der Jetzt-Leiste änderbar.</p>`, !!p, n ? `Mit ${n} ${n === 1 ? "Aufgabe" : "Aufgaben"} löschen?` : "Wirklich löschen?");
+        <p class="hint">Zeiten sind Richtwerte („ca.“). Beginn = Einchecken, Schluss = Dienstplan – beides heute im Tagesablauf änderbar.</p>
+        <div class="ancrow">${fld("Schicht", `<select class="in" id="ep-shift">${KEYS.map(k => `<option value="${k}"${k === key ? " selected" : ""}>${SHIFT_META[k].label}</option>`).join("")}</select>`)}</div>
+        <div class="checks"><label><input type="checkbox" id="ep-off" ${p && p.off ? "checked" : ""}> Ausblenden – bleibt im Plan, erscheint aber nicht im Fahrplan</label></div>`, !!p, n ? `Mit ${n} ${n === 1 ? "Aufgabe" : "Aufgaben"} löschen?` : "Wirklich löschen?");
     }
     if (pop.type === "shift") {
       const s = m.plan[key], we = m.we[key];
@@ -3734,7 +3737,7 @@ export function mount(container, opts = {}) {
     const err = (msg) => { const e = $("ep-err"); if (e) e.textContent = msg; };
     const range = (a, b) => TIME_RE.test(a) && TIME_RE.test(b) && toMin(b) > toMin(a);
     const t = v("ep-t").replace(/\s+/g, " ").trim();
-    let ok = true;
+    let ok = true, moved = null;
     if (pop.type === "item") {
       if (!t) return err("Bitte einen Text eingeben.");
       const rem = c("ep-rem"), rwk = tv("ep-remwk"), rwe = tv("ep-remwe"), r = readPoint("ep-r");
@@ -3769,8 +3772,16 @@ export function mount(container, opts = {}) {
         if (!p) { p = { id: newId("p"), items: [] }; m.plan[key].phases.push(p); state.edOpen.add(p.id); }
         const ph = range(wk.from, wk.to) ? wk : { from: m.plan[key].start, to: m.plan[key].end };
         Object.assign(p, { title: t, hint: v("ep-s").trim(), from: ph.from, to: ph.to, anc });
+        if (c("ep-off")) p.off = true; else delete p.off;
         if (anc === "t") { delete p.a; delete p.b; m.we.phases[p.id] = we; } else { p.a = a; p.b = b; m.we.phases[p.id] = range(we.from, we.to) ? we : { ...ph }; }
+        // In die andere Schicht verschieben: Abschnitt samt Aufgaben (IDs bleiben, Haken gehen nicht verloren).
+        const to = v("ep-shift");
+        if (KEYS.includes(to) && to !== key) {
+          m.plan[key].phases = m.plan[key].phases.filter(x => x.id !== p.id);
+          m.plan[to].phases.push(p); moved = to;
+        }
       });
+      if (ok && moved) toast(`„${t}“ ist jetzt in der ${SHIFT_META[moved].label}`);
     } else if (pop.type === "shift") {
       const wk = { from: tv("ep-wkf"), to: tv("ep-wkt") }, we = { from: tv("ep-wef"), to: tv("ep-wet") };
       if (!range(wk.from, wk.to) || !range(we.from, we.to)) return err("Bitte Uhrzeiten als HH:MM eingeben – das Ende muss nach dem Beginn liegen.");
@@ -3976,6 +3987,8 @@ export function mount(container, opts = {}) {
   const dialogKey = () => JSON.stringify([state.edPop, state.timesEdit && [state.timesEdit.id, state.timesEdit.date], state.adminPop, state.rosterDay]);
   function rememberDraft(el) {
     if (!el.id || el.type === "password" || el.type === "file" || !el.closest || !el.closest(".overlay")) return;
+    // „Neue Erinnerung“ und „Beginn/Schluss ändern“ halten ihre Eingaben selbst (state.remPop/adjPop) – sonst stünde beim nächsten Öffnen der alte Text drin.
+    if (el.closest("#rempop, #adjpop")) return;
     const key = dialogKey();
     if (!drafts || drafts.key !== key) drafts = { key, vals: {} };
     drafts.vals[el.id] = el.type === "checkbox" || el.type === "radio" ? { c: el.checked } : { v: el.value };

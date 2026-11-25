@@ -2,6 +2,11 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.24.1 – 25.11.2026
+- Fehler behoben: „Neue Erinnerung“ zeigte beim zweiten Öffnen den Text der vorigen Erinnerung. Das Feld ist jetzt immer leer.
+- Aufgaben-Plan: Im Fenster „Abschnitt bearbeiten“ lässt sich die Schicht wählen – der Abschnitt wandert samt Aufgaben von Früh nach Spät oder umgekehrt.
+- Aufgaben-Plan: Abschnitte lassen sich ausblenden. Sie bleiben im Plan (durchgestrichen, „ausgeblendet“), erscheinen aber nicht im Fahrplan und zählen nicht zum Fortschritt.
+
 ## 1.24.0 – 25.11.2026
 - Erinnerungen haben im Tagesablauf einen eigenen Bereich rechts neben den Abschnitten. Jede steht genau auf der Höhe ihrer Uhrzeit – nach derselben Rechnung wie die mitlaufende Uhrzeit. Links auf der Zeitlinie sitzt eine Glocke, eine gepunktete Linie verbindet beides. Erreicht die Uhrzeit-Marke die Glocke, ist die Erinnerung fällig.
 - Gilt für eigene Erinnerungen (mit Haken und ×) und für Aufgaben mit Uhrzeit aus dem Plan (gestrichelter Rahmen, antippen springt zur Aufgabe).
