@@ -2,6 +2,9 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.22.4 – 25.11.2026
+- Knopf für die Schriftgröße als Liniensymbol (großes und kleines A) im Stil von Kalender und Zahnrad statt Text „AA“.
+
 ## 1.22.3 – 25.11.2026
 - Verwaltung ist ein Zahnrad-Knopf neben Kalender und Schriftgröße (statt Reiter mit Text). Aktiv blau; der rote Punkt bei überfälliger Sicherung sitzt am Zahnrad.
 

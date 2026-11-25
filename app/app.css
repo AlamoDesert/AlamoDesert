@@ -679,8 +679,6 @@ header.top > .datenav { order: 4; margin-left: auto } header.top > .presence { o
 .dnmore[hidden] { display: none }
 .calbtn, .fontbtn { width: 40px; height: 40px; display: inline-grid; place-items: center; color: var(--muted) }
 .calbtn.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft) }
-.fontbtn { font-weight: 700; font-size: 15px; display: inline-flex; align-items: baseline; justify-content: center; gap: 1px }
-.fontbtn small { font-size: 11px }
 .fontbtn[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft) }
 /* Schrift groß (pro Person) */
 .rz-root.bigfont { font-size: 17px }
