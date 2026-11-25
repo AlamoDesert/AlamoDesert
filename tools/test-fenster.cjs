@@ -46,18 +46,21 @@ srv.listen(0, async () => {
   check(await q(p, "#rempop").count() === 0 && await q(p, "li.ownrem").count() === 2, "Erinnerung: Enter speichert und schließt");
 
   // Flexible Zeiten: Beginn aus dem Einchecken, Schluss heute ändern, Sonnenuntergang
-  const bTxt = await q(p, '[data-adj="spaet:start"]').innerText();
-  check(/Beginn ca\.\s*16:00/.test(bTxt), "Flexibel: Beginn = Einchecken (16:00) – " + bTxt.replace(/\s+/g, " "));
-  check(/1[56]:\d\d/.test(await q(p, ".jsun").innerText()), "Flexibel: Sonnenuntergang wird angezeigt");
-  const g0 = (await q(p, '.tseg[title*="Schichtstart"]').getAttribute("class")) || "";
-  check(/is-now/.test(g0) && !/soon/.test(g0) && await q(p, ".stop.is-now:not(.soon) .pill.ok").count() === 1, "Farbe: im Zeitrahmen grün");
+  const bTxt = await q(p, ".tlrow.is-bound").first().innerText();
+  check(/16:00/.test(bTxt) && /Beginn/.test(bTxt) && /eingecheckt/.test(bTxt), "Tagesablauf: Beginn = Einchecken (16:00) – " + bTxt.replace(/\s+/g, " "));
+  check(await q(p, ".jetzt").count() === 0 && await q(p, ".tiles").count() === 0 && await q(p, "#tl-now").count() === 1, "Tagesablauf: keine Jetzt-Leiste, keine Kacheln, Jetzt-Linie da");
+  check(await q(p, ".tlsun").count() === 1, "Tagesablauf: Sonnenuntergang als Zeile");
+  const rowOf = (id) => p.locator("#rz-host .tlrow").filter({ has: p.locator("#" + id) });
+  const g0 = (await rowOf("phase-start").getAttribute("class")) || "";
+  check(/is-now/.test(g0) && await q(p, ".stop.is-now:not(.soon) .pill.ok").count() === 1, "Farbe: im Zeitrahmen grün");
+  check(await q(p, ".tllater").count() >= 3, "Tagesablauf: spätere Abschnitte als eine Zeile");
   await q(p, '[data-adj="spaet:end"]').click(); await step();
   await q(p, '[data-adjq="-30"]').click(); await q(p, "#ad-r").fill("letzte Buchung"); await step(31000);
   await q(p, "#ad-r").press("Enter"); await step(300);
   const adj = await p.evaluate(() => (JSON.parse(localStorage.getItem("rz2:2026-11-24")).adj || {}).spaet);
   check(await q(p, "#adjpop").count() === 0 && adj && adj.end.t === "22:30" && adj.end.reason === "letzte Buchung" && adj.end.by === "pa", "Flexibel: Schluss −30 mit Grund gespeichert");
-  const titles = await q(p, ".tseg").evaluateAll(els => els.map(e => e.title));
-  check(titles.includes("22:00–22:30 Abschließen") && /Schluss ca\.\s*22:30/.test(await q(p, '[data-adj="spaet:end"]').innerText()), "Flexibel: Abschließen zieht mit – " + titles.join(" | "));
+  const rows = (await q(p, ".tlrow").allInnerTexts()).map(t => t.replace(/\s+/g, " ").trim());
+  check(rows.some(t => /^22:00 Abschließen/.test(t)) && rows.some(t => /^22:30 Schluss geändert/.test(t)), "Flexibel: Abschließen zieht mit – " + rows.join(" | "));
 
   // Leitung: Aufgabe mit Enter, kein Doppel
   await q(p, '[data-view="admin"]').click(); await q(p, "#pin-in").fill("1234"); await q(p, "#pinform button[type=submit]").click(); await step(800);
@@ -115,16 +118,20 @@ srv.listen(0, async () => {
   await p.evaluate(() => { const d = JSON.parse(localStorage.getItem("rz2:2026-11-24")); d.rem = {}; localStorage.setItem("rz2:2026-11-24", JSON.stringify(d)); });
   while (await q(p, "#remind [data-stillok], #remind [data-hlater]").count()) { await q(p, "#remind [data-stillok], #remind [data-hlater]").first().click(); await step(); }
   await q(p, '[data-view="schicht"]').click(); await step();
-  const tsegState = async () => (await q(p, '.tseg[title*="Schichtstart"]').getAttribute("class")) || "";
+  const tsegState = async () => (await p.locator("#rz-host .tlrow").filter({ has: p.locator("#phase-start") }).getAttribute("class")) || "";
   const nowMs = await p.evaluate(() => Date.now()), at = (h, m) => new Date(2026, 10, 24, h, m).getTime() - nowMs;
   // Farben: grün solange Zeit ist, orange ab 15 Min. vor Ende (knapp) bis zum Puffer, dann rot
   await p.clock.runFor(Math.max(0, at(16, 40))); await step(300);
   const s1 = await tsegState();
   await p.clock.runFor(6 * 60000); await step(300);
-  check(/is-now soon/.test(s1), "Farbe: knapp orange");
+  check(/is-soon/.test(s1), "Farbe: knapp orange – " + s1);
   check(/is-late/.test(await tsegState()), "Puffer: rot erst 15 Min. nach der Zeit");
-  const tiles = await q(p, ".tile small").allInnerTexts();
-  check(tiles.indexOf("ERLEDIGT") < 0 || tiles.map(t => t.toUpperCase()).indexOf("ERLEDIGT") === tiles.length - 1, "Kacheln: Erledigt steht rechts – " + tiles.join(" · "));
+  // Erledigtes klappt zusammen: Schichtstart abhaken → eine grüne Zeile, aufklappen zeigt ihn klein
+  for (let i = 0; i < 5 && await q(p, "#remind .overlay").count(); i++) { await q(p, "#remind button").last().click(); await step(200); }
+  await q(p, "#phase-start .items button").first().click(); await step(300);
+  const dn = await q(p, ".tldone").innerText().catch(() => "");
+  await q(p, ".tldone").click().catch(() => {}); await step(200);
+  check(/1 Abschnitt erledigt/.test(dn) && await q(p, "#phase-start").count() === 0 && await q(p, ".tlsmall").filter({ hasText: "Schichtstart" }).count() === 1, "Tagesablauf: Erledigtes zusammengeklappt – " + dn);
 
   check(!errs.length, "keine Skriptfehler" + (errs.length ? ": " + errs.join(" | ") : ""));
   await b.close(); srv.close();

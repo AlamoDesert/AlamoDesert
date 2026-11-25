@@ -689,40 +689,6 @@ header.top > .datenav { order: 4; margin-left: auto } header.top > .presence { o
 .rz-root.bigfont .txt .label, .rz-root.bigfont .always .label { font-size: 18px }
 .rz-root.bigfont .txt .sub, .rz-root.bigfont .always .sub { font-size: 14px }
 .rz-root.bigfont .stop-head .ttl, .rz-root.bigfont .stop-head .time { font-size: 20px }
-/* Jetzt-Leiste */
-.jetzt { flex: none; margin-top: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px 8px }
-.jrow { display: flex; align-items: center; gap: 14px; flex-wrap: wrap }
-.ring { flex: none } .ring text { font-family: var(--f-display); font-weight: 700; font-size: 15px; fill: var(--ink) }
-.jtxt { flex: 1 1 260px; min-width: 0 }
-.jtitle { font-family: var(--f-display); font-weight: 700; font-size: 24px; letter-spacing: .02em; text-transform: uppercase; line-height: 1.1 }
-.jetzt.tone-now .jtitle { color: var(--now) } .jetzt.tone-late .jtitle { color: var(--warn) } .jetzt.tone-calm .jtitle { color: var(--done) }
-.jsub { color: var(--muted); font-weight: 600; font-size: 14px }
-.jchips { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end }
-.jchip { display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 99px; padding: 7px 12px; font: inherit; font-weight: 700; font-size: 14px; white-space: nowrap; background: var(--surface-2); color: var(--muted) }
-button.jchip { cursor: pointer }
-.jchip svg { width: 14px; height: 14px }
-.jchip.now, .jchip.rem { background: var(--now-soft); color: var(--now) }
-.jchip.late { background: var(--warn-soft); color: var(--warn) }
-.jchip.ok { background: var(--done-soft); color: var(--done) }
-.jchip.muted { box-shadow: inset 0 0 0 1px var(--line); background: var(--surface) }
-/* Zeitstrahl */
-.tline { position: relative; height: 40px; margin: 22px 2px 4px }
-.tseg { position: absolute; top: 0; height: 14px; border: 0; border-radius: 4px; padding: 0; background: #c9d3de; cursor: pointer }
-.tseg span { position: absolute; top: 18px; left: 0; font-size: 11.5px; font-weight: 600; color: var(--muted); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; pointer-events: none }
-.tseg.is-done { background: var(--done) } .tseg.is-now { background: var(--now) } .tseg.is-now span { color: var(--now) } .tseg.is-late { background: var(--warn) } .tseg.is-late span { color: var(--warn) }
-.tnow { position: absolute; top: -8px; width: 2px; height: 30px; background: var(--ink); transform: translateX(-1px); pointer-events: none }
-.tnow b { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 11.5px; background: var(--ink); color: var(--bg); border-radius: 4px; padding: 0 5px; white-space: nowrap }
-.tbell { position: absolute; top: -17px; transform: translateX(-50%); color: var(--now); pointer-events: none }
-.tbell svg { width: 12px; height: 12px }
-/* Kacheln Danach · Erledigt · Später, „alles erledigt“ */
-.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; margin: 2px 0 8px; break-inside: avoid }
-.tile { text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 9px 12px; font: inherit; color: var(--muted); display: flex; flex-direction: column; gap: 2px; cursor: pointer }
-.tile small { font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase }
-.tile b { color: var(--ink) }
-.tile.done { background: transparent; border-style: dashed }
-.tile:hover { border-color: var(--accent) }
-.allclear { display: flex; align-items: center; gap: 12px; padding: 14px 16px; margin-bottom: 8px; border-radius: var(--r); background: var(--done-soft); color: var(--ink); font-size: 16px; break-inside: avoid }
-.allclear .mark { width: 26px; height: 26px; border-radius: 50%; background: var(--done); color: #fff; display: grid; place-items: center; font-weight: 700; flex: none }
 .flash { animation: rzflash 1.2s ease-out 1 }
 @keyframes rzflash { 0% { box-shadow: 0 0 0 4px var(--accent) } 100% { box-shadow: 0 0 0 0 transparent } }
 /* Farbregeln: Rot nur überfällig. Offene Pflicht neutral, in den letzten 30 Min. gelb, nach „Zurück zur Schicht“ rot. */
@@ -738,22 +704,12 @@ button.jchip { cursor: pointer }
 .always li.remrow .ic svg { width: 14px; height: 14px }
 .always li.remrow.due { background: var(--now-soft) }
 .always li.remrow.due .ic { background: var(--now); color: #fff }
-/* Im Querformat: Jetzt-Leiste ohne Rand nach oben quetschen */
+/* Im Querformat: Abstand der Schicht-Ansicht zur Kopfzeile */
 @media (orientation: landscape) and (min-width: 900px) { .schicht { margin-top: 12px } }
 /* 1.20 Flexible Zeiten */
 .rz-root [hidden] { display: none !important }
-.jsub { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 3px }
-.jlbl { font-weight: 700 }
-.jbound { display: inline-flex; align-items: baseline; gap: 4px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 99px; padding: 3px 10px; font: inherit; font-weight: 600; font-size: 14px; cursor: pointer }
-.jbound b { color: var(--ink); font-variant-numeric: tabular-nums }
-.jbound .jedit { font-size: 12px; color: var(--accent); margin-left: 2px }
-.jbound.is-adj { border-color: var(--now); background: var(--now-soft) }
-.jbound:hover { border-color: var(--accent) }
-.jsun { display: inline-flex; align-items: center; gap: 4px; color: #b9770e; font-variant-numeric: tabular-nums }
-.jsun svg, .tsun svg, .rempop .chip svg { width: 15px; height: 15px }
+.rempop .chip svg { width: 15px; height: 15px }
 .rempop .chip { display: inline-flex; align-items: center; gap: 5px }
-.tsun { position: absolute; top: -18px; transform: translateX(-50%); color: #b9770e; pointer-events: none }
-.tsun::after { content: ""; position: absolute; left: 50%; top: 15px; width: 0; height: 22px; border-left: 1.5px dashed #b9770e; opacity: .7 }
 .adjpop .rpwhen { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap }
 .adjpop .rpwhen .tin { width: 90px }
 .adjpop .quick { display: flex; gap: 6px; flex-wrap: wrap; padding-bottom: 4px }
@@ -779,6 +735,49 @@ button.jchip { cursor: pointer }
 .stop.is-now:not(.soon) .stop-head, .stop.is-now:not(.soon) .phint { background: var(--done-soft) }
 .stop.is-now:not(.soon) .mark { background: var(--done) }
 .stop.is-now:not(.soon) .time { color: var(--done) }
-.tseg.is-now:not(.soon) { background: var(--done) } .tseg.is-now:not(.soon) span { color: var(--done) }
-.jetzt.tone-ok .jtitle { color: var(--done) }
 .ancrow .hsel { width: auto; min-width: 72px }
+/* 1.22 Tagesablauf: Fahrplan als Zeitachse (ersetzt Jetzt-Leiste und Kacheln) */
+.tl { display: flex; flex-direction: column; padding: 2px 0 8px }
+.tlrow { display: flex; gap: 12px; align-items: stretch; break-inside: avoid }
+.tlt { width: 52px; flex: none; text-align: right; font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; color: var(--muted); padding-top: 10px }
+.tld { width: 16px; flex: none; position: relative }
+.tld::before { content: ""; position: absolute; left: 7px; top: 0; bottom: 0; width: 2px; background: var(--line) }
+.tl .tlrow:first-child .tld::before { top: 14px }
+.tl .tlrow:last-child .tld::before { bottom: auto; height: 14px }
+.tld::after { content: ""; position: absolute; left: 2px; top: 13px; width: 12px; height: 12px; border-radius: 50%; background: #c9d3de; box-sizing: border-box }
+.tlc { flex: 1; min-width: 0; padding: 5px 0 }
+.tlc > .stop { margin: 2px 0 6px }
+.tlrow.is-now .tld::after, .tlrow.is-done .tld::after { background: var(--done) }
+.tlrow.is-now .tld::after { width: 14px; height: 14px; left: 1px; top: 12px; box-shadow: 0 0 0 4px var(--done-soft) }
+.tlrow.is-soon .tld::after { background: var(--now); width: 14px; height: 14px; left: 1px; top: 12px; box-shadow: 0 0 0 4px var(--now-soft) }
+.tlrow.is-late .tld::after { background: var(--warn); width: 14px; height: 14px; left: 1px; top: 12px; box-shadow: 0 0 0 4px var(--warn-soft) }
+.tlrow.is-now .tlt { color: var(--done) } .tlrow.is-soon .tlt, .tlrow.is-rem .tlt { color: var(--now) } .tlrow.is-late .tlt { color: var(--warn) }
+.tlrow.is-bound .tlt { color: var(--ink) }
+.tlrow.is-bound .tld::after { background: var(--surface); border: 2px solid var(--ink) }
+.tlrow.is-rem .tld::after, .tlrow.is-sun .tld::after { width: 10px; height: 10px; left: 3px; top: 14px; background: var(--surface); border: 2px solid var(--now) }
+.tlrow.is-sun .tld::after { border-color: #c06a00 } .tlrow.is-sun .tlt { color: #c06a00 }
+.tlrow.small .tlt { font-size: 12.5px; padding-top: 6px }
+.tlrow.small .tld::after { width: 10px; height: 10px; left: 3px; top: 9px }
+.tlrow.small .tlc { padding: 2px 0 }
+.tlrow.is-bound .tlc { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 7px }
+.tlsrc { color: var(--muted); font-size: 13px } .tlsrc.adj { color: var(--now); font-weight: 600 }
+.tladj { border: 1px solid var(--line); background: var(--surface); color: var(--accent); border-radius: 99px; padding: 1px 10px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer }
+.tladj:hover { border-color: var(--accent) }
+.tldone { border: 0; background: var(--done-soft); color: var(--done); border-radius: 99px; padding: 3px 12px; font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; text-align: left; max-width: 100% }
+.tlsmall, .tllater, .tlrem { border: 0; background: none; padding: 4px 0; font: inherit; color: var(--muted); cursor: pointer; text-align: left; max-width: 100% }
+.tlsmall { font-size: 13.5px } .tlsmall span, .tllater span { font-size: 13px; font-weight: 500 }
+.tllater b { font-weight: 600 }
+.tllater:hover b, .tlsmall:hover, .tlrem:hover { text-decoration: underline }
+.tlrem { color: var(--now); font-weight: 600; display: inline-flex; align-items: center; gap: 6px }
+.tlrem svg { width: 14px; height: 14px; flex: none }
+.tlsun { color: #c06a00; font-weight: 600; font-size: 13.5px; display: inline-flex; align-items: center; gap: 6px; padding-top: 2px }
+.tlsun svg { width: 15px; height: 15px }
+.tlnow { display: flex; align-items: center; gap: 12px; margin: 4px 0 }
+.tlnow span { width: 52px; flex: none; text-align: right }
+.tlnow b { background: var(--ink); color: var(--bg); border-radius: 4px; padding: 1px 5px; font-size: 12px; font-variant-numeric: tabular-nums }
+.tlnow::after { content: ""; flex: 1; border-top: 2px solid var(--ink) }
+.tlprog { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-weight: 700; font-size: 13px; margin-left: 4px }
+.tlprog i { width: 90px; height: 8px; border-radius: 99px; background: var(--line); overflow: hidden; display: block }
+.tlprog i b { display: block; height: 100%; background: var(--done) }
+.othchip { border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 99px; padding: 3px 10px; font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap }
+button.othchip { cursor: pointer }

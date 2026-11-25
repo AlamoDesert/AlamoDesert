@@ -2,6 +2,13 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.22.0 – 25.11.2026
+- Fahrplan als Tagesablauf: Uhrzeit links, Punkt auf einer senkrechten Linie, schwarze Jetzt-Linie zwischen Vergangenem und Kommendem. Die Leiste „Jetzt“ mit dem waagerechten Zeitstrahl und die Kacheln Danach · Später · Erledigt sind entfernt – mehr Platz für den Fahrplan.
+- Beginn und Schluss sind die erste und letzte Zeile, „ändern“ direkt dort. Sonnenuntergang und kommende Erinnerungen stehen an ihrer Uhrzeit.
+- Erledigtes klappt zu einer grünen Zeile „✓ n Abschnitte erledigt“ zusammen; antippen zeigt die Abschnitte klein.
+- Der nächste Abschnitt öffnet sich 15 Minuten vor Beginn von selbst.
+- Fortschritt als schmaler Balken in der Kopfzeile des Fahrplans, daneben „Früh/Spät: n offen“. Überfällige Abschnitte heißen „überfällig“.
+
 ## 1.21.1 – 25.11.2026
 - Farben: Der laufende Abschnitt ist grün, solange Zeit ist. Orange („knapp“) erst in den letzten 15 Minuten bis zum Ablauf des Puffers, danach rot (überfällig). Gilt für Fahrplan, Zeitstrahl und Jetzt-Leiste.
 - Aufgaben-Plan: Abschnitte in Stunden und halben Stunden statt Minuten (z. B. „1,5–0,5 Std. vor Schluss“), auch am Sonnenuntergang. Erinnerungen bleiben in Minuten.

@@ -1394,7 +1394,7 @@ export function mount(container, opts = {}) {
   const SOON_MIN = 15;
   const isSoon = (p, ctx) => typeof ctx === "number" && ctx >= toMin(p.to) - SOON_MIN;
   const PILL_SOON = '<span class="pill now">knapp</span>';
-  const PILL = { now: '<span class="pill ok">jetzt</span>', late: '<span class="pill late">offen</span>', done: '<span class="pill done">erledigt</span>', later: '<span class="pill later">später</span>' };
+  const PILL = { now: '<span class="pill ok">jetzt</span>', late: '<span class="pill late">überfällig</span>', done: '<span class="pill done">erledigt</span>', later: '<span class="pill later">später</span>' };
 
   function whoLine(c) {
     if (!c) return "";
@@ -1570,60 +1570,64 @@ export function mount(container, opts = {}) {
 
   // ---------- Schicht (eine Ansicht für Früh und Spät) ----------
   // Links der Fahrplan der gewählten Schicht, rechts Immer im Blick, Dienst und Übergabe.
-  // ---------- Jetzt-Leiste mit Zeitstrahl (nur heute) ----------
-  function ringSvg(done, total) {
-    const r = 22, c = 2 * Math.PI * r, pct = total ? done / total : 0;
-    return `<svg class="ring" width="58" height="58" viewBox="0 0 58 58" role="img" aria-label="${done} von ${total} erledigt"><circle cx="29" cy="29" r="${r}" fill="none" stroke="var(--line)" stroke-width="6"></circle><circle cx="29" cy="29" r="${r}" fill="none" stroke="var(--done)" stroke-width="6" stroke-linecap="round" stroke-dasharray="${(c * pct).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 29 29)"></circle><text x="29" y="34" text-anchor="middle">${done}/${total}</text></svg>`;
-  }
+  // ---------- Tagesablauf (heute, ab 1.22) ----------
+  // Der Fahrplan ist die Zeitachse: Uhrzeit links, Punkt auf der Linie, Jetzt-Linie zwischen Vergangenem und Kommendem.
   // „ca.“ vor Zeiten, die an Beginn/Schluss hängen (feste Uhrzeiten ohne).
   const caT = (p) => p.an && p.an.anc !== "t" ? "ca. " : "";
   const SUN_SVG = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2 12h12M4.5 12a3.5 3.5 0 0 1 7 0M8 4.5V6M3.3 6.6l1 1M12.7 6.6l-1 1M1.5 9.5h1.3M13.2 9.5h1.3"/></svg>';
-  function jetztHtml(plan, key, sts, pr, ctx, o) {
-    const s = plan[key], meta = SHIFT_META[key];
-    const now = sts.find(x => x.st === "now"), late = sts.filter(x => x.st === "late"), next = sts.find(x => x.st === "later");
-    const title = now ? `Jetzt: ${esc(now.p.title)} · bis ${caT(now.p)}${esc(now.p.to)}` : late.length ? `Überfällig: ${esc(late[0].p.title)}` : next ? `Als Nächstes: ${esc(next.p.title)} ab ${caT(next.p)}${esc(next.p.from)}` : "Schicht erledigt";
-    const tone = now ? (isSoon(now.p, ctx) ? "now" : "ok") : late.length ? "late" : "calm";
-    const chip = (cls, txt, attr = "") => attr ? `<button class="jchip ${cls}" ${attr}>${txt}</button>` : `<span class="jchip ${cls}">${txt}</span>`;
-    const chips = [];
-    if (late.length) { const nOpen = late.reduce((n, x) => n + x.p.items.filter(i => !state.checks[i.id]).length, 0); chips.push(chip("late", `${nOpen} überfällig`, `data-jump="phase-${esc(late[0].p.id)}"`)); }
-    if (now) { const nOpen = now.p.items.filter(i => !state.checks[i.id]).length; if (nOpen) chips.push(chip(isSoon(now.p, ctx) ? "now" : "ok", `${nOpen} ${nOpen === 1 ? "Aufgabe" : "Aufgaben"} offen`, `data-jump="phase-${esc(now.p.id)}"`)); }
-    const rh = plan.always[key].filter(a => a.kind === "rhythm").map(a => ({ a, i: dueInfo(plan, key, a, ctx) })).filter(x => x.i && x.i.state !== "ok");
-    if (rh.length) { const over = rh.some(x => x.i.state === "over"); chips.push(chip(over ? "late" : "now", `${LOOP_SVG}${esc(rh[0].a.t)}${rh.length > 1 ? ` +${rh.length - 1}` : ""} ${over ? "überfällig" : "fällig"}`, `data-jump="side-next"`)); }
-    // Nächste Erinnerung (Aufgabe oder eigene) ab jetzt
-    const rems = [];
-    for (const x of sts) for (const i of x.p.items) if (i.remind && !state.checks[i.id] && toMin(i.remind) >= ctx) rems.push({ at: i.remind, t: i.t, jump: `phase-${x.p.id}` });
-    for (const r of Object.values(state.rem)) if (r.shift === key && !r.done && toMin(r.at) >= ctx) rems.push({ at: r.at, t: r.t, jump: "phase-own" });
-    rems.sort((x, y) => x.at.localeCompare(y.at));
-    if (rems[0]) chips.push(chip("rem", `${BELL_SVG}${esc(rems[0].at)} ${esc(rems[0].t.length > 28 ? rems[0].t.slice(0, 27) + "…" : rems[0].t)}`, `data-jump="${esc(rems[0].jump)}"`));
-    const hb = handIn(key);
-    if (hb && handRead(key, hb)) chips.push(chip("ok", "✓ Übergabe gelesen", `data-hopen="${key}"`));
-    if (o.otherOpen) chips.push(chip("muted", `${SHIFT_META[o.other].label}: ${o.otherOpen} offen`, o.role ? "" : `data-shiftsel="${o.other}"`));
-    // Zeitstrahl: Abschnitte als Balken über die Schicht, Markierung „jetzt“, Glocken für Erinnerungen
-    const t0 = toMin(s.start), span = Math.max(1, toMin(s.end) - t0), pos = (m) => Math.min(100, Math.max(0, (m - t0) / span * 100));
-    const segs = sts.map(({ p, st }, ix) => {
-      const l = pos(toMin(p.from)), w = Math.max(0.8, pos(toMin(p.to)) - l);
-      // Beschriftung nur bis zum nächsten Abschnitt (Abschnitte können sich überlappen)
-      const nx = sts[ix + 1], room = nx ? Math.min(w, pos(toMin(nx.p.from)) - l) : 100 - l;
-      return `<button class="tseg is-${st}${st === "now" && isSoon(p, ctx) ? " soon" : ""}" style="left:${l.toFixed(2)}%;width:${w.toFixed(2)}%" data-jump="phase-${esc(p.id)}" title="${esc(p.from)}–${esc(p.to)} ${esc(p.title)}" aria-label="${esc(p.title)} ${esc(p.from)} bis ${esc(p.to)}">${room > 7 ? `<span style="max-width:${(room / w * 100).toFixed(1)}%">${esc(p.from)} ${esc(p.title)}</span>` : ""}</button>`;
-    }).join("");
-    const bells = rems.map(r => `<span class="tbell" style="left:${pos(toMin(r.at)).toFixed(2)}%" title="${esc(r.at)} ${esc(r.t)}">${BELL_SVG}</span>`).join("");
-    const nowMark = ctx >= t0 && ctx <= t0 + span ? `<span class="tnow" style="left:${pos(ctx).toFixed(2)}%"><b>${fmtMin(ctx)}</b></span>` : "";
-    const sun = sunsetMin(state.date), sunMark = sun != null && sun > t0 && sun < t0 + span ? `<span class="tsun" style="left:${pos(sun).toFixed(2)}%" title="Sonnenuntergang ${fmtMin(sun)} (${esc(locOf().name)})">${SUN_SVG}</span>` : "";
-    const lv = (plan.live && plan.live[key]) || {}, adj = state.adj[key] || {};
-    const bound = (w, label, t, src) => {
+  // Spätere Abschnitte öffnen sich 15 Min. vor Beginn von selbst.
+  const OPEN_AHEAD = 15;
+  // Eine Zeile: tone = done | now | soon | late | later | bound | rem | sun; content = HTML rechts der Linie.
+  const tlRow = (time, tone, content, cls = "") => `<div class="tlrow is-${tone}${cls}"><span class="tlt">${time}</span><span class="tld" aria-hidden="true"></span><div class="tlc">${content}</div></div>`;
+  function timelineHtml(plan, key, sts, ctx, stopHtml) {
+    const s = plan[key], lv = (plan.live && plan.live[key]) || {}, adj = state.adj[key] || {};
+    const canAdj = !state.readOnly;
+    const boundRow = (w, label, t, src) => {
       const e = adj[w], who = e ? personName(e.by) : "";
-      const tip = src === "adj" ? `geändert${who ? " von " + who : ""}${e && e.at ? " um " + fmtTime(e.at) : ""}${e && e.reason ? ": " + e.reason : ""}` : src === "in" ? "aus dem Einchecken" : "laut Plan/Dienstplan";
-      return `<button class="jbound${src === "adj" ? " is-adj" : ""}" data-adj="${key}:${w}" title="${esc(tip)}" aria-label="${label} ca. ${esc(t)} ändern (${esc(tip)})">${label} ca. <b>${esc(t)}</b><span class="jedit">ändern</span></button>`;
+      const info = src === "adj" ? `geändert${who ? " von " + who : ""}${e && e.at ? " um " + fmtTime(e.at) : ""}${e && e.reason ? ": " + e.reason : ""}` : src === "in" ? "eingecheckt" : (state.cfg.roster[state.date] && state.cfg.roster[state.date].times && state.cfg.roster[state.date].times[key] ? "laut Dienstplan" : "laut Plan");
+      return tlRow(`${esc(t)}`, "bound", `<b>${label}</b><span class="tlsrc${src === "adj" ? " adj" : ""}">${esc(info)}</span>${canAdj ? `<button class="tladj" data-adj="${key}:${w}" aria-label="${label} ca. ${esc(t)} ändern">ändern</button>` : ""}`);
     };
-    const subline = `<span class="jlbl">${meta.label}</span>${bound("start", "Beginn", s.start, lv.sSrc)}${bound("end", "Schluss", s.end, lv.eSrc)}${sun != null ? `<span class="jsun" title="Sonnenuntergang in ${esc(locOf().name)}">${SUN_SVG}${fmtMin(sun)}</span>` : ""}`;
-    return `<section class="jetzt tone-${tone}" aria-label="Jetzt">
-      <div class="jrow">${ringSvg(pr.done, pr.total)}
-        <div class="jtxt"><div class="jtitle">${title}</div><div class="jsub">${subline}</div></div>
-        <div class="jchips">${chips.join("")}</div></div>
-      <div class="tline">${segs}${bells}${sunMark}${nowMark}</div>
-    </section>`;
+    const flagged = (p) => state.coFlag === key && p.items.some(i => !state.checks[i.id]);
+    const ev = [];   // { m, ord, html } – sortiert nach Uhrzeit, ord entscheidet bei Gleichstand
+    const S = toMin(s.start), E = toMin(s.end);
+    ev.push({ m: S, ord: 0, html: boundRow("start", "Beginn", s.start, lv.sSrc) });
+    // Erledigtes: eine Zeile „✓ n Abschnitte erledigt“, aufgeklappt je Abschnitt eine kleine Zeile.
+    const doneL = sts.filter(x => x.st === "done" && !flagged(x.p));
+    if (doneL.length) {
+      const open = state.expanded.has("_done"), n = doneL.length;
+      const m0 = Math.min(...doneL.map(x => toMin(x.p.from)));
+      ev.push({ m: m0, ord: 1, html: tlRow(fmtMin(m0), "done",
+        `<button class="tldone" data-toggle="_done" aria-expanded="${open}">✓ ${n} ${n === 1 ? "Abschnitt" : "Abschnitte"} erledigt${open ? "" : ` · ${esc(doneL.map(x => x.p.title).join(", "))}`} <span aria-hidden="true">${open ? "‹" : "›"}</span></button>`, " small") });
+      if (open) for (const { p } of doneL) {
+        ev.push({ m: toMin(p.from), ord: 2, html: state.expanded.has(p.id) ? tlRow(p.from, "done", stopHtml(p, true)) :
+          tlRow(p.from, "done", `<button class="tlsmall" data-toggle="${esc(p.id)}" aria-expanded="false">✓ ${esc(p.title)} <span>· ${p.items.length}/${p.items.length}</span></button>`, " small") });
+      }
+    }
+    for (const { p, st } of sts) {
+      if (st === "done" && !flagged(p)) continue;
+      const soon = st === "now" && isSoon(p, ctx);
+      const ahead = st === "later" && toMin(p.from) - ctx <= OPEN_AHEAD;
+      const tone = st === "now" ? (soon ? "soon" : "now") : st;
+      if (st === "now" || st === "late" || flagged(p) || ahead || state.expanded.has(p.id)) ev.push({ m: toMin(p.from), ord: 3, html: tlRow(p.from, tone, stopHtml(p, ahead)) });
+      else ev.push({ m: toMin(p.from), ord: 3, html: tlRow(p.from, "later", `<button class="tllater" data-toggle="${esc(p.id)}" aria-expanded="false"><b>${esc(p.title)}</b> <span>· ${p.items.length} ${p.items.length === 1 ? "Aufgabe" : "Aufgaben"} ›</span></button>`) });
+    }
+    // Erinnerungen ab jetzt (Aufgaben mit Uhrzeit und eigene) an ihrer Uhrzeit
+    const short = (t) => esc(t.length > 48 ? t.slice(0, 47) + "…" : t);
+    for (const { p } of sts) for (const i of p.items) if (i.remind && !state.checks[i.id] && toMin(i.remind) >= ctx)
+      ev.push({ m: toMin(i.remind), ord: 4, html: tlRow(i.remind, "rem", `<button class="tlrem" data-jump="phase-${esc(p.id)}">${BELL_SVG}${short(i.t)}</button>`) });
+    for (const r of Object.values(state.rem)) if (r.shift === key && !r.done && toMin(r.at) >= ctx)
+      ev.push({ m: toMin(r.at), ord: 4, html: tlRow(r.at, "rem", `<button class="tlrem" data-jump="phase-own">${BELL_SVG}${short(r.t)}</button>`) });
+    const sun = sunsetMin(state.date);
+    if (sun != null && sun >= S - 60 && sun <= E) ev.push({ m: sun, ord: 5, html: tlRow(fmtMin(sun), "sun", `<span class="tlsun" title="Sonnenuntergang in ${esc(locOf().name)}">${SUN_SVG}Sonnenuntergang</span>`, " small") });
+    ev.push({ m: E, ord: 9, html: boundRow("end", "Schluss", s.end, lv.eSrc) });
+    ev.sort((x, y) => (x.m - y.m) || (x.ord - y.ord));
+    // Jetzt-Linie: hinter allem, was schon begonnen hat (laufende und überfällige Abschnitte bleiben darüber)
+    let at = ev.findIndex(x => x.m > ctx && x.ord !== 1 && x.ord !== 2);
+    if (at < 0) at = ev.length - 1;
+    const nowLine = `<div class="tlnow" id="tl-now"><span><b>${fmtMin(ctx)}</b></span></div>`;
+    return `<div class="tl">${ev.slice(0, at).map(x => x.html).join("")}${nowLine}${ev.slice(at).map(x => x.html).join("")}</div>`;
   }
-  // Sprung aus Jetzt-Leiste/Zeitstrahl: Abschnitt öffnen (falls eingeklappt), hinscrollen, kurz hervorheben.
+  // Sprung aus dem Tagesablauf oder „Als Nächstes“: Abschnitt öffnen (falls eingeklappt), hinscrollen, kurz hervorheben.
   function jumpTo(id) {
     if (id.startsWith("phase-") && id !== "phase-own") {
       const pid = id.slice(6), el0 = $(id);
@@ -1640,14 +1644,14 @@ export function mount(container, opts = {}) {
     const auto = role || focusShift(plan, ctx), key = role || state.shiftSel || auto, s = plan[key], meta = SHIFT_META[key];
     const MARK = { done: "✓", now: "▶", late: "!", later: "" };
     const isToday = state.date === isoDate(new Date()), canRem = isToday && !state.readOnly;
-    const stopHtml = (p) => {
+    const stopHtml = (p, forceOpen = false) => {
       const st = phaseState(p, ctx), soon = st === "now" && isSoon(p, ctx);
       const done = p.items.filter(i => state.checks[i.id]).length;
       // Übersicht: offen sind nur der laufende und überfällige Abschnitte (und nach „Zurück zur Schicht“ alle mit offenen Punkten);
       // erledigte und spätere sind eine Zeile zum Aufklappen.
       const flagged = state.coFlag === key && done < p.items.length;
       const foldable = st === "done" || st === "later";
-      const collapsed = foldable && !flagged && !state.expanded.has(p.id);
+      const collapsed = foldable && !flagged && !forceOpen && !state.expanded.has(p.id);
       const label = { done: "erledigt", now: "jetzt", late: "offen", later: "später" }[st];
       const count = st === "later" && collapsed ? `${p.items.length} ${p.items.length === 1 ? "Aufgabe" : "Aufgaben"}` : `${done}/${p.items.length}`;
       const head = `<span class="mark" aria-hidden="true">${MARK[st]}</span><span class="time">${caT(p)}${p.from}–${p.to}</span><span class="ttl">${esc(p.title)}<small>${count}</small></span>${soon ? PILL_SOON : PILL[st]}`;
@@ -1664,22 +1668,8 @@ export function mount(container, opts = {}) {
     let stops;
     if (!isLive) stops = s.phases.map(stopHtml).join("") || noPhases;
     else {
-      // Heute: groß nur laufende/überfällige (und von Hand geöffnete) Abschnitte; der Rest als drei Kacheln Danach · Später · Erledigt.
-      const flagged = (p) => state.coFlag === key && p.items.some(i => !state.checks[i.id]);
-      const big = sts.filter(x => x.st === "now" || x.st === "late" || flagged(x.p) || state.expanded.has(x.p.id));
-      const doneL = sts.filter(x => x.st === "done" && !big.includes(x)), laterL = sts.filter(x => x.st === "later" && !big.includes(x));
-      const next = laterL[0], restLater = laterL.slice(1);
-      const active = big.some(x => x.st === "now" || x.st === "late");
-      const clear = !s.phases.length ? noPhases : active ? "" : `<div class="allclear"><span class="mark" aria-hidden="true">✓</span><span>${next ? `Alles erledigt bis ${esc(next.p.from)} – als Nächstes: <b>${esc(next.p.title)}</b>` : "Alle Abschnitte dieser Schicht sind erledigt."}</span></div>`;
-      const n = (k) => `${k} ${k === 1 ? "Abschnitt" : "Abschnitte"}`;
-      const tile = (attr, lbl, txt, cls = "") => `<button class="tile${cls}" ${attr}><small>${lbl}</small><span>${txt}</span></button>`;
-      const tiles = (next || doneL.length || restLater.length) ? `<div class="tiles">${
-        next ? tile(`data-toggle="${esc(next.p.id)}" aria-expanded="false"`, `Danach · ${esc(next.p.from)}`, `<b>${esc(next.p.title)}</b> · ${next.p.items.length} ${next.p.items.length === 1 ? "Aufgabe" : "Aufgaben"} ›`) : ""}${
-        restLater.length ? tile(`data-toggle="_later" aria-expanded="${state.expanded.has("_later")}"`, "Später", `${n(restLater.length)} · bis ${esc(s.end)} ${state.expanded.has("_later") ? "‹" : "›"}`) : ""}${
-        doneL.length ? tile(`data-toggle="_done" aria-expanded="${state.expanded.has("_done")}"`, "Erledigt", `${n(doneL.length)} ✓ ${state.expanded.has("_done") ? "‹" : "›"}`, " done") : ""}</div>` : "";
-      stops = clear + big.map(x => stopHtml(x.p)).join("") + tiles
-        + (state.expanded.has("_later") ? restLater.map(x => stopHtml(x.p)).join("") : "")
-        + (state.expanded.has("_done") ? doneL.map(x => stopHtml(x.p)).join("") : "");
+      // Heute: Tagesablauf (Erledigtes zusammengeklappt, laufende/überfällige groß, nächster ab 15 Min. vorher offen).
+      stops = s.phases.length ? timelineHtml(plan, key, sts, ctx, stopHtml) : noPhases;
     }
     // Eigene Erinnerungen: eigener Abschnitt unter dem Fahrplan, nur wenn welche da sind; nach Uhrzeit sortiert.
     // Offen, solange etwas offen ist; sind alle erledigt, eine Zeile zum Aufklappen. Zählen nicht zum Fortschritt.
@@ -1710,10 +1700,9 @@ export function mount(container, opts = {}) {
     const banner = hb && !handRead(key, hb) ? `<div class="handbar${hb.important ? " imp" : ""}"><span class="imptag">Übergabe</span><span class="htxt"><b>${key === "frueh" ? "Von der Spätschicht" : "Von der Frühschicht"}:</b> ${esc(hb.text)}</span><button class="btn" data-hopen="${key}">Öffnen</button><button class="btn primary" data-hread="${key}">Gelesen</button></div>` : "";
     if (state.coFlag === key && !shiftOpenList(key).items.length && !shiftOpenList(key).confirms.length) state.coFlag = null;
     const leader = !!state.cfg.adminPin && !pinOff() && isUnlocked();
-    const jetzt = isLive ? jetztHtml(plan, key, sts, pr, ctx, { other, otherOpen, role, hb }) : "";
-    return `${banner}${jetzt}<div class="schicht cols-1" style="--side:${lay.side}px">
+    return `${banner}<div class="schicht cols-1" style="--side:${lay.side}px">
       <section class="card boardcard">
-        <div class="chead"><h2>${title} ${meta.label}</h2><span class="hint">${s.start}–${s.end}${isLive ? "" : ` · ${pr.done}/${pr.total} erledigt`}</span>${role ? "" : `<div class="seg" role="group" aria-label="Schicht wählen">${seg}</div>`}${canRem ? `<button class="btn sm remadd" data-remadd="${key}">${BELL_SVG}+ Erinnerung</button>` : ""}</div>
+        <div class="chead"><h2>${title} ${meta.label}</h2>${isLive ? `<span class="tlprog" role="img" aria-label="${pr.done} von ${pr.total} erledigt"><i><b style="width:${pr.pct}%"></b></i>${pr.done}/${pr.total}</span>${otherOpen ? (role ? `<span class="othchip">${SHIFT_META[other].short}: ${otherOpen} offen</span>` : `<button class="othchip" data-shiftsel="${other}">${SHIFT_META[other].short}: ${otherOpen} offen</button>`) : ""}` : `<span class="hint">${s.start}–${s.end} · ${pr.done}/${pr.total} erledigt</span>`}${role ? "" : `<div class="seg" role="group" aria-label="Schicht wählen">${seg}</div>`}${canRem ? `<button class="btn sm remadd" data-remadd="${key}">${BELL_SVG}+ Erinnerung</button>` : ""}</div>
         ${isLive ? "" : `<div class="bar flat"><i style="width:${pr.pct}%"></i></div>`}
         ${otherOpen && (!isLive || leader) ? (role ? `<div class="othersum">${SHIFT_META[other].label}: <b>${otherOpen} offen geblieben</b></div>` : `<button class="othersum" data-shiftsel="${other}">${SHIFT_META[other].label}: <b>${otherOpen} offen geblieben</b> – ansehen</button>`) : ""}
         <div class="cbody board"><div class="board-in">${stops}</div></div>
