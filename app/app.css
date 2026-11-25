@@ -400,10 +400,10 @@ label.btn[for="rzfile"] { cursor: pointer; display: inline-block; text-align: ce
 .roster .rtime { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; margin-bottom: 4px }
 .chip small { font-weight: 500; opacity: .8 }
 .namebtn small.ninfo { display: block; font-size: 12px; font-weight: 500; color: var(--now) }
-.imp { margin-top: 12px }
-.imp .cbody { padding: 12px; display: grid; gap: 10px }
-.imp p { margin: 0; font-size: 13px; color: var(--muted) }
-.imp p.err { color: var(--warn); font-size: 14px }
+.card.imp { margin-top: 12px }
+.card.imp .cbody { padding: 12px; display: grid; gap: 10px }
+.card.imp p { margin: 0; font-size: 13px; color: var(--muted) }
+.card.imp p.err { color: var(--warn); font-size: 14px }
 .imp .row { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap }
 .impform { display: flex; gap: 10px 16px; flex-wrap: wrap; align-items: center; font-size: 13px }
 .impform label { display: inline-flex; gap: 6px; align-items: center }
@@ -940,3 +940,7 @@ header.top.otherday .datelink { color: var(--other); font-weight: 700 }
 .tlnow::after { left: 67px; top: -5px; width: 10px; height: 10px; background: var(--logo); box-shadow: 0 0 0 3px color-mix(in srgb, var(--logo) 22%, var(--surface)) }
 /* 1.27.6 Zähler „Den ganzen Tag · x/y“ mit gleich breiten Ziffern – nichts verrutscht beim Abhaken */
 .pinlbl { font-variant-numeric: tabular-nums; white-space: nowrap }
+/* 1.27.7 Mehr Luft zwischen Zeitstrahl und Karten */
+.tlc { padding-left: 10px }
+/* Jetzt-Linie durchgehend in Blau (Akzent), volle Länge */
+.tlnowline { border-top: 2px solid var(--accent); opacity: .85 }

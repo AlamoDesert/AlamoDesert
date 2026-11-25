@@ -2,6 +2,11 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.27.7 – 25.11.2026
+- Fehler behoben: Als „Wichtig“ markierte Punkte bekamen im Aufgaben-Plan eine Leerzeile davor (CSS-Regel des Dienstplan-Imports griff auch dort).
+- Mehr Abstand zwischen Zeitstrahl und Karten im Tagesablauf.
+- Jetzt-Linie durchgehend in Blau statt gestrichelt.
+
 ## 1.27.6 – 25.11.2026
 - Leiste „Den ganzen Tag“: Der Zähler hat gleich breite Ziffern – beim Abhaken verrutschen die Felder nicht mehr.
 
