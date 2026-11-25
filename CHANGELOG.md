@@ -2,6 +2,9 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.27.4 – 25.11.2026
+- Der Fortschrittsbalken („0/18“) im Kopf des Fahrplans entfällt heute. Im Rückblick auf andere Tage bleibt „n/m erledigt“ stehen.
+
 ## 1.27.3 – 25.11.2026
 - Leiste „Den ganzen Tag“: Bestätigen und Zurücknehmen über denselben Haken. Das Zeichen ↶ rechts entfällt.
 

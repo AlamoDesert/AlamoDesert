@@ -1823,7 +1823,7 @@ function mount(container, opts = {}) {
         <button class="btn sm hwrite${mineHas ? " has" : ""}" data-noteedit="${key}" ${canNote ? "" : "disabled"} title="${mineHas ? esc(mine.text) : ""}">✎ ${mineHas ? "Übergabe bearbeiten" : "Übergabe schreiben"}</button></div>`;
     return `${back}${banner}<div class="schicht cols-1${isLive ? " noside" : ""}" style="--side:${lay.side}px">
       <section class="card boardcard">
-        <div class="chead"><h2>${title} ${meta.label}</h2>${isLive ? `<span class="tlprog" role="img" aria-label="${pr.done} von ${pr.total} erledigt"><i><b style="width:${pr.pct}%"></b></i>${pr.done}/${pr.total}</span>` : `<span class="hint">${s.start}–${s.end} · ${pr.done}/${pr.total} erledigt</span>`}${role ? "" : `<div class="seg" role="group" aria-label="Schicht wählen">${seg}</div>`}${canRem ? `<button class="btn sm remadd" data-remadd="${key}">${BELL_SVG}+ Erinnerung</button>` : ""}${hintBtn}</div>
+        <div class="chead"><h2>${title} ${meta.label}</h2>${isLive ? "" : `<span class="hint">${s.start}–${s.end} · ${pr.done}/${pr.total} erledigt</span>`}${role ? "" : `<div class="seg" role="group" aria-label="Schicht wählen">${seg}</div>`}${canRem ? `<button class="btn sm remadd" data-remadd="${key}">${BELL_SVG}+ Erinnerung</button>` : ""}${hintBtn}</div>
         ${isLive ? "" : `<div class="bar flat"><i style="width:${pr.pct}%"></i></div>`}
         ${otherOpen && !isLive ? (role ? `<div class="othersum">${SHIFT_META[other].label}: <b>${otherOpen} offen geblieben</b></div>` : `<button class="othersum" data-shiftsel="${other}">${SHIFT_META[other].label}: <b>${otherOpen} offen geblieben</b> – ansehen</button>`) : ""}
         ${pinBar}<div class="cbody board"><div class="board-in">${hintBox}${stops}</div></div>${dock}
