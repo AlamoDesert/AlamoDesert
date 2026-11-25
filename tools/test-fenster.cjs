@@ -179,6 +179,18 @@ srv.listen(0, async () => {
   await q(p, ".tlrdone").click(); await step(200);
   check(nd >= 1 && await q(p, ".tllane .tlrchip.own.done").count() === 0, "Erinnerung: erledigte nur nach Klick auf „erledigte“ sichtbar");
 
+  // Kopfzeile ab 1.26: Datum unter der Uhr öffnet den eigenen Kalender direkt darunter, anderer Tag = orange mit ↩ Heute
+  check(/^\w+, \d\d\.\d\d\.$/.test(await q(p, "#datelabel").innerText()) && await q(p, "#dnmore").isHidden(), "Kopf: Datum mit Wochentag, heute ohne Pfeile");
+  await q(p, "#datebtn").click(); await step(100);
+  const db = await q(p, "#datebtn").boundingBox(), cb = await q(p, "#calpop").boundingBox();
+  check(cb && cb.y >= db.y + db.height - 8 && cb.y < db.y + db.height + 30 && Math.abs(cb.x - db.x) < 40, "Kopf: Kalender öffnet direkt unter dem Datum");
+  await q(p, '#calpop [data-calday]').filter({ hasText: /^20$/ }).click(); await step(200);
+  check((await q(p, "#datelabel").innerText()).includes("20.11.") && await q(p, "#dnmore").isVisible() && /otherday/.test(await q(p, "header.top").getAttribute("class")) && await q(p, "#calpop").isHidden(), "Kopf: anderer Tag orange mit Pfeilen");
+  await q(p, "#today").click(); await step(200);
+  check(await q(p, "#dnmore").isHidden() && !(await q(p, "#datelabel").innerText()).includes("20.11."), "Kopf: ↩ Heute zurück");
+  await q(p, "#datebtn").click(); await step(100); await p.keyboard.press("Escape"); await step(100);
+  check(await q(p, "#calpop").isHidden(), "Kopf: Esc schließt den Kalender");
+
   // Schriftgröße stufenlos: Regler 130 % vergrößert die Ansicht, Trennlinie ziehen rechnet in CSS-Pixeln, 100 % setzt zurück
   const zf = () => p.evaluate(() => getComputedStyle(document.querySelector("#rz-host").shadowRoot.querySelector(".wrap")).zoom);
   await q(p, "#fontbtn").click(); await step(200);

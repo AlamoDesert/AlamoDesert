@@ -1,4 +1,4 @@
-const MARKUP = "<div class=\"wrap\">\n  <header class=\"top\">\n    <h1 class=\"brand\">Rezeption<small id=\"weekday\">–</small></h1>\n    <div class=\"clock\" id=\"clock\">--:--</div>\n    <div class=\"presence\" id=\"presence\" role=\"group\" aria-label=\"Eingecheckt\"></div>\n    <div class=\"tabs\" role=\"tablist\">\n      <button class=\"tab\" role=\"tab\" data-view=\"schicht\"><b>Schicht</b><span class=\"meta\" id=\"meta-shift\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"erstattung\" hidden><b>Check-ins</b><span class=\"meta\" id=\"meta-ci\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"dienst\"><b>Dienstplan</b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"zeiten\"><b>Arbeitszeiten</b></button>\n    </div>\n    <div class=\"datenav\">\n      <button class=\"iconbtn calbtn\" id=\"calbtn\" aria-label=\"Anderen Tag ansehen\" title=\"Anderen Tag ansehen\"><svg aria-hidden=\"true\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><rect x=\"3\" y=\"5\" width=\"18\" height=\"16\" rx=\"2\"></rect><path d=\"M3 10h18M8 3v4M16 3v4\"></path></svg></button>\n      <span class=\"dnmore\" id=\"dnmore\">\n      <button class=\"iconbtn\" id=\"prev\" aria-label=\"Vorheriger Tag\">‹</button>\n      <label class=\"datebtn\"><span id=\"datelabel\">–</span><span class=\"src\" id=\"datesrc\"></span><input type=\"date\" id=\"datepick\" aria-label=\"Datum wählen\"></label>\n      <button class=\"iconbtn\" id=\"next\" aria-label=\"Nächster Tag\">›</button>\n      <button class=\"todaybtn\" id=\"today\">Heute</button>\n      </span>\n      <button class=\"iconbtn fontbtn\" id=\"fontbtn\" aria-label=\"Schriftgröße einstellen\" aria-haspopup=\"dialog\" aria-expanded=\"false\" title=\"Schriftgröße\"><svg aria-hidden=\"true\" width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M2.5 19 8 5l5.5 14M4.4 14.2h7.2\"></path><path d=\"M14.5 19l3.5-8.5 3.5 8.5M15.7 16.2h4.6\"></path></svg></button>\n      <button class=\"tab iconbtn gearbtn\" data-view=\"admin\" aria-label=\"Verwaltung\" title=\"Verwaltung\"><svg aria-hidden=\"true\" width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"3\"></circle><path d=\"M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z\"></path></svg></button>\n    </div>\n    <div class=\"status\" id=\"status\">Verbinde…</div>\n  </header>\n  <div class=\"vobar\" id=\"vobar\" hidden><b>Nur ansehen</b><span>Abhaken und Eintragen sind gesperrt.</span><button class=\"btn primary\" data-pres-add=\"1\">Einchecken</button></div>\n  <main id=\"main\"></main>\n  <div id=\"ciwrap\" class=\"ciwrap\" hidden></div>\n</div>\n<input type=\"file\" id=\"rzfile\" class=\"rzfile\" tabindex=\"-1\" aria-hidden=\"true\"><div id=\"picker\" hidden></div><div id=\"remind\" hidden></div><div id=\"toast\" class=\"toast\" role=\"status\" hidden></div><div class=\"fontpop\" id=\"fontpop\" role=\"dialog\" aria-label=\"Schriftgröße\" hidden><div class=\"fphead\"><b>Schriftgröße</b><output id=\"fzval\">100 %</output></div><div class=\"fprow\"><button class=\"fpstep\" data-fzstep=\"-5\" aria-label=\"Kleiner\" title=\"Kleiner\">A</button><input type=\"range\" id=\"fzrange\" min=\"80\" max=\"160\" step=\"1\" value=\"100\" aria-label=\"Schriftgröße in Prozent\"><button class=\"fpstep big\" data-fzstep=\"5\" aria-label=\"Größer\" title=\"Größer\">A</button></div><button class=\"fpreset\" id=\"fzreset\">Zurück auf 100 %</button></div>";
+const MARKUP = "<div class=\"wrap\">\n  <header class=\"top\">\n    <h1 class=\"logo\"><span class=\"vh\">Rezeption – padel amigos</span></h1>\n    <div class=\"clockbox\"><div class=\"clock\" id=\"clock\">--:--</div><button class=\"datelink\" id=\"datebtn\" aria-haspopup=\"dialog\" aria-expanded=\"false\" title=\"Anderen Tag ansehen\"><span id=\"datelabel\">–</span></button></div>\n    <span class=\"dnmore\" id=\"dnmore\" hidden><button class=\"iconbtn\" id=\"prev\" aria-label=\"Vorheriger Tag\" title=\"Tag davor\">‹</button><button class=\"iconbtn\" id=\"next\" aria-label=\"Nächster Tag\" title=\"Tag danach\">›</button><button class=\"todaybtn\" id=\"today\">↩ Heute</button></span>\n    <div class=\"calpop\" id=\"calpop\" role=\"dialog\" aria-label=\"Tag wählen\" hidden></div>\n    <div class=\"presence\" id=\"presence\" role=\"group\" aria-label=\"Eingecheckt\"></div>\n    <div class=\"tabs\" role=\"tablist\">\n      <button class=\"tab\" role=\"tab\" data-view=\"schicht\"><b>Schicht</b><span class=\"meta\" id=\"meta-shift\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"erstattung\" hidden><b>Check-ins</b><span class=\"meta\" id=\"meta-ci\"></span></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"dienst\"><b><span class=\"tl-l\">Dienstplan</span><span class=\"tl-s\">Plan</span></b></button>\n      <button class=\"tab\" role=\"tab\" data-view=\"zeiten\"><b><span class=\"tl-l\">Arbeitszeiten</span><span class=\"tl-s\">Zeiten</span></b></button>\n    </div>\n    <div class=\"datenav\">\n      <button class=\"iconbtn fontbtn\" id=\"fontbtn\" aria-label=\"Schriftgröße einstellen\" aria-haspopup=\"dialog\" aria-expanded=\"false\" title=\"Schriftgröße\"><svg aria-hidden=\"true\" width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M2.5 19 8 5l5.5 14M4.4 14.2h7.2\"></path><path d=\"M14.5 19l3.5-8.5 3.5 8.5M15.7 16.2h4.6\"></path></svg></button>\n      <button class=\"tab iconbtn gearbtn\" data-view=\"admin\" aria-label=\"Verwaltung\" title=\"Verwaltung\"><svg aria-hidden=\"true\" width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"3\"></circle><path d=\"M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z\"></path></svg></button>\n    </div>\n    <div class=\"status\" id=\"status\">Verbinde…</div>\n  </header>\n  <div class=\"vobar\" id=\"vobar\" hidden><b>Nur ansehen</b><span>Abhaken und Eintragen sind gesperrt.</span><button class=\"btn primary\" data-pres-add=\"1\">Einchecken</button></div>\n  <main id=\"main\"></main>\n  <div id=\"ciwrap\" class=\"ciwrap\" hidden></div>\n</div>\n<input type=\"file\" id=\"rzfile\" class=\"rzfile\" tabindex=\"-1\" aria-hidden=\"true\"><div id=\"picker\" hidden></div><div id=\"remind\" hidden></div><div id=\"toast\" class=\"toast\" role=\"status\" hidden></div><div class=\"fontpop\" id=\"fontpop\" role=\"dialog\" aria-label=\"Schriftgröße\" hidden><div class=\"fphead\"><b>Schriftgröße</b><output id=\"fzval\">100 %</output></div><div class=\"fprow\"><button class=\"fpstep\" data-fzstep=\"-5\" aria-label=\"Kleiner\" title=\"Kleiner\">A</button><input type=\"range\" id=\"fzrange\" min=\"80\" max=\"160\" step=\"1\" value=\"100\" aria-label=\"Schriftgröße in Prozent\"><button class=\"fpstep big\" data-fzstep=\"5\" aria-label=\"Größer\" title=\"Größer\">A</button></div><button class=\"fpreset\" id=\"fzreset\">Zurück auf 100 %</button></div>";
 
 /* Rezeption Schichtcheck – App-Kern.
    Wird von tools/build.mjs in index.html (Mac-App und Webversion) eingebaut.
@@ -3956,14 +3956,13 @@ export function mount(container, opts = {}) {
 
   // ---------- Rendering ----------
   function renderHeader() {
-    const d = parseIso(state.date), plan = P(), ctx = timeCtx();
+    const d = parseIso(state.date);
     const { source } = resolvePlan(state.date, state.dayPlan, false, state.daySnap);
-    $("weekday").textContent = WD[d.getDay()] + (state.date === isoDate(new Date()) ? " · heute" : "");
-    $("datelabel").textContent = `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
-    $("datesrc").textContent = source === "day" ? "angepasst" : source === "weekday" && !state.cfg.master ? WD[d.getDay()].slice(0, 2) + "-Plan" : "";
-    $("datepick").value = state.date;
-    const act = activeShift(plan, ctx);
-    $("clock").innerHTML = `${fmtMin(nowMin())}${act ? `<small>${SHIFT_META[act].label} bis ${plan[act].end}</small>` : ""}`;
+    // Datum klein unter der Uhr (ab 1.26); Klick öffnet den eigenen Kalender (#calpop).
+    const srcNote = source === "day" ? " · Tag angepasst" : source === "weekday" && !state.cfg.master ? ` · ${WD[d.getDay()].slice(0, 2)}-Plan` : "";
+    $("datelabel").textContent = `${WD[d.getDay()]}, ${pad(d.getDate())}.${pad(d.getMonth() + 1)}.`;
+    $("datebtn").title = `Anderen Tag ansehen${srcNote}`;
+    $("clock").textContent = fmtMin(nowMin());
     root.querySelector('[data-view="erstattung"]').hidden = !checkinsOn();
     const tabView = ["plan", "pin", "monat"].includes(state.view) ? "admin" : state.view;
     root.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", String(t.dataset.view === tabView)));
@@ -3981,9 +3980,9 @@ export function mount(container, opts = {}) {
     const vo = state.viewOnly && !p && !!state.cfg.people.length;
     $("vobar").hidden = !vo;
     container.classList.toggle("viewonly", vo);
-    const today0 = isoDate(new Date());
-    $("dnmore").hidden = state.date === today0 && !state.dateOpen;
-    $("calbtn").classList.toggle("on", state.date !== today0 || !!state.dateOpen);
+    const other = state.date !== isoDate(new Date());
+    $("dnmore").hidden = !other;
+    root.querySelector("header.top").classList.toggle("otherday", other);
     applyZoom(getLayout().fz);
     const mc = $("mk-clock");
     if (mc) mc.textContent = fmtMin(nowMin());
@@ -4124,9 +4123,45 @@ export function mount(container, opts = {}) {
 
   $("prev").addEventListener("click", () => goDate(addDays(state.date, -1)));
   $("next").addEventListener("click", () => goDate(addDays(state.date, 1)));
-  $("today").addEventListener("click", () => { state.dateOpen = false; goDate(isoDate(new Date())); });
-  // Datum wird selten gebraucht: hinter dem Kalender-Knopf; an einem anderen Tag bleiben die Pfeile sichtbar.
-  $("calbtn").addEventListener("click", () => { state.dateOpen = !state.dateOpen; renderHeader(); if (state.dateOpen) { const d = $("datepick"); try { d.showPicker && d.showPicker(); } catch { /* egal */ } } });
+  $("today").addEventListener("click", () => { closeCal(); goDate(isoDate(new Date())); });
+  // Kalender zum Tageswechsel (ab 1.26): eigenes Fenster direkt unter dem Datum statt des System-Datumsfelds,
+  // das auf dem Mac an falscher Stelle aufging. Liegt im Kopf (wächst mit der Schriftgröße mit).
+  const calPop = $("calpop");
+  let calMonth = null; // erster Tag des angezeigten Monats (ISO)
+  function calHtml() {
+    const first = parseIso(calMonth), y = first.getFullYear(), m = first.getMonth();
+    const today = isoDate(new Date()), days = new Date(y, m + 1, 0).getDate(), lead = (first.getDay() + 6) % 7;
+    const head = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].map(x => `<span class="cw">${x}</span>`).join("");
+    let cells = "<span></span>".repeat(lead);
+    for (let i = 1; i <= days; i++) {
+      const iso = `${y}-${pad(m + 1)}-${pad(i)}`;
+      const cls = ["cd", iso === today ? "today" : "", iso === state.date && iso !== today ? "sel" : "", iso > today ? "fut" : ""].join(" ").trim();
+      cells += `<button class="${cls}" data-calday="${iso}" aria-label="${WD[new Date(y, m, i).getDay()]}, ${pad(i)}.${pad(m + 1)}.${y}"${iso === state.date ? ' aria-current="date"' : ""}>${i}</button>`;
+    }
+    return `<div class="calhead"><button class="iconbtn" data-calnav="-1" aria-label="Vormonat">‹</button><b>${MONTHS[m]} ${y}</b><button class="iconbtn" data-calnav="1" aria-label="Nächster Monat">›</button></div>`
+      + `<div class="calgrid">${head}${cells}</div>`
+      + `<div class="calfoot"><button data-calday="${addDays(today, -1)}">Gestern</button><button class="go" data-calday="${today}">Heute</button></div>`;
+  }
+  function openCal() {
+    const d = parseIso(state.date); d.setDate(1); calMonth = isoDate(d);
+    calPop.innerHTML = calHtml();
+    const b = $("datebtn"), hd = root.querySelector("header.top");
+    calPop.hidden = false;
+    calPop.style.left = Math.max(0, Math.min(hd.clientWidth - calPop.offsetWidth - 4, b.offsetLeft - 6)) + "px";
+    b.setAttribute("aria-expanded", "true");
+    const cur = calPop.querySelector('[aria-current="date"]') || calPop.querySelector(".today"); if (cur) cur.focus();
+  }
+  function closeCal() { if (calPop.hidden) return; calPop.hidden = true; $("datebtn").setAttribute("aria-expanded", "false"); }
+  $("datebtn").addEventListener("click", () => { if (calPop.hidden) openCal(); else closeCal(); });
+  calPop.addEventListener("click", (e) => {
+    const nav = e.target.closest("[data-calnav]"), day = e.target.closest("[data-calday]");
+    if (nav) { const d = parseIso(calMonth); d.setMonth(d.getMonth() + Number(nav.dataset.calnav)); calMonth = isoDate(d); calPop.innerHTML = calHtml(); }
+    else if (day) { closeCal(); goDate(day.dataset.calday); }
+  });
+  calPop.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.stopPropagation(); closeCal(); $("datebtn").focus(); } });
+  const calOutside = (e) => { if (!calPop.hidden && !e.composedPath().some(n => n === calPop || n === $("datebtn"))) closeCal(); };
+  document.addEventListener("pointerdown", calOutside, true);
+  cleanups.push(() => document.removeEventListener("pointerdown", calOutside, true));
   // Schriftgröße pro Person, stufenlos 80–160 %, gespeichert wie die Spaltenbreite.
   // Das Fenster liegt außerhalb der vergrößerten Bereiche, damit der Regler beim Ziehen nicht mitwächst.
   const fontPop = $("fontpop"), fzRange = $("fzrange");
@@ -4157,7 +4192,6 @@ export function mount(container, opts = {}) {
   const fontOutside = (e) => { if (!fontPop.hidden && !e.composedPath().some(n => n === fontPop || n === $("fontbtn"))) closeFontPop(); };
   document.addEventListener("pointerdown", fontOutside, true);
   cleanups.push(() => document.removeEventListener("pointerdown", fontOutside, true));
-  $("datepick").addEventListener("change", (e) => goDate(e.target.value));
   root.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => setView(t.dataset.view)));
 
   const main = $("main");

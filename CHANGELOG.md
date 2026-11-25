@@ -2,6 +2,13 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.26.0 – 25.11.2026
+- Kopfzeile neu: Oben links steht das padel-amigos-Zeichen in Graublau statt des Schriftzugs „Rezeption“. Wochentag und Datum stehen klein unter der Uhrzeit.
+- Tag wechseln: Klick auf das Datum öffnet einen eigenen Monatskalender direkt darunter (Gestern/Heute als Schnellwahl, Esc oder Klick daneben schließt). Das bisherige Kalender-Symbol und das System-Datumsfeld, das auf dem Mac an falscher Stelle aufging, sind entfernt.
+- Anderer Tag: Datum orange, unten an der Leiste eine orange Kante, daneben ‹ › und „↩ Heute“. Heute bleiben Pfeile und Knopf ausgeblendet.
+- Schriftgröße und Verwaltung stehen direkt neben den Reitern, die Namen rechts. Unter 1100 px Fensterbreite heißen die Reiter „Plan“ und „Zeiten“.
+- Neben der Uhrzeit steht nicht mehr „Spät bis …“.
+
 ## 1.25.1 – 25.11.2026
 - Das Schrift-Symbol bleibt neutral, auch wenn die Schriftgröße nicht 100 % ist. Blau ist es nur, solange das Regler-Fenster offen ist.
 
