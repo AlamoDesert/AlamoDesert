@@ -676,11 +676,13 @@ export function mount(container, opts = {}) {
   const pointTime = (an, S, E, fallback, U) => an.anc === "s" ? fmtMin(clampDay(S + an.m)) : an.anc === "e" ? fmtMin(clampDay(E - an.m)) : an.anc === "u" && U != null ? fmtMin(clampDay(U + an.m)) : fallback;
   const sunRel = (n) => n === 0 ? "zum Sonnenuntergang" : n < 0 ? `${-n} Min. vor Sonnenuntergang` : `${n} Min. nach Sonnenuntergang`;
   // Beschriftung „nach Beginn“ / „vor Schluss“ für Editor und Fenster.
+  // Abschnitte in Stunden (Eingabe in halben Stunden): 90 → „1,5“.
+  const hrs = (min) => String(Math.round(min / 60 * 100) / 100).replace(".", ",");
+  const sunRelH = (n) => n === 0 ? "Sonnenuntergang" : n < 0 ? `${hrs(-n)} Std. vor Sonnenuntergang` : `${hrs(n)} Std. nach Sonnenuntergang`;
   function anchorLabel(an, p) {
-    const mm = (n) => n === 0 ? "0" : String(n);
-    if (an.anc === "s") return an.a === 0 ? `erste ${an.b} Min. nach Beginn` : `${mm(an.a)}–${mm(an.b)} Min. nach Beginn`;
-    if (an.anc === "e") return an.b === 0 ? `letzte ${an.a} Min. vor Schluss` : `${mm(an.a)}–${mm(an.b)} Min. vor Schluss`;
-    if (an.anc === "u") return `von ${sunRel(an.a)} bis ${sunRel(an.b)}`;
+    if (an.anc === "s") return an.a === 0 ? `erste ${hrs(an.b)} Std. nach Beginn` : `${hrs(an.a)}–${hrs(an.b)} Std. nach Beginn`;
+    if (an.anc === "e") return an.b === 0 ? `letzte ${hrs(an.a)} Std. vor Schluss` : `${hrs(an.a)}–${hrs(an.b)} Std. vor Schluss`;
+    if (an.anc === "u") return `von ${sunRelH(an.a)} bis ${sunRelH(an.b)}`;
     return `feste Uhrzeit ${p.from}–${p.to}`;
   }
   const pointLabel = (an, time) => an.anc === "s" ? `${an.m} Min. nach Beginn` : an.anc === "e" ? (an.m >= 0 ? `${an.m} Min. vor Schluss` : `${-an.m} Min. nach Schluss`) : an.anc === "u" ? sunRel(an.m) : `um ${time}`;
@@ -1388,7 +1390,11 @@ export function mount(container, opts = {}) {
   }
 
   // ---------- Bausteine ----------
-  const PILL = { now: '<span class="pill now">jetzt</span>', late: '<span class="pill late">offen</span>', done: '<span class="pill done">erledigt</span>', later: '<span class="pill later">später</span>' };
+  // Laufender Abschnitt: grün, solange Zeit ist; orange („knapp“) ab 15 Min. vor Ende bis zum Ablauf des Puffers; danach rot (überfällig).
+  const SOON_MIN = 15;
+  const isSoon = (p, ctx) => typeof ctx === "number" && ctx >= toMin(p.to) - SOON_MIN;
+  const PILL_SOON = '<span class="pill now">knapp</span>';
+  const PILL = { now: '<span class="pill ok">jetzt</span>', late: '<span class="pill late">offen</span>', done: '<span class="pill done">erledigt</span>', later: '<span class="pill later">später</span>' };
 
   function whoLine(c) {
     if (!c) return "";
@@ -1576,11 +1582,11 @@ export function mount(container, opts = {}) {
     const s = plan[key], meta = SHIFT_META[key];
     const now = sts.find(x => x.st === "now"), late = sts.filter(x => x.st === "late"), next = sts.find(x => x.st === "later");
     const title = now ? `Jetzt: ${esc(now.p.title)} · bis ${caT(now.p)}${esc(now.p.to)}` : late.length ? `Überfällig: ${esc(late[0].p.title)}` : next ? `Als Nächstes: ${esc(next.p.title)} ab ${caT(next.p)}${esc(next.p.from)}` : "Schicht erledigt";
-    const tone = now ? "now" : late.length ? "late" : "calm";
+    const tone = now ? (isSoon(now.p, ctx) ? "now" : "ok") : late.length ? "late" : "calm";
     const chip = (cls, txt, attr = "") => attr ? `<button class="jchip ${cls}" ${attr}>${txt}</button>` : `<span class="jchip ${cls}">${txt}</span>`;
     const chips = [];
     if (late.length) { const nOpen = late.reduce((n, x) => n + x.p.items.filter(i => !state.checks[i.id]).length, 0); chips.push(chip("late", `${nOpen} überfällig`, `data-jump="phase-${esc(late[0].p.id)}"`)); }
-    if (now) { const nOpen = now.p.items.filter(i => !state.checks[i.id]).length; if (nOpen) chips.push(chip("now", `${nOpen} ${nOpen === 1 ? "Aufgabe" : "Aufgaben"} offen`, `data-jump="phase-${esc(now.p.id)}"`)); }
+    if (now) { const nOpen = now.p.items.filter(i => !state.checks[i.id]).length; if (nOpen) chips.push(chip(isSoon(now.p, ctx) ? "now" : "ok", `${nOpen} ${nOpen === 1 ? "Aufgabe" : "Aufgaben"} offen`, `data-jump="phase-${esc(now.p.id)}"`)); }
     const rh = plan.always[key].filter(a => a.kind === "rhythm").map(a => ({ a, i: dueInfo(plan, key, a, ctx) })).filter(x => x.i && x.i.state !== "ok");
     if (rh.length) { const over = rh.some(x => x.i.state === "over"); chips.push(chip(over ? "late" : "now", `${LOOP_SVG}${esc(rh[0].a.t)}${rh.length > 1 ? ` +${rh.length - 1}` : ""} ${over ? "überfällig" : "fällig"}`, `data-jump="side-next"`)); }
     // Nächste Erinnerung (Aufgabe oder eigene) ab jetzt
@@ -1598,7 +1604,7 @@ export function mount(container, opts = {}) {
       const l = pos(toMin(p.from)), w = Math.max(0.8, pos(toMin(p.to)) - l);
       // Beschriftung nur bis zum nächsten Abschnitt (Abschnitte können sich überlappen)
       const nx = sts[ix + 1], room = nx ? Math.min(w, pos(toMin(nx.p.from)) - l) : 100 - l;
-      return `<button class="tseg is-${st}" style="left:${l.toFixed(2)}%;width:${w.toFixed(2)}%" data-jump="phase-${esc(p.id)}" title="${esc(p.from)}–${esc(p.to)} ${esc(p.title)}" aria-label="${esc(p.title)} ${esc(p.from)} bis ${esc(p.to)}">${room > 7 ? `<span style="max-width:${(room / w * 100).toFixed(1)}%">${esc(p.from)} ${esc(p.title)}</span>` : ""}</button>`;
+      return `<button class="tseg is-${st}${st === "now" && isSoon(p, ctx) ? " soon" : ""}" style="left:${l.toFixed(2)}%;width:${w.toFixed(2)}%" data-jump="phase-${esc(p.id)}" title="${esc(p.from)}–${esc(p.to)} ${esc(p.title)}" aria-label="${esc(p.title)} ${esc(p.from)} bis ${esc(p.to)}">${room > 7 ? `<span style="max-width:${(room / w * 100).toFixed(1)}%">${esc(p.from)} ${esc(p.title)}</span>` : ""}</button>`;
     }).join("");
     const bells = rems.map(r => `<span class="tbell" style="left:${pos(toMin(r.at)).toFixed(2)}%" title="${esc(r.at)} ${esc(r.t)}">${BELL_SVG}</span>`).join("");
     const nowMark = ctx >= t0 && ctx <= t0 + span ? `<span class="tnow" style="left:${pos(ctx).toFixed(2)}%"><b>${fmtMin(ctx)}</b></span>` : "";
@@ -1635,7 +1641,7 @@ export function mount(container, opts = {}) {
     const MARK = { done: "✓", now: "▶", late: "!", later: "" };
     const isToday = state.date === isoDate(new Date()), canRem = isToday && !state.readOnly;
     const stopHtml = (p) => {
-      const st = phaseState(p, ctx);
+      const st = phaseState(p, ctx), soon = st === "now" && isSoon(p, ctx);
       const done = p.items.filter(i => state.checks[i.id]).length;
       // Übersicht: offen sind nur der laufende und überfällige Abschnitte (und nach „Zurück zur Schicht“ alle mit offenen Punkten);
       // erledigte und spätere sind eine Zeile zum Aufklappen.
@@ -1644,13 +1650,13 @@ export function mount(container, opts = {}) {
       const collapsed = foldable && !flagged && !state.expanded.has(p.id);
       const label = { done: "erledigt", now: "jetzt", late: "offen", later: "später" }[st];
       const count = st === "later" && collapsed ? `${p.items.length} ${p.items.length === 1 ? "Aufgabe" : "Aufgaben"}` : `${done}/${p.items.length}`;
-      const head = `<span class="mark" aria-hidden="true">${MARK[st]}</span><span class="time">${caT(p)}${p.from}–${p.to}</span><span class="ttl">${esc(p.title)}<small>${count}</small></span>${PILL[st]}`;
+      const head = `<span class="mark" aria-hidden="true">${MARK[st]}</span><span class="time">${caT(p)}${p.from}–${p.to}</span><span class="ttl">${esc(p.title)}<small>${count}</small></span>${soon ? PILL_SOON : PILL[st]}`;
       const headEl = foldable
         ? `<button class="stop-head" data-toggle="${esc(p.id)}" aria-expanded="${!collapsed}" aria-label="${esc(p.title)}, ${label}, ${collapsed ? "aufklappen" : "zuklappen"}">${head}</button>`
         : `<div class="stop-head">${head}</div>`;
       const hint = p.hint && (st === "now" || st === "late") ? `<div class="phint">${esc(p.hint)}</div>` : "";
       const items = collapsed ? "" : `<ul class="items">${[...p.items].sort((x, y) => (state.checks[x.id] ? 1 : 0) - (state.checks[y.id] ? 1 : 0)).map(i => itemHtml(d.item[i.id])).join("") || '<li class="empty">Keine Aufgaben.</li>'}</ul>`;
-      return `<section class="stop is-${st}" id="phase-${esc(p.id)}">${headEl}${hint}${items}</section>`;
+      return `<section class="stop is-${st}${soon ? " soon" : ""}" id="phase-${esc(p.id)}">${headEl}${hint}${items}</section>`;
     };
     const noPhases = `<div class="empty">Für diese Schicht sind keine Abschnitte geplant (Verwaltung › Aufgaben-Plan).</div>`;
     const isLive = isToday && typeof ctx === "number";
@@ -1658,7 +1664,7 @@ export function mount(container, opts = {}) {
     let stops;
     if (!isLive) stops = s.phases.map(stopHtml).join("") || noPhases;
     else {
-      // Heute: groß nur laufende/überfällige (und von Hand geöffnete) Abschnitte; der Rest als drei Kacheln Danach · Erledigt · Später.
+      // Heute: groß nur laufende/überfällige (und von Hand geöffnete) Abschnitte; der Rest als drei Kacheln Danach · Später · Erledigt.
       const flagged = (p) => state.coFlag === key && p.items.some(i => !state.checks[i.id]);
       const big = sts.filter(x => x.st === "now" || x.st === "late" || flagged(x.p) || state.expanded.has(x.p.id));
       const doneL = sts.filter(x => x.st === "done" && !big.includes(x)), laterL = sts.filter(x => x.st === "later" && !big.includes(x));
@@ -1669,11 +1675,11 @@ export function mount(container, opts = {}) {
       const tile = (attr, lbl, txt, cls = "") => `<button class="tile${cls}" ${attr}><small>${lbl}</small><span>${txt}</span></button>`;
       const tiles = (next || doneL.length || restLater.length) ? `<div class="tiles">${
         next ? tile(`data-toggle="${esc(next.p.id)}" aria-expanded="false"`, `Danach · ${esc(next.p.from)}`, `<b>${esc(next.p.title)}</b> · ${next.p.items.length} ${next.p.items.length === 1 ? "Aufgabe" : "Aufgaben"} ›`) : ""}${
-        doneL.length ? tile(`data-toggle="_done" aria-expanded="${state.expanded.has("_done")}"`, "Erledigt", `${n(doneL.length)} ✓ ${state.expanded.has("_done") ? "‹" : "›"}`, " done") : ""}${
-        restLater.length ? tile(`data-toggle="_later" aria-expanded="${state.expanded.has("_later")}"`, "Später", `${n(restLater.length)} · bis ${esc(s.end)} ${state.expanded.has("_later") ? "‹" : "›"}`) : ""}</div>` : "";
+        restLater.length ? tile(`data-toggle="_later" aria-expanded="${state.expanded.has("_later")}"`, "Später", `${n(restLater.length)} · bis ${esc(s.end)} ${state.expanded.has("_later") ? "‹" : "›"}`) : ""}${
+        doneL.length ? tile(`data-toggle="_done" aria-expanded="${state.expanded.has("_done")}"`, "Erledigt", `${n(doneL.length)} ✓ ${state.expanded.has("_done") ? "‹" : "›"}`, " done") : ""}</div>` : "";
       stops = clear + big.map(x => stopHtml(x.p)).join("") + tiles
-        + (state.expanded.has("_done") ? doneL.map(x => stopHtml(x.p)).join("") : "")
-        + (state.expanded.has("_later") ? restLater.map(x => stopHtml(x.p)).join("") : "");
+        + (state.expanded.has("_later") ? restLater.map(x => stopHtml(x.p)).join("") : "")
+        + (state.expanded.has("_done") ? doneL.map(x => stopHtml(x.p)).join("") : "");
     }
     // Eigene Erinnerungen: eigener Abschnitt unter dem Fahrplan, nur wenn welche da sind; nach Uhrzeit sortiert.
     // Offen, solange etwas offen ist; sind alle erledigt, eine Zeile zum Aufklappen. Zählen nicht zum Fortschritt.
@@ -3542,6 +3548,12 @@ export function mount(container, opts = {}) {
   const KIND_LABEL = { rhythm: "regelmäßig", confirm: "Pflicht", hint: "Hinweis" };
   const ANC_NAME = { s: "nach Beginn", e: "vor Schluss", u: "Sonnenuntergang", t: "feste Uhrzeit" };
   // Minuten zum Sonnenuntergang: Zahl + „vor/nach“ (gespeichert vorzeichenbehaftet, negativ = vorher).
+  // Auswahl in halben Stunden (Wert = Minuten); ein krummer alter Wert (z. B. 45 Min.) bleibt als eigene Option erhalten.
+  function hourSel(id, min, maxH, label) {
+    const opts = Array.from({ length: maxH * 2 + 1 }, (_, i) => i * 30);
+    if (Number.isInteger(min) && !opts.includes(min)) opts.push(min);
+    return `<select class="in hsel" id="${id}" aria-label="${label} (Stunden)">${opts.sort((x, y) => x - y).map(m => `<option value="${m}"${m === min ? " selected" : ""}>${hrs(m)}</option>`).join("")}</select>`;
+  }
   const sunDir = (id, n) => `<select class="in sdir" id="${id}" aria-label="vor oder nach"><option value="vor"${n < 0 ? " selected" : ""}>vor</option><option value="nach"${n < 0 ? "" : " selected"}>nach</option></select>`;
   const readSun = (numId, dirId) => { const n = parseInt((($(numId) || {}).value || ""), 10); return Number.isInteger(n) ? Math.abs(n) * ((($(dirId) || {}).value === "vor") ? -1 : 1) : NaN; };
   // Auswahl „Richtet sich nach“; Felder mit data-show="<präfix>:<werte>" blendet der change-Handler passend ein.
@@ -3628,8 +3640,8 @@ export function mount(container, opts = {}) {
         ${fld("Name", `<input class="in" id="ep-t" maxlength="60" value="${esc(d.title)}" placeholder="z. B. Nachmittag" required>`)}
         ${fld("Hinweis (optional)", `<input class="in" id="ep-s" maxlength="80" value="${esc(d.hint || "")}" placeholder="z. B. direkt bei Schichtbeginn">`)}
         <label class="fld"><span>Richtet sich nach</span>${ancSel("ep-p", an.anc, false)}</label>
-        <div class="ancrow" ${showIf("ep-p", "s,e", an.anc)}>von <input class="in num" type="number" id="ep-a" min="-600" max="900" step="5" value="${an.anc === "t" ? 0 : an.a}" aria-label="von Minuten"> bis <input class="in num" type="number" id="ep-b" min="-600" max="900" step="5" value="${an.anc === "t" ? 30 : an.b}" aria-label="bis Minuten"> Min. <span ${showIf("ep-p", "s", an.anc)}>nach Beginn</span><span ${showIf("ep-p", "e", an.anc)}>vor Schluss</span></div>
-        <div class="ancrow" ${showIf("ep-p", "u", an.anc)}>von <input class="in num" type="number" id="ep-ua" min="0" max="600" step="5" value="${an.anc === "u" ? Math.abs(an.a) : 15}" aria-label="von Minuten"> Min. ${sunDir("ep-uad", an.anc === "u" ? an.a : -15)} bis <input class="in num" type="number" id="ep-ub" min="0" max="600" step="5" value="${an.anc === "u" ? Math.abs(an.b) : 30}" aria-label="bis Minuten"> Min. ${sunDir("ep-ubd", an.anc === "u" ? an.b : 30)} Sonnenuntergang${sunsetMin(state.date) != null ? ` <small class="muted">(heute ${fmtMin(sunsetMin(state.date))})</small>` : ""}</div>
+        <div class="ancrow" ${showIf("ep-p", "s,e", an.anc)}>von ${hourSel("ep-a", an.anc === "s" || an.anc === "e" ? an.a : 0, 12, "von")} bis ${hourSel("ep-b", an.anc === "s" || an.anc === "e" ? an.b : 30, 12, "bis")} Std. <span ${showIf("ep-p", "s", an.anc)}>nach Beginn</span><span ${showIf("ep-p", "e", an.anc)}>vor Schluss</span></div>
+        <div class="ancrow" ${showIf("ep-p", "u", an.anc)}>von ${hourSel("ep-ua", an.anc === "u" ? Math.abs(an.a) : 30, 6, "von")} Std. ${sunDir("ep-uad", an.anc === "u" ? an.a : -30)} bis ${hourSel("ep-ub", an.anc === "u" ? Math.abs(an.b) : 60, 6, "bis")} Std. ${sunDir("ep-ubd", an.anc === "u" ? an.b : 60)} Sonnenuntergang${sunsetMin(state.date) != null ? ` <small class="muted">(heute ${fmtMin(sunsetMin(state.date))})</small>` : ""}</div>
         <div class="tgrid" ${showIf("ep-p", "t", an.anc)}><span></span><b>von</b><b>bis</b>
           <b>Mo–Fr</b>${timeIn("ep-wkf", d.wk.from, "Mo–Fr von")}${timeIn("ep-wkt", d.wk.to, "Mo–Fr bis")}
           <b>Sa + So</b>${timeIn("ep-wef", d.we.from, "Sa+So von")}${timeIn("ep-wet", d.we.to, "Sa+So bis")}</div>
@@ -3708,7 +3720,7 @@ export function mount(container, opts = {}) {
       let a = anc === "u" ? readSun("ep-ua", "ep-uad") : parseInt(v("ep-a"), 10), b = anc === "u" ? readSun("ep-ub", "ep-ubd") : parseInt(v("ep-b"), 10);
       if (anc === "t" && (!range(wk.from, wk.to) || !range(we.from, we.to))) return err("Bitte Uhrzeiten als HH:MM eingeben – „bis“ muss nach „von“ liegen.");
       if (anc !== "t") {
-        if (!offOk(a) || !offOk(b) || a === b) return err("Bitte zwei verschiedene Minutenwerte angeben (z. B. 30 bis 0).");
+        if (!offOk(a) || !offOk(b) || a === b) return err("Bitte zwei verschiedene Zeiten wählen (z. B. 0 bis 0,5 Std.).");
         if (((anc === "s" || anc === "u") && a > b) || (anc === "e" && a < b)) [a, b] = [b, a];
       }
       ok = editMaster(m => {

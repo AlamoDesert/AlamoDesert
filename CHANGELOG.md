@@ -2,6 +2,12 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.21.1 – 25.11.2026
+- Farben: Der laufende Abschnitt ist grün, solange Zeit ist. Orange („knapp“) erst in den letzten 15 Minuten bis zum Ablauf des Puffers, danach rot (überfällig). Gilt für Fahrplan, Zeitstrahl und Jetzt-Leiste.
+- Aufgaben-Plan: Abschnitte in Stunden und halben Stunden statt Minuten (z. B. „1,5–0,5 Std. vor Schluss“), auch am Sonnenuntergang. Erinnerungen bleiben in Minuten.
+- Kacheln unter dem Fahrplan: „Danach · Später · Erledigt“ – Erledigt steht rechts.
+- Erste Version, die als Update-Datei kommt (`Rezeption-1.21.1.rzupdate`, braucht installierte 1.21.0).
+
 ## 1.21.0 – 25.11.2026
 - Updates ohne Neuinstallation: Verwaltung › System › **App-Update** › „Update-Datei wählen“ spielt eine Datei `Rezeption-x.y.z.rzupdate` ein (etwa 1 MB). Die App prüft die digitale Unterschrift, nimmt nur neuere Versionen an und lädt neu. Daten bleiben unverändert. Notausgang: Menü Ansicht › „Eingespieltes Update entfernen“. Diese Version muss einmal per ZIP installiert werden.
 - Sonnenuntergang als Bezug: Abschnitte („von 15 Min. vor bis 30 Min. nach Sonnenuntergang“), Erinnerungen an Aufgaben und Pflichtpunkte („10 Min. vor Sonnenuntergang“, „zum Sonnenuntergang“) wandern jeden Tag mit. Abschnitte am Sonnenuntergang verlängern die Schicht nicht.

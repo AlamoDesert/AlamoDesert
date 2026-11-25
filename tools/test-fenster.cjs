@@ -49,6 +49,8 @@ srv.listen(0, async () => {
   const bTxt = await q(p, '[data-adj="spaet:start"]').innerText();
   check(/Beginn ca\.\s*16:00/.test(bTxt), "Flexibel: Beginn = Einchecken (16:00) – " + bTxt.replace(/\s+/g, " "));
   check(/1[56]:\d\d/.test(await q(p, ".jsun").innerText()), "Flexibel: Sonnenuntergang wird angezeigt");
+  const g0 = (await q(p, '.tseg[title*="Schichtstart"]').getAttribute("class")) || "";
+  check(/is-now/.test(g0) && !/soon/.test(g0) && await q(p, ".stop.is-now:not(.soon) .pill.ok").count() === 1, "Farbe: im Zeitrahmen grün");
   await q(p, '[data-adj="spaet:end"]').click(); await step();
   await q(p, '[data-adjq="-30"]').click(); await q(p, "#ad-r").fill("letzte Buchung"); await step(31000);
   await q(p, "#ad-r").press("Enter"); await step(300);
@@ -80,17 +82,17 @@ srv.listen(0, async () => {
   check(await q(p, "#ep-p-anc").inputValue() === "s" && await q(p, ".edpop .tgrid").isHidden(), "Editor: vorderer Abschnitt hängt an Beginn");
   await q(p, "#ep-p-anc").selectOption("t"); await step();
   check(await q(p, ".edpop .tgrid").isVisible(), "Editor: feste Uhrzeit zeigt Zeitfelder");
-  await q(p, "#ep-p-anc").selectOption("e"); await q(p, "#ep-a").fill("45"); await q(p, "#ep-b").fill("15"); await q(p, "#ep-a").press("Enter"); await step(300);
-  const ph = await p.evaluate(() => JSON.parse(localStorage.getItem("rz2cfg")).master.plan.frueh.phases.find(x => x.anc === "e" && x.a === 45));
-  check(ph && ph.b === 15 && ph.from === "14:45" && ph.to === "15:15", "Editor: vor Schluss 45–15 Min. gespeichert");
+  await q(p, "#ep-p-anc").selectOption("e"); await q(p, "#ep-a").selectOption("90"); await q(p, "#ep-b").selectOption("30"); await q(p, "#ep-t").press("Enter"); await step(300);
+  const ph = await p.evaluate(() => JSON.parse(localStorage.getItem("rz2cfg")).master.plan.frueh.phases.find(x => x.anc === "e" && x.a === 90));
+  check(ph && ph.b === 30 && ph.from === "14:00" && ph.to === "15:00" && await q(p, ".edtoggle").filter({ hasText: "1,5–0,5 Std. vor Schluss" }).count() === 1, "Editor: vor Schluss 1,5–0,5 Std. gespeichert");
 
   // Sonnenuntergang als Bezug: Abschnitt (30 Min. vorher bis 15 Min. danach) und Aufgaben-Erinnerung (zum Sonnenuntergang)
   await q(p, "[data-edphase]").nth(1).click(); await step();
   await q(p, "#ep-p-anc").selectOption("u"); await step();
-  await q(p, "#ep-ua").fill("30"); await q(p, "#ep-uad").selectOption("vor"); await q(p, "#ep-ub").fill("15"); await q(p, "#ep-ubd").selectOption("nach");
+  await q(p, "#ep-ua").selectOption("30"); await q(p, "#ep-uad").selectOption("vor"); await q(p, "#ep-ub").selectOption("60"); await q(p, "#ep-ubd").selectOption("nach");
   await q(p, "#edpop button[type=submit]").click(); await step(300);
   const su = await p.evaluate(() => JSON.parse(localStorage.getItem("rz2cfg")).master.plan.frueh.phases.find(x => x.anc === "u"));
-  check(su && su.a === -30 && su.b === 15 && await q(p, ".edtoggle").filter({ hasText: "30 Min. vor Sonnenuntergang" }).count() === 1, "Editor: Abschnitt am Sonnenuntergang");
+  check(su && su.a === -30 && su.b === 60 && await q(p, ".edtoggle").filter({ hasText: "0,5 Std. vor Sonnenuntergang" }).count() === 1, "Editor: Abschnitt am Sonnenuntergang");
   await q(p, "[data-edopen]").first().click(); await step();
   await q(p, "[data-editem]").first().click(); await step();
   await q(p, "#ep-rem").check(); await q(p, "#ep-r-anc").selectOption("u"); await q(p, "#ep-r-um").fill("0");
@@ -115,10 +117,14 @@ srv.listen(0, async () => {
   await q(p, '[data-view="schicht"]').click(); await step();
   const tsegState = async () => (await q(p, '.tseg[title*="Schichtstart"]').getAttribute("class")) || "";
   const nowMs = await p.evaluate(() => Date.now()), at = (h, m) => new Date(2026, 10, 24, h, m).getTime() - nowMs;
+  // Farben: grün solange Zeit ist, orange ab 15 Min. vor Ende (knapp) bis zum Puffer, dann rot
   await p.clock.runFor(Math.max(0, at(16, 40))); await step(300);
   const s1 = await tsegState();
   await p.clock.runFor(6 * 60000); await step(300);
-  check(/is-now/.test(s1) && /is-late/.test(await tsegState()), "Puffer: rot erst 15 Min. nach der Zeit");
+  check(/is-now soon/.test(s1), "Farbe: knapp orange");
+  check(/is-late/.test(await tsegState()), "Puffer: rot erst 15 Min. nach der Zeit");
+  const tiles = await q(p, ".tile small").allInnerTexts();
+  check(tiles.indexOf("ERLEDIGT") < 0 || tiles.map(t => t.toUpperCase()).indexOf("ERLEDIGT") === tiles.length - 1, "Kacheln: Erledigt steht rechts – " + tiles.join(" · "));
 
   check(!errs.length, "keine Skriptfehler" + (errs.length ? ": " + errs.join(" | ") : ""));
   await b.close(); srv.close();

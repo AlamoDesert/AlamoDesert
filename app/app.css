@@ -773,3 +773,12 @@ button.jchip { cursor: pointer }
 .ancb.sun { color: #b9770e }
 .ancrow .sdir { width: auto }
 .ancrow .muted { color: var(--muted); font-weight: 500 }
+/* 1.21.1 Laufender Abschnitt: grün, solange Zeit ist – orange erst „knapp“ (letzte 15 Min. + Puffer), rot überfällig */
+.pill.ok { background: var(--done-soft); color: var(--done) }
+.stop.is-now:not(.soon) { border-color: var(--done); box-shadow: 0 0 0 1px var(--done) }
+.stop.is-now:not(.soon) .stop-head, .stop.is-now:not(.soon) .phint { background: var(--done-soft) }
+.stop.is-now:not(.soon) .mark { background: var(--done) }
+.stop.is-now:not(.soon) .time { color: var(--done) }
+.tseg.is-now:not(.soon) { background: var(--done) } .tseg.is-now:not(.soon) span { color: var(--done) }
+.jetzt.tone-ok .jtitle { color: var(--done) }
+.ancrow .hsel { width: auto; min-width: 72px }
