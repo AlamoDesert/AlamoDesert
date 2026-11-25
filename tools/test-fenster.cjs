@@ -44,6 +44,7 @@ srv.listen(0, async () => {
   check(await q(p, "#rempop").count() === 0 && await q(p, "li.ownrem").count() === 1, "Erinnerung: Speichern trotz Neuzeichnen");
   await q(p, "[data-remadd]").click(); await q(p, "#rp-t").fill("Zweite"); await q(p, "#rp-t").press("Enter"); await step(300);
   check(await q(p, "#rempop").count() === 0 && await q(p, "li.ownrem").count() === 2, "Erinnerung: Enter speichert und schließt");
+  check(await q(p, ".tl .tlrow ul.tlown li.ownrem").count() === 2 && await q(p, "#phase-own").count() === 0, "Erinnerung: steht im Tagesablauf an ihrer Uhrzeit");
 
   // Flexible Zeiten: Beginn aus dem Einchecken, Schluss heute ändern, Sonnenuntergang
   const bTxt = await q(p, ".tlrow.is-bound").first().innerText();
@@ -142,7 +143,7 @@ srv.listen(0, async () => {
   await q(p, "#phase-start .items button").first().click(); await step(300);
   const dn = await q(p, ".tldone").innerText().catch(() => "");
   await q(p, ".tldone").click().catch(() => {}); await step(200);
-  check(/1 Abschnitt erledigt/.test(dn) && !/Schichtstart/.test(dn) && await q(p, "#phase-start").count() === 0 && await q(p, ".tlsmall").filter({ hasText: "Schichtstart" }).count() === 1, "Tagesablauf: Erledigtes zusammengeklappt – " + dn);
+  check(/1 Abschnitt( · \d+ Erinnerungen?)? erledigt/.test(dn) && !/Schichtstart/.test(dn) && await q(p, "#phase-start").count() === 0 && await q(p, ".tlsmall").filter({ hasText: "Schichtstart" }).count() === 1, "Tagesablauf: Erledigtes zusammengeklappt – " + dn);
 
   check(!errs.length, "keine Skriptfehler" + (errs.length ? ": " + errs.join(" | ") : ""));
   await b.close(); srv.close();

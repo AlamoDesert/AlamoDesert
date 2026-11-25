@@ -1593,15 +1593,23 @@ export function mount(container, opts = {}) {
     ev.push({ m: S, ord: 0, html: boundRow("start", "Beginn", s.start, lv.sSrc) });
     // Erledigtes: eine Zeile „✓ n Abschnitte erledigt“, aufgeklappt je Abschnitt eine kleine Zeile.
     const doneL = sts.filter(x => x.st === "done" && !flagged(x.p));
-    if (doneL.length) {
-      const open = state.expanded.has("_done"), n = doneL.length;
-      const m0 = Math.min(...doneL.map(x => toMin(x.p.from)));
-      ev.push({ m: m0, e: Math.max(...doneL.map(x => toMin(x.p.to))), ord: 1, html: tlRow(fmtMin(m0), "done",
-        `<button class="tldone" data-toggle="_done" aria-expanded="${open}">✓ ${n} ${n === 1 ? "Abschnitt" : "Abschnitte"} erledigt <span aria-hidden="true">${open ? "‹" : "›"}</span></button>`, " small") });
+    // Eigene Erinnerungen stehen als eigene Zeilen an ihrer Uhrzeit; erledigte kommen mit in die Erledigt-Zeile.
+    const canRem = !state.readOnly;
+    const own = Object.entries(state.rem).filter(([, r]) => r.shift === key);
+    const ownDone = own.filter(([, r]) => r.done);
+    const ownRow = ([id, r], tone, cls = "") => tlRow(r.at, tone, `<ul class="items tlown">${remHtml(id, r, canRem)}</ul>`, cls);
+    if (doneL.length || ownDone.length) {
+      const open = state.expanded.has("_done"), n = doneL.length, k = ownDone.length;
+      const parts = [n ? `${n} ${n === 1 ? "Abschnitt" : "Abschnitte"}` : "", k ? `${k} ${k === 1 ? "Erinnerung" : "Erinnerungen"}` : ""].filter(Boolean).join(" · ");
+      const m0 = Math.min(...doneL.map(x => toMin(x.p.from)), ...ownDone.map(([, r]) => toMin(r.at)));
+      const e0 = Math.max(...doneL.map(x => toMin(x.p.to)), ...ownDone.map(([, r]) => toMin(r.at)));
+      ev.push({ m: m0, e: e0, ord: 1, html: tlRow(fmtMin(m0), "done",
+        `<button class="tldone" data-toggle="_done" aria-expanded="${open}">✓ ${parts} erledigt <span aria-hidden="true">${open ? "‹" : "›"}</span></button>`, " small") });
       if (open) for (const { p } of doneL) {
         ev.push({ m: toMin(p.from), e: toMin(p.to), ord: 2, html: state.expanded.has(p.id) ? tlRow(p.from, "done", stopHtml(p, true)) :
           tlRow(p.from, "done", `<button class="tlsmall" data-toggle="${esc(p.id)}" aria-expanded="false">✓ ${esc(p.title)} <span>· ${p.items.length}/${p.items.length}</span></button>`, " small") });
       }
+      if (open) for (const x of ownDone) ev.push({ m: toMin(x[1].at), ord: 2, html: ownRow(x, "done", " small") });
     }
     for (const { p, st } of sts) {
       if (st === "done" && !flagged(p)) continue;
@@ -1615,8 +1623,7 @@ export function mount(container, opts = {}) {
     const short = (t) => esc(t.length > 48 ? t.slice(0, 47) + "…" : t);
     for (const { p } of sts) for (const i of p.items) if (i.remind && !state.checks[i.id] && toMin(i.remind) >= ctx)
       ev.push({ m: toMin(i.remind), ord: 4, html: tlRow(i.remind, "rem", `<button class="tlrem" data-jump="phase-${esc(p.id)}">${BELL_SVG}${short(i.t)}</button>`) });
-    for (const r of Object.values(state.rem)) if (r.shift === key && !r.done && toMin(r.at) >= ctx)
-      ev.push({ m: toMin(r.at), ord: 4, html: tlRow(r.at, "rem", `<button class="tlrem" data-jump="phase-own">${BELL_SVG}${short(r.t)}</button>`) });
+    for (const x of own) if (!x[1].done) ev.push({ m: toMin(x[1].at), ord: 4, html: ownRow(x, toMin(x[1].at) <= ctx ? "soon" : "rem") });
     const sun = sunsetMin(state.date);
     if (sun != null && sun >= S - 60 && sun <= E) ev.push({ m: sun, ord: 5, html: tlRow(fmtMin(sun), "sun", `<span class="tlsun" title="Sonnenuntergang in ${esc(locOf().name)}">${SUN_SVG}Sonnenuntergang</span>`, " small") });
     ev.push({ m: E, ord: 9, html: boundRow("end", "Schluss", s.end, lv.eSrc) });
@@ -1698,7 +1705,8 @@ export function mount(container, opts = {}) {
     const own = Object.entries(state.rem).filter(([, r]) => r.shift === key).sort((a, b) => a[1].at.localeCompare(b[1].at));
     const ownOpen = own.filter(([, r]) => !r.done).length;
     const ownDue = own.some(([, r]) => !r.done && typeof ctx === "number" && ctx >= toMin(r.at));
-    const ownSec = !own.length ? "" : (() => {
+    // Heute stehen eigene Erinnerungen im Tagesablauf; der eigene Bereich unten bleibt für andere Tage.
+    const ownSec = isLive || !own.length ? "" : (() => {
       const allDone = !ownOpen, collapsed = allDone && !state.expanded.has("_rem");
       // Erledigte verschwinden aus der Liste, damit offene oben bleiben; „n erledigte anzeigen“ holt sie unten wieder hervor.
       const doneN = own.length - ownOpen, showDone = allDone || state.expanded.has("_remdone");

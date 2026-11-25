@@ -801,3 +801,8 @@ button.othchip { cursor: pointer }
 /* 1.22.8 Übergabe: Name als Unterschrift unter der Nachricht */
 .nsig { display: block; margin-top: 6px; text-align: right; font-size: 13px; font-weight: 600; color: var(--muted); white-space: normal }
 .handbar .nsig { display: inline; margin: 0 0 0 8px }
+
+/* 1.23 Eigene Erinnerungen als Zeilen im Tagesablauf */
+ul.items.tlown { list-style: none; margin: 2px 0 4px; padding: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; position: relative; z-index: 2 }
+ul.items.tlown li.ownrem { border-top: 0 }
+.tlrow.small ul.items.tlown { opacity: .85 }

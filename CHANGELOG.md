@@ -2,6 +2,10 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.23.0 – 25.11.2026
+- Eigene Erinnerungen stehen heute direkt im Tagesablauf an ihrer Uhrzeit – mit Haken und Löschen (×). Fällige haben einen orangen Punkt. Erledigte wandern in die Zeile „✓ … erledigt“ (z. B. „1 Abschnitt · 2 Erinnerungen erledigt“) und erscheinen beim Aufklappen.
+- Der eigene Bereich „Eigene Erinnerungen“ unten im Fahrplan entfällt für heute; an anderen Tagen bleibt er.
+
 ## 1.22.9 – 25.11.2026
 - Beginn/Schluss geändert: Es steht nur noch „geändert von Name“ (mit Grund), ohne Uhrzeit – im Tagesablauf und im Fenster „… heute ändern“.
 
