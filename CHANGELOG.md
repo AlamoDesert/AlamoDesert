@@ -2,6 +2,9 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.26.1 – 25.11.2026
+- Eigene Erinnerungen lassen sich ändern: Antippen des Textes im Erinnerungs-Bereich öffnet „Erinnerung ändern“ mit Text und Uhrzeit. Ändern darf, wer sie angelegt hat, oder die Leitung – wie beim Löschen.
+
 ## 1.26.0 – 25.11.2026
 - Kopfzeile neu: Oben links steht das padel-amigos-Zeichen in Graublau statt des Schriftzugs „Rezeption“. Wochentag und Datum stehen klein unter der Uhrzeit.
 - Tag wechseln: Klick auf das Datum öffnet einen eigenen Monatskalender direkt darunter (Gestern/Heute als Schnellwahl, Esc oder Klick daneben schließt). Das bisherige Kalender-Symbol und das System-Datumsfeld, das auf dem Mac an falscher Stelle aufging, sind entfernt.

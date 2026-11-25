@@ -48,6 +48,11 @@ srv.listen(0, async () => {
   check(await q(p, "#rempop").count() === 0 && await q(p, ".tlrchip.own").count() === 2, "Erinnerung: Enter speichert und schließt");
   check(await q(p, ".tllane .tlrchip.own").count() === 2 && await q(p, "#phase-own").count() === 0, "Erinnerung: eigener Bereich rechts im Tagesablauf");
   await q(p, "[data-remadd]").click(); await q(p, "#rp-t").fill("Dritte"); await q(p, "#rp-at").fill("16:20"); await q(p, "#rp-t").press("Enter"); await step(300);
+  // Erinnerung antippen = ändern: Fenster mit Text und Uhrzeit vorbelegt, Speichern ändert dieselbe Erinnerung
+  await q(p, '.tlrchip [data-remedit]').filter({ hasText: "Zweite" }).click(); await step(100);
+  check((await q(p, "#rp-title").textContent()) === "Erinnerung ändern" && (await q(p, "#rp-t").inputValue()) === "Zweite", "Erinnerung: Antippen öffnet „Erinnerung ändern“ mit Text");
+  await q(p, "#rp-t").fill("Zweite geändert"); await q(p, "#rp-at").fill("17:40"); await q(p, "#rp-t").press("Enter"); await step(300);
+  check(await q(p, ".tlrchip.own").count() === 3 && await q(p, ".tlrchip.own").filter({ hasText: "17:40 Zweite geändert" }).count() === 1 && await q(p, ".tlrchip.own").filter({ hasText: /Zweite$/ }).count() === 0, "Erinnerung: Ändern speichert Text und Uhrzeit, keine neue");
   // Zeitgenau: 16:20 liegt im Abschnitt 16:00–16:30 → Glocke bei ca. zwei Dritteln seiner Höhe, Karte rechts daneben
   const sec = await p.locator("#rz-host .tlrow").filter({ has: p.locator("#phase-start") }).boundingBox();
   const bell = await q(p, '.tlbell[data-at="980"]').boundingBox(), chip = await q(p, ".tlrchip").filter({ hasText: "Dritte" }).boundingBox();

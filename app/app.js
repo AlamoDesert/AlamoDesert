@@ -606,7 +606,7 @@ export function mount(container, opts = {}) {
     adj: {},             // Beginn/Schluss heute geändert: { frueh|spaet: { start|end: { t, by, at, reason } } }
     adjPop: null,        // Fenster „Beginn/Schluss ändern“: { key, which, t, reason }
     rem: {},             // eigene Erinnerungen des Tages: { <id>: { t, at, shift, by, created, done?: { by, at } } }
-    remPop: null,        // Fenster „Neue Erinnerung“: { shift }
+    remPop: null,        // Fenster „Neue Erinnerung“: { shift } bzw. „Erinnerung ändern“: { id, shift, t, at }
     stillHere: null,     // Fenster „Noch da?“: { id, entry, end }
     rosterHi: null,      // Dienstplan: Name, dessen Tage hervorgehoben werden (null = eingecheckte Person, "" = alle)
     importPreview: null, // eingelesener Arbeitsplan vor dem Übernehmen
@@ -1172,6 +1172,8 @@ export function mount(container, opts = {}) {
     persistDay(state.date, { rem: { [id]: val || null } });
     render();
   }
+  // Ändern und Löschen einer eigenen Erinnerung: wer sie angelegt hat oder die entsperrte Leitung (alte ohne „by“: alle).
+  function canChangeRem(r) { const cp = currentPerson(); return isUnlocked() || !r.by || (!!cp && cp.id === r.by); }
   function setRemDone(id, done) {
     const r = state.rem[id]; if (!r) return;
     const { done: _old, ...rest } = r;
@@ -1195,7 +1197,7 @@ export function mount(container, opts = {}) {
     if (pop.at == null) pop.at = fmtMin(Math.min(1435, Math.ceil((nowMin() + 30) / 5) * 5));
     const def = pop.at;
     return `<div class="overlay inmain" role="dialog" aria-modal="true" aria-labelledby="rp-title"><form class="dialog rempop" id="rempop">
-      <h2 id="rp-title">Neue Erinnerung</h2>
+      <h2 id="rp-title">${pop.id ? "Erinnerung ändern" : "Neue Erinnerung"}</h2>
       <label class="fld"><span>Was?</span><input class="in" id="rp-t" maxlength="120" autocomplete="off" placeholder="z. B. Licht einschalten, Equipment bereitlegen" value="${esc(pop.t || "")}"></label>
       <div class="rpwhen"><label class="fld"><span>Um</span>${timeIn("rp-at", def, "Uhrzeit")}</label>
         <span class="quick">${[15, 30, 60].map(n => `<button type="button" class="chip off" data-rq="${n}">in ${n === 60 ? "1 Std." : n + " Min."}</button>`).join("")}${sunsetMin(state.date) != null && sunsetMin(state.date) > nowMin() ? `<button type="button" class="chip off" data-rqsun="1">${SUN_SVG}zum Sonnenuntergang (${fmtMin(sunsetMin(state.date))})</button>` : ""}</span></div>
@@ -1250,6 +1252,8 @@ export function mount(container, opts = {}) {
     // Enter im Textfeld: Fokus lösen, sonst schiebt render() das Neuzeichnen auf (Fenster bliebe offen, Erinnerung unsichtbar).
     blurActive();
     state.remPop = null;
+    const old = pop.id && state.rem[pop.id];
+    if (old) { setRem(pop.id, { ...old, t, at }); toast(`Erinnerung geändert – ${at}`); return; }
     setRem(newId("r"), { t, at, shift: pop.shift, by: actorId(), created: new Date().toISOString() });
     toast(`Erinnerung um ${at} angelegt`);
   }
@@ -1626,7 +1630,7 @@ export function mount(container, opts = {}) {
     const showDone = state.expanded.has("_remdone"), nDone = own.filter(([, r]) => r.done).length;
     for (const [id, r] of own) if (!r.done || showDone) lane.push({ m: toMin(r.at), done: !!r.done, html: `<div class="tlrchip own${r.done ? " done" : toMin(r.at) <= ctx ? " due" : ""}" data-at="${toMin(r.at)}">
         <button class="rcheck" data-remcheck="${esc(id)}" aria-pressed="${!!r.done}" aria-label="${esc(r.t)} ${r.done ? "wieder öffnen" : "erledigt"}" ${canRem ? "" : "disabled"}><span class="box">${CHECK_SVG}</span></button>
-        <span class="rtxt"><b>${esc(r.at)}</b> ${short(r.t)}</span>${canRem ? `<button class="rdel" data-remdel="${esc(id)}" aria-label="Erinnerung löschen">×</button>` : ""}</div>` });
+        ${canRem && !r.done ? `<button class="rtxt redit" data-remedit="${esc(id)}" title="Antippen zum Ändern"><b>${esc(r.at)}</b> ${short(r.t)}</button>` : `<span class="rtxt"><b>${esc(r.at)}</b> ${short(r.t)}</span>`}${canRem ? `<button class="rdel" data-remdel="${esc(id)}" aria-label="Erinnerung löschen">×</button>` : ""}</div>` });
     for (const { p } of sts) for (const i of p.items) if (i.remind && !state.checks[i.id]) lane.push({ m: toMin(i.remind), html: `<div class="tlrchip item${toMin(i.remind) <= ctx ? " due" : ""}" data-at="${toMin(i.remind)}">
         <button class="rjump" data-jump="phase-${esc(p.id)}" title="Aufgabe im Abschnitt ${esc(p.title)}">${BELL_SVG}<span class="rtxt"><b>${esc(i.remind)}</b> ${short(i.t)}</span></button></div>` });
     lane.sort((x, y) => x.m - y.m);
@@ -4224,10 +4228,16 @@ export function mount(container, opts = {}) {
     if (t.dataset.adjreset) { const pop = state.adjPop; if (!pop) return; blurActive(); state.adjPop = null; saveAdj(pop.key, pop.which, null); toast(`${pop.which === "start" ? "Beginn" : "Schluss"} wieder laut Plan`); render(); return; }
     if (t.dataset.rq) { const v = fmtMin(Math.min(1435, Math.ceil((nowMin() + Number(t.dataset.rq)) / 5) * 5)); const i = $("rp-at"); if (i) i.value = v; if (state.remPop) state.remPop.at = v; return; }
     if (t.dataset.remcheck) { if (needPerson()) return; const r = state.rem[t.dataset.remcheck]; if (r) setRemDone(t.dataset.remcheck, !r.done); return; }
+    // Erinnerung ändern (ab 1.26.1): Antippen des Textes öffnet das Fenster mit Text und Uhrzeit – gleiche Regel wie Löschen.
+    if (t.dataset.remedit) {
+      const id = t.dataset.remedit, r = state.rem[id]; if (!r || state.readOnly) return;
+      if (needPerson()) return;
+      if (!canChangeRem(r)) { toast("Ändern kann nur, wer die Erinnerung angelegt hat, oder die Leitung"); return; }
+      state.remPop = { id, shift: r.shift, t: r.t, at: r.at }; render(); const i = $("rp-t"); if (i) i.focus(); return;
+    }
     if (t.dataset.remdel) {
       const id = t.dataset.remdel, r = state.rem[id]; if (!r) return;
-      const cp = currentPerson();
-      if (!(isUnlocked() || (cp && cp.id === r.by) || !r.by)) { toast("Löschen kann nur, wer die Erinnerung angelegt hat, oder die Leitung"); return; }
+      if (!canChangeRem(r)) { toast("Löschen kann nur, wer die Erinnerung angelegt hat, oder die Leitung"); return; }
       if (state.confirm !== "remdel:" + id) { state.confirm = "remdel:" + id; t.textContent = "Löschen?"; t.classList.add("danger"); return; }
       state.confirm = null; setRem(id, null); return;
     }
