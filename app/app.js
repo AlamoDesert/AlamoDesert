@@ -2865,7 +2865,7 @@ export function mount(container, opts = {}) {
     el.hidden = false;
     if (bye) {
       el.innerHTML = `<div class="overlay" role="dialog" aria-modal="true" aria-labelledby="bye-title">${brand}<div class="dialog bye">
-        <div class="byeic" aria-hidden="true">☾</div>
+        <div class="byeic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-4 0"/><path d="M14 10V4a2 2 0 0 0-4 0v2"/><path d="M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-6-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.83L7 15"/></svg></div>
         <h2 id="bye-title">Schönen Feierabend${bye.name ? ", " + esc(bye.name) : ""}!</h2>
         <div class="row center"><button class="btn ghost" data-pick-close="1">Nur ansehen</button><button class="btn primary" data-bye-next="1">Jemand anderes einchecken</button></div>
       </div></div>`;

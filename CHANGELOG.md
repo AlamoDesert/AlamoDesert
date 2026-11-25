@@ -2,6 +2,9 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.27.10 – 25.11.2026
+- Feierabend-Bildschirm: winkende Hand statt Mond (winkt beim Erscheinen kurz).
+
 ## 1.27.9 – 25.11.2026
 - Feierabend- und Anmeldebildschirm zeigen oben links das padel-amigos-Logo groß (statt „Rezeption“), rechts Uhrzeit mit Datum darunter.
 
