@@ -2,6 +2,10 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.21.0 – 25.11.2026
+- Updates ohne Neuinstallation: Verwaltung › System › **App-Update** › „Update-Datei wählen“ spielt eine Datei `Rezeption-x.y.z.rzupdate` ein (etwa 1 MB). Die App prüft die digitale Unterschrift, nimmt nur neuere Versionen an und lädt neu. Daten bleiben unverändert. Notausgang: Menü Ansicht › „Eingespieltes Update entfernen“. Diese Version muss einmal per ZIP installiert werden.
+- Sonnenuntergang als Bezug: Abschnitte („von 15 Min. vor bis 30 Min. nach Sonnenuntergang“), Erinnerungen an Aufgaben und Pflichtpunkte („10 Min. vor Sonnenuntergang“, „zum Sonnenuntergang“) wandern jeden Tag mit. Abschnitte am Sonnenuntergang verlängern die Schicht nicht.
+
 ## 1.20.0 – 24.11.2026
 - Flexible Zeiten: Abschnitte richten sich nach **Beginn** („0–30 Min. nach Beginn“) oder **Schluss** („90–60 Min. vor Schluss“). Nur „Licht aus“ behält eine feste Uhrzeit. Bestehende Pläne stellen sich ohne Zutun um: vordere Abschnitte hängen an Beginn, hintere an Schluss.
 - Beginn = Einchecken der Früh-/Spätschicht, Schluss = Dienstplan bzw. Plan. Beides lässt sich heute in der Jetzt-Leiste ändern („ändern“, Schnellknöpfe −30/−15/+15/+30, optionaler Grund) – von jeder eingecheckten Person, mit Name und Uhrzeit festgehalten. Abbau, Abschließen, Erinnerungen und „Noch da?“ ziehen mit.

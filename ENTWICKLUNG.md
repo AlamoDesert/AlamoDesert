@@ -35,13 +35,21 @@ ARCHS=arm64,x64 npm run build                # zusätzlich Intel
 
 Ohne Mac (Cloud/Linux): `ELECTRON_ZIP_DIR=<Ordner mit electron-v44.5.1-darwin-arm64.zip>` und `RCODESIGN=<Pfad zu rcodesign 0.29>` setzen – sonst lädt der Packer Electron selbst bzw. die App startet auf Apple-Chips nicht. Installation beim Nutzer: [`mac/ANLEITUNG-MAC.md`](mac/ANLEITUNG-MAC.md).
 
+**Update-Datei** (statt neuer ZIP, wenn sich nur `app/` geändert hat; ab Mac-App 1.21):
+
+```sh
+RZ_UPDATE_KEY=/pfad/rezeption-update-key.pem node tools/make-update.mjs   # → mac/dist/Rezeption-<version>.rzupdate
+```
+
+Version vorher in `mac/package.json` erhöhen. Der private Schlüssel gehört nie ins Repository. Änderungen an `mac/main.js`, `mac/preload.js` oder `mac/update-format.js` brauchen eine neue ZIP.
+
 **Webversion** (claude.ai-Artifact, nur Testbetrieb): `index.html` veröffentlichen mit `files: {checkin.html, pdfjs/pdf.min.mjs, pdfjs/pdf.worker.min.mjs, vendor/xlsx.full.min.js}` (`pdfjs/` und `vendor/` entstehen nur nach `cd mac && npm install`) und den Fähigkeiten `db`, `user`, `downloads`.
 
 ## Testen
 
 Mindestens prüfen:
 
-1. `node tools/build.mjs` läuft ohne Fehler, danach `node tools/test-fenster.cjs` (Playwright/Chromium): spielt alle Eingabefenster durch – Enter speichert, Eingaben überleben Neuzeichnen und PIN-Sperre, kein doppeltes Anlegen.
+1. `node tools/build.mjs` läuft ohne Fehler, danach `node tools/test-fenster.cjs` (Playwright/Chromium): spielt alle Eingabefenster durch – Enter speichert, Eingaben überleben Neuzeichnen und PIN-Sperre, kein doppeltes Anlegen. Bei Änderungen an der Mac-Hülle oder am Update-Format zusätzlich `node tools/test-update.cjs`.
 2. `index.html` im Browser: Einchecken, Haken setzen, Übergabe schreiben, Auschecken, Zeiten-Ansicht.
 3. Bei Änderungen am Speicher: alte Sicherung einspielen (Verwaltung › Datensicherung) – muss weiter funktionieren.
 4. Check-ins (nur falls wieder eingeschaltet): Dateien aus `testdaten/checkins/` einlesen, Ergebnis mit `LIESMICH.md` vergleichen.

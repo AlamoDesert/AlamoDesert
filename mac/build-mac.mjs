@@ -20,6 +20,7 @@ rmSync(stage, { recursive: true, force: true });
 mkdirSync(join(stage, "app/pdfjs"), { recursive: true });
 cpSync(join(here, "main.js"), join(stage, "main.js"));
 cpSync(join(here, "preload.js"), join(stage, "preload.js"));
+cpSync(join(here, "update-format.js"), join(stage, "update-format.js"));
 cpSync(join(repo, "index.html"), join(stage, "app/index.html"));
 // Check-in-Erstattung (Reiter „Erstattung“) mit SheetJS lokal, damit Excel auch ohne Internet geht.
 cpSync(join(repo, "checkin.html"), join(stage, "app/checkin.html"));

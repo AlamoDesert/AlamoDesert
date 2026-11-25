@@ -19,3 +19,7 @@ hansefit-zuordnung_*.csv
 checkin-erstattung-konfiguration_*.json
 playtomic-export*.csv
 !testdaten/**
+
+# Privater Schlüssel für Update-Dateien – nie committen
+*.pem
+*.rzupdate

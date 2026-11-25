@@ -44,4 +44,6 @@ Danach startet die App mit Doppelklick – ab jetzt ohne Nachfrage.
 
 ## Update auf eine neue Version
 
-Neue ZIP öffnen und **Rezeption** im Programme-Ordner ersetzen. Die Daten bleiben erhalten (sie liegen nicht in der App, sondern in `~/Library/Application Support/Rezeption`).
+**Ab Version 1.21 – Update-Datei (empfohlen):** Du bekommst eine Datei `Rezeption-x.y.z.rzupdate`. In der App: Verwaltung › System › **App-Update** › **Update-Datei wählen** › Datei auswählen. Die App prüft die Unterschrift, spielt das Update ein und lädt neu. Läuft danach etwas nicht: Menü **Ansicht › Eingespieltes Update entfernen**.
+
+**Neue ZIP** (nur wenn ausdrücklich nötig): Neue ZIP öffnen und **Rezeption** im Programme-Ordner ersetzen. Die Daten bleiben erhalten (sie liegen nicht in der App, sondern in `~/Library/Application Support/Rezeption`).

@@ -11,4 +11,6 @@ contextBridge.exposeInMainWorld("rezeptionNative", {
   saveExport: (name, bytes) => ipcRenderer.invoke("rz:saveExport", name, bytes),
   attention: () => ipcRenderer.invoke("rz:attention"),
   attentionEnd: () => ipcRenderer.invoke("rz:attentionEnd"),
+  installUpdate: (text) => ipcRenderer.invoke("rz:installUpdate", String(text)),
+  removeUpdate: () => ipcRenderer.invoke("rz:removeUpdate"),
 });

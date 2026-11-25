@@ -480,7 +480,9 @@ export function mount(container, opts = {}) {
   // ---------- Plan prüfen (Daten aus der DB sind unvertrauenswürdig) ----------
   const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
   const ID_RE = /^[A-Za-z0-9_-]{1,60}$/;
-  const ANC = ["s", "e", "t"];
+  const ANC = ["s", "e", "u", "t"];
+  // Bezüge mit Minuten: s = nach Beginn, e = vor Schluss, u = relativ zum Sonnenuntergang (negativ = vorher).
+  const relAnc = (x) => x === "s" || x === "e" || x === "u";
   const offOk = (n) => Number.isInteger(n) && n >= -600 && n <= 900;
   const str = (v, max) => (typeof v === "string" ? v.slice(0, max) : "");
   // Akzeptiert 7:30, 0730, 730, 7.30, 7 → "07:30"/"07:00"; sonst null.
@@ -493,7 +495,7 @@ export function mount(container, opts = {}) {
   const sortPhases = (phases) => phases.map((p, i) => [p, i]).sort((a, b) => (toMin(a[0].from) - toMin(b[0].from)) || (a[1] - b[1])).map(x => x[0]);
 
   // Gespeicherter Bezug eines Zeitpunkts (s = nach Beginn, e = vor Schluss, t = feste Uhrzeit); ungültig → abgeleitet.
-  const ancOf = (anc, m, ka, km) => anc === "t" ? { [ka]: "t" } : (anc === "s" || anc === "e") && offOk(m) ? { [ka]: anc, [km]: m } : {};
+  const ancOf = (anc, m, ka, km) => anc === "t" ? { [ka]: "t" } : relAnc(anc) && offOk(m) ? { [ka]: anc, [km]: m } : {};
   function normalizePlan(raw) {
     if (!raw || typeof raw !== "object") return null;
     const out = { always: {} };
@@ -608,6 +610,7 @@ export function mount(container, opts = {}) {
     stillHere: null,     // Fenster „Noch da?“: { id, entry, end }
     rosterHi: null,      // Dienstplan: Name, dessen Tage hervorgehoben werden (null = eingecheckte Person, "" = alle)
     importPreview: null, // eingelesener Arbeitsplan vor dem Übernehmen
+    updErr: null, updBusy: false, // App-Update: letzte Fehlermeldung, Einspielen läuft
   };
   let db = null, user = null, myId = null, unsubDay = null, unsubMonth = null, unsubCfg = null, monthKey = null;
   let writeChain = Promise.resolve();
@@ -653,7 +656,7 @@ export function mount(container, opts = {}) {
   const clampDay = (m) => Math.max(0, Math.min(1439, m));
   function phaseAnchor(p, s) {
     if (p.anc === "t") return { anc: "t" };
-    if ((p.anc === "s" || p.anc === "e") && offOk(p.a) && offOk(p.b)) return { anc: p.anc, a: p.a, b: p.b };
+    if (relAnc(p.anc) && offOk(p.a) && offOk(p.b)) return { anc: p.anc, a: p.a, b: p.b };
     if (FIXED_RE.test(p.title)) return { anc: "t" };
     const S = toMin(s.start), E = toMin(s.end), f = toMin(p.from), t = toMin(p.to);
     return (f + t) / 2 - S <= E - (f + t) / 2 ? { anc: "s", a: f - S, b: t - S } : { anc: "e", a: E - f, b: E - t };
@@ -661,38 +664,42 @@ export function mount(container, opts = {}) {
   // Zeitpunkt (Erinnerung, „fällig ab“) mit eigenem Bezug; ohne Bezug: nächstgelegenes Ende der Schicht.
   function pointAnchor(anc, m, time, s, text) {
     if (anc === "t") return { anc: "t" };
-    if ((anc === "s" || anc === "e") && offOk(m)) return { anc, m };
+    if (relAnc(anc) && offOk(m)) return { anc, m };
     if (FIXED_RE.test(text || "") || !TIME_RE.test(time || "")) return { anc: "t" };
     const S = toMin(s.start), E = toMin(s.end), x = toMin(time);
     return x - S <= E - x ? { anc: "s", m: x - S } : { anc: "e", m: E - x };
   }
-  const phaseTimes = (an, S, E, p) => an.anc === "s" ? { from: fmtMin(clampDay(S + an.a)), to: fmtMin(clampDay(Math.max(S + an.b, S + an.a + 5))) }
-    : an.anc === "e" ? { from: fmtMin(clampDay(E - an.a)), to: fmtMin(clampDay(Math.max(E - an.b, E - an.a + 5))) } : { from: p.from, to: p.to };
-  const pointTime = (an, S, E, fallback) => an.anc === "s" ? fmtMin(clampDay(S + an.m)) : an.anc === "e" ? fmtMin(clampDay(E - an.m)) : fallback;
+  // U = Sonnenuntergang des Tages in Minuten (null = keiner, z. B. Polarnacht → gespeicherte Uhrzeit gilt).
+  const phaseTimes = (an, S, E, p, U) => an.anc === "s" ? { from: fmtMin(clampDay(S + an.a)), to: fmtMin(clampDay(Math.max(S + an.b, S + an.a + 5))) }
+    : an.anc === "e" ? { from: fmtMin(clampDay(E - an.a)), to: fmtMin(clampDay(Math.max(E - an.b, E - an.a + 5))) }
+    : an.anc === "u" && U != null ? { from: fmtMin(clampDay(U + an.a)), to: fmtMin(clampDay(Math.max(U + an.b, U + an.a + 5))) } : { from: p.from, to: p.to };
+  const pointTime = (an, S, E, fallback, U) => an.anc === "s" ? fmtMin(clampDay(S + an.m)) : an.anc === "e" ? fmtMin(clampDay(E - an.m)) : an.anc === "u" && U != null ? fmtMin(clampDay(U + an.m)) : fallback;
+  const sunRel = (n) => n === 0 ? "zum Sonnenuntergang" : n < 0 ? `${-n} Min. vor Sonnenuntergang` : `${n} Min. nach Sonnenuntergang`;
   // Beschriftung „nach Beginn“ / „vor Schluss“ für Editor und Fenster.
   function anchorLabel(an, p) {
     const mm = (n) => n === 0 ? "0" : String(n);
     if (an.anc === "s") return an.a === 0 ? `erste ${an.b} Min. nach Beginn` : `${mm(an.a)}–${mm(an.b)} Min. nach Beginn`;
     if (an.anc === "e") return an.b === 0 ? `letzte ${an.a} Min. vor Schluss` : `${mm(an.a)}–${mm(an.b)} Min. vor Schluss`;
+    if (an.anc === "u") return `von ${sunRel(an.a)} bis ${sunRel(an.b)}`;
     return `feste Uhrzeit ${p.from}–${p.to}`;
   }
-  const pointLabel = (an, time) => an.anc === "s" ? `${an.m} Min. nach Beginn` : an.anc === "e" ? (an.m >= 0 ? `${an.m} Min. vor Schluss` : `${-an.m} Min. nach Schluss`) : `um ${time}`;
+  const pointLabel = (an, time) => an.anc === "s" ? `${an.m} Min. nach Beginn` : an.anc === "e" ? (an.m >= 0 ? `${an.m} Min. vor Schluss` : `${-an.m} Min. nach Schluss`) : an.anc === "u" ? sunRel(an.m) : `um ${time}`;
   // Pflegt die gespeicherten Uhrzeiten angebundener Abschnitte/Erinnerungen nach (für Vorlagen und ältere Versionen).
-  function syncAnchored(s, al) {
+  function syncAnchored(s, al, U) {
     const S = toMin(s.start), E = toMin(s.end);
     for (const p of s.phases) {
       const f0 = toMin(p.from);
-      if (p.anc === "s" || p.anc === "e") Object.assign(p, phaseTimes(phaseAnchor(p, s), S, E, p));
+      if (relAnc(p.anc)) Object.assign(p, phaseTimes(phaseAnchor(p, s), S, E, p, U));
       const d = toMin(p.from) - f0;
       for (const i of p.items) {
         if (!i.remind) continue;
-        if (i.ra === "s" || i.ra === "e") i.remind = pointTime(pointAnchor(i.ra, i.rm, i.remind, s), S, E, i.remind);
+        if (relAnc(i.ra)) i.remind = pointTime(pointAnchor(i.ra, i.rm, i.remind, s), S, E, i.remind, U);
         else if (!i.ra && d) i.remind = fmtMin(clampDay(toMin(i.remind) + d));
       }
     }
     for (const a of al || []) {
-      if (a.from && (a.fa === "s" || a.fa === "e")) a.from = pointTime(pointAnchor(a.fa, a.fm, a.from, s), S, E, a.from);
-      if (a.remind && (a.ra === "s" || a.ra === "e")) a.remind = pointTime(pointAnchor(a.ra, a.rm, a.remind, s), S, E, a.remind);
+      if (a.from && relAnc(a.fa)) a.from = pointTime(pointAnchor(a.fa, a.fm, a.from, s), S, E, a.from, U);
+      if (a.remind && relAnc(a.ra)) a.remind = pointTime(pointAnchor(a.ra, a.rm, a.remind, s), S, E, a.remind, U);
     }
   }
   const graceMin = () => { const g = state.cfg.features && state.cfg.features.grace; return Number.isInteger(g) && g >= 0 && g <= 60 ? g : 15; };
@@ -730,18 +737,18 @@ export function mount(container, opts = {}) {
   const liveCache = new WeakMap();
   function withLive(base, rost, date) {
     const b = {}; for (const k of KEYS) b[k] = shiftBounds(rost[k], k, date);
-    const key = date + JSON.stringify(b);
+    const U = sunsetMin(date), key = date + JSON.stringify(b) + U;
     const hit = liveCache.get(rost);
     if (hit && hit.key === key && hit.base === base) return hit.plan;
     const out = { ...rost, always: { ...rost.always }, live: b };
     for (const k of KEYS) {
       const s0 = base[k], S = b[k].start, E = b[k].end;
       const phases = s0.phases.map(p => {
-        const an = phaseAnchor(p, s0), t = phaseTimes(an, S, E, p), d = toMin(t.from) - toMin(p.from);
+        const an = phaseAnchor(p, s0), t = phaseTimes(an, S, E, p, U), d = toMin(t.from) - toMin(p.from);
         const items = p.items.map(i => {
           if (!i.remind) return i;
           let rem;
-          if (i.ra) rem = pointTime(pointAnchor(i.ra, i.rm, i.remind, s0, i.t), S, E, i.remind);
+          if (i.ra) rem = pointTime(pointAnchor(i.ra, i.rm, i.remind, s0, i.t), S, E, i.remind, U);
           else rem = an.anc === "t" || FIXED_RE.test(i.t) ? i.remind : fmtMin(clampDay(toMin(i.remind) + d));
           return rem === i.remind ? i : { ...i, remind: rem };
         });
@@ -750,8 +757,8 @@ export function mount(container, opts = {}) {
       out[k] = { ...rost[k], start: fmtMin(S), end: fmtMin(E), phases: sortPhases(phases) };
       out.always[k] = base.always[k].map(a => {
         const x = { ...a };
-        if (a.from) x.from = pointTime(pointAnchor(a.fa, a.fm, a.from, s0, a.t), S, E, a.from);
-        if (a.remind) x.remind = pointTime(pointAnchor(a.ra, a.rm, a.remind, s0, a.t), S, E, a.remind);
+        if (a.from) x.from = pointTime(pointAnchor(a.fa, a.fm, a.from, s0, a.t), S, E, a.from, U);
+        if (a.remind) x.remind = pointTime(pointAnchor(a.ra, a.rm, a.remind, s0, a.t), S, E, a.remind, U);
         return x;
       });
     }
@@ -2111,7 +2118,7 @@ export function mount(container, opts = {}) {
   }
   // Ein festes Datei-Feld außerhalb von <main>: Neuzeichnen ersetzt es nicht. Sonst geht die gewählte Datei auf dem
   // iPad verloren (Safari zeichnet beim Zurückkehren aus der Dateiauswahl neu, bevor es die Datei übergibt).
-  const FILE_ACCEPT = { plan: ".pdf,.xlsx,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", backup: "application/json,.json" };
+  const FILE_ACCEPT = { plan: ".pdf,.xlsx,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", backup: "application/json,.json", update: ".rzupdate" };
   let filePurpose = "plan";
   container.addEventListener("click", (e) => {
     const l = e.target.closest && e.target.closest("[data-filepick]");
@@ -2123,7 +2130,7 @@ export function mount(container, opts = {}) {
     const inp = e.target, f = inp.files && inp.files[0];
     if (!f) return;
     inp.value = ""; inp.blur();
-    if (filePurpose === "backup") importBackup(f); else onPlanFile(f);
+    if (filePurpose === "backup") importBackup(f); else if (filePurpose === "update") installUpdateFile(f); else onPlanFile(f);
   });
 
 
@@ -2312,6 +2319,7 @@ export function mount(container, opts = {}) {
         `<div class="arow"><span><b>Ton bei Erinnerungen</b><small>${state.cfg.features.sound === false ? "Aus – Erinnerungen erscheinen ohne Ton" : "An – kurzer Ton bei jedem Erinnerungs-Fenster"}</small></span><button class="switch${state.cfg.features.sound === false ? "" : " on"}" role="switch" aria-checked="${state.cfg.features.sound !== false}" aria-label="Ton bei Erinnerungen ${state.cfg.features.sound === false ? "einschalten" : "ausschalten"}" data-act2="feat-sound"><span></span></button></div>` +
         row('data-adminpop="flex"', "Zeiten & Sonnenuntergang", `Rot nach ${graceMin()} Min. Puffer · ${locOf().name}${sunsetMin(state.date) != null ? ` · Sonnenuntergang heute ${fmtMin(sunsetMin(state.date))}` : ""}`) +
         (clTxt ? row('data-adminpop="cleanup"', "Alte Daten löschen", clTxt.text, clTxt.cls) : "") +
+        (canUpdate() ? row('data-adminpop="update"', "App-Update", `Version ${(nativeInfo && nativeInfo.version) || "?"}${nativeInfo && nativeInfo.updateVersion ? ` · per Update (installiert ${nativeInfo.baseVersion})` : ""}`) : "") +
         row('data-adminpop="pin"', "Leitungs-PIN", pinTxt.text, pinTxt.cls))}
     </div>${state.adminPop ? renderAdminPop() : ""}`;
   }
@@ -2329,6 +2337,20 @@ export function mount(container, opts = {}) {
     persistCfg({ features, location });
     toast("Gespeichert");
   }
+  // ---------- App-Update (nur Mac-App ab 1.21) ----------
+  const canUpdate = () => !!(NATIVE && typeof NATIVE.installUpdate === "function");
+  async function installUpdateFile(file) {
+    if (!canUpdate() || !isUnlocked()) return;
+    state.updErr = null; state.updBusy = true; render();
+    try {
+      if (file.size > 30 * 1024 * 1024) throw new Error("Datei zu groß – das ist keine Update-Datei.");
+      const r = await NATIVE.installUpdate(await file.text());
+      if (!r || !r.ok) throw new Error((r && r.error) || "Update abgelehnt");
+      toast(`Update ${r.version} eingespielt – die App lädt neu`);
+      setStatus(`Update ${r.version} eingespielt`);
+    } catch (e) { state.updErr = (e && e.message) || String(e); }
+    state.updBusy = false; render();
+  }
   function renderAdminPop() {
     const pop = state.adminPop, last = LS.get("rz2meta", {}).lastBackup;
     const frame = (title, body) => `<div class="overlay inmain" role="dialog" aria-modal="true" aria-labelledby="ap-title"><div class="dialog adminpop">
@@ -2341,6 +2363,16 @@ export function mount(container, opts = {}) {
         ${people ? `<ul class="teamlist">${people}</ul>` : "<p>Noch niemand angelegt.</p>"}
         <form id="addperson" class="pkadd"><input class="in" id="newperson" maxlength="40" placeholder="Vor- und Nachname" aria-label="Neue Person"><button class="btn primary" type="submit">Hinzufügen</button></form>
         <p class="hint">Namen erscheinen bei der Anmeldung und im Dienstplan. Entfernte Personen bleiben in alten Einträgen erhalten.</p>`);
+    }
+    if (pop === "update") {
+      const ni = nativeInfo || {}, busy = state.updBusy;
+      return frame("App-Update", `<div class="apbody">
+        <p>Laufende Version: <b>${esc(ni.version || "?")}</b>${ni.updateVersion ? ` (per Update eingespielt${ni.updateCreated ? ", erstellt " + new Date(ni.updateCreated).toLocaleDateString("de-DE") : ""})` : ""}. Installierte App: ${esc(ni.baseVersion || "?")}.</p>
+        <p>Neue Versionen kommen als Datei <b>Rezeption-x.y.z.rzupdate</b>. Datei wählen – die App prüft die Unterschrift, spielt sie ein und lädt neu. Deine Daten bleiben unverändert.</p>
+        <div class="row left"><label class="btn primary${busy ? " disabled" : ""}" for="rzfile" data-filepick="update">${busy ? "Spiele ein …" : "Update-Datei wählen"}</label>
+        ${ni.updateVersion ? (state.confirm === "upd-remove" ? `<button class="btn danger" data-act2="update-remove">Wirklich zurück auf ${esc(ni.baseVersion)}?</button>` : `<button class="btn ghost" data-act2="update-remove-ask">Update entfernen</button>`) : ""}</div>
+        ${state.updErr ? `<p class="perr" role="alert">${esc(state.updErr)}</p>` : ""}
+        <p class="hint">Startet die App nach einem Update nicht richtig: Menü <b>Ansicht › Eingespieltes Update entfernen</b>. Nur Dateien mit gültiger Unterschrift werden angenommen; ältere Versionen nicht.</p></div>`);
     }
     if (pop === "flex") {
       const loc = locOf(), g = graceMin(), sun = sunsetMin(state.date);
@@ -3371,10 +3403,12 @@ export function mount(container, opts = {}) {
     return d;
   }
   // Schichtbeginn/-ende wachsen mit, wenn ein Abschnitt früher beginnt oder später endet.
+  // Abschnitte am Sonnenuntergang (anc „u“) wandern übers Jahr und verlängern die Schicht nicht.
   function fitShift(s) {
     s.phases = sortPhases(s.phases);
-    if (!s.phases.length) return;
-    const first = Math.min(...s.phases.map(p => toMin(p.from))), last = Math.max(...s.phases.map(p => toMin(p.to)));
+    const fix = s.phases.filter(p => p.anc !== "u");
+    if (!fix.length) return;
+    const first = Math.min(...fix.map(p => toMin(p.from))), last = Math.max(...fix.map(p => toMin(p.to)));
     if (first < toMin(s.start)) s.start = fmtMin(first);
     if (last > toMin(s.end)) s.end = fmtMin(last);
   }
@@ -3468,8 +3502,10 @@ export function mount(container, opts = {}) {
       const wkS = m.plan[k];
       const weS = { start: m.we[k].start, end: m.we[k].end, phases: wkS.phases.map(p => ({ ...p, ...(m.we.phases[p.id] || {}), items: p.items.map(i => i.remind ? { ...i, remind: m.we.remind[i.id] || i.remind } : i) })) };
       const weA = m.plan.always[k].map(a => ({ ...a, ...(a.from ? { from: (m.we.afrom || {})[a.id] || a.from } : {}), ...(a.remind ? { remind: m.we.remind[a.id] || a.remind } : {}) }));
-      syncAnchored(wkS, m.plan.always[k]);
-      syncAnchored(weS, weA);
+      // Sonnenuntergang wandert übers Jahr: gespeichert wird der heutige Stand (nur für ältere Versionen/Anzeige).
+      const U = sunsetMin(isoDate(new Date()));
+      syncAnchored(wkS, m.plan.always[k], U);
+      syncAnchored(weS, weA, U);
       m.we.afrom = m.we.afrom || {};
       for (const p of weS.phases) { m.we.phases[p.id] = { from: p.from, to: p.to }; for (const i of p.items) if (i.remind) m.we.remind[i.id] = i.remind; }
       for (const a of weA) { if (a.from) m.we.afrom[a.id] = a.from; if (a.remind) m.we.remind[a.id] = a.remind; }
@@ -3480,7 +3516,7 @@ export function mount(container, opts = {}) {
     syncMasterAnchors(m);
     for (const k of KEYS) {
       fitShift(m.plan[k]);
-      const t = m.plan[k].phases.map(p => m.we.phases[p.id]).filter(Boolean);
+      const t = m.plan[k].phases.filter(p => p.anc !== "u").map(p => m.we.phases[p.id]).filter(Boolean);
       if (t.length) {
         const first = Math.min(...t.map(x => toMin(x.from))), last = Math.max(...t.map(x => toMin(x.to)));
         if (first < toMin(m.we[k].start)) m.we[k].start = fmtMin(first);
@@ -3504,15 +3540,19 @@ export function mount(container, opts = {}) {
 
   const BELL_SVG = '<svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"></path></svg>';
   const KIND_LABEL = { rhythm: "regelmäßig", confirm: "Pflicht", hint: "Hinweis" };
-  const ANC_NAME = { s: "nach Beginn", e: "vor Schluss", t: "feste Uhrzeit" };
+  const ANC_NAME = { s: "nach Beginn", e: "vor Schluss", u: "Sonnenuntergang", t: "feste Uhrzeit" };
+  // Minuten zum Sonnenuntergang: Zahl + „vor/nach“ (gespeichert vorzeichenbehaftet, negativ = vorher).
+  const sunDir = (id, n) => `<select class="in sdir" id="${id}" aria-label="vor oder nach"><option value="vor"${n < 0 ? " selected" : ""}>vor</option><option value="nach"${n < 0 ? "" : " selected"}>nach</option></select>`;
+  const readSun = (numId, dirId) => { const n = parseInt((($(numId) || {}).value || ""), 10); return Number.isInteger(n) ? Math.abs(n) * ((($(dirId) || {}).value === "vor") ? -1 : 1) : NaN; };
   // Auswahl „Richtet sich nach“; Felder mit data-show="<präfix>:<werte>" blendet der change-Handler passend ein.
-  const ancSel = (pfx, val, withPhase) => `<select class="in ancsel" id="${pfx}-anc" data-pfx="${pfx}" aria-label="Richtet sich nach">${withPhase ? `<option value="p"${val === "p" ? " selected" : ""}>mit dem Abschnitt (zieht mit)</option>` : ""}${["s", "e", "t"].map(k => `<option value="${k}"${val === k ? " selected" : ""}>${ANC_NAME[k]}</option>`).join("")}</select>`;
+  const ancSel = (pfx, val, withPhase) => `<select class="in ancsel" id="${pfx}-anc" data-pfx="${pfx}" aria-label="Richtet sich nach">${withPhase ? `<option value="p"${val === "p" ? " selected" : ""}>mit dem Abschnitt (zieht mit)</option>` : ""}${["s", "e", "u", "t"].map(k => `<option value="${k}"${val === k ? " selected" : ""}>${ANC_NAME[k]}</option>`).join("")}</select>`;
   const showIf = (pfx, vals, cur) => `data-show="${pfx}:${vals}"${vals.split(",").includes(cur) ? "" : " hidden"}`;
   // Zeitpunkt mit Bezug: Minuten nach Beginn/vor Schluss oder feste Uhrzeiten (Mo–Fr, Sa+So).
   function pointFields(pfx, an, wkId, wkV, weId, weV, withPhase, what) {
     const cur = an.anc;
     return `<div class="ancrow">${ancSel(pfx, cur, withPhase)}
-        <span class="ancm" ${showIf(pfx, "s,e", cur)}><input class="in num" type="number" id="${pfx}-m" min="-600" max="900" step="5" value="${an.m != null ? an.m : 15}" aria-label="Minuten"> Min. <span ${showIf(pfx, "s", cur)}>nach Beginn</span><span ${showIf(pfx, "e", cur)}>vor Schluss</span></span></div>
+        <span class="ancm" ${showIf(pfx, "s,e", cur)}><input class="in num" type="number" id="${pfx}-m" min="-600" max="900" step="5" value="${an.m != null && cur !== "u" ? an.m : 15}" aria-label="Minuten"> Min. <span ${showIf(pfx, "s", cur)}>nach Beginn</span><span ${showIf(pfx, "e", cur)}>vor Schluss</span></span>
+        <span class="ancm" ${showIf(pfx, "u", cur)}><input class="in num" type="number" id="${pfx}-um" min="0" max="600" step="5" value="${cur === "u" ? Math.abs(an.m) : 0}" aria-label="Minuten zum Sonnenuntergang"> Min. ${sunDir(pfx + "-ud", cur === "u" ? an.m : 0)} Sonnenuntergang</span></div>
       <div class="anct" ${showIf(pfx, withPhase ? "t,p" : "t", cur)}><label>Mo–Fr ${what} ${timeIn(wkId, wkV, what + " Mo–Fr")}</label><label>Sa+So ${what} ${timeIn(weId, weV, what + " Sa+So")}</label></div>`;
   }
   function timesLabel(wk, we) {
@@ -3525,7 +3565,7 @@ export function mount(container, opts = {}) {
     const phases = s.phases.map(p => {
       const open = state.edOpen.has(p.id) || state.edAdd === p.id, pan = phaseAnchor(p, s);
       const rows = p.items.map(i => {
-        const ia = i.ra === "s" || i.ra === "e" ? pointAnchor(i.ra, i.rm, i.remind, s) : null, moves = !ia && i.ra !== "t" && pan.anc !== "t";
+        const ia = relAnc(i.ra) ? pointAnchor(i.ra, i.rm, i.remind, s) : null, moves = !ia && i.ra !== "t" && pan.anc !== "t";
         const rem = i.remind ? `<span class="badge rem">${BELL_SVG}${esc(ia ? pointLabel(ia) : (moves ? "ca. " : "") + (i.remind === m.we.remind[i.id] ? i.remind : `${i.remind} / ${m.we.remind[i.id]}`))}${i.remindAlways ? " · immer" : ""}</span>` : "";
         return `<li data-id="${esc(i.id)}"${state.edNew === i.id ? ' class="new"' : ""}><span class="grip" data-grip="1" aria-hidden="true" title="Ziehen zum Sortieren">⋮⋮</span>
           <button class="edtxt${i.important ? " imp" : ""}" data-editem="${esc(i.id)}">${esc(i.t)}${i.s ? `<small>${esc(i.s)}</small>` : ""}</button>
@@ -3535,7 +3575,7 @@ export function mount(container, opts = {}) {
         ? `<form class="edadd" data-addto="${esc(p.id)}"><label for="ed-new">Neue Aufgabe</label><input class="in" id="ed-new" maxlength="200" autocomplete="off" placeholder="Text eingeben, Enter"><button class="btn primary" type="submit">Hinzufügen</button><button class="btn ghost" type="button" data-edaddclose="1">Fertig</button></form>`
         : `<button class="addrow" data-edadd="${esc(p.id)}">+ Aufgabe</button>`;
       return `<section class="card edphase">
-        <div class="edhead"><button class="edtoggle" data-edopen="${esc(p.id)}" aria-expanded="${open}"><span class="ttl">${esc(p.title)}</span><span class="ancb${pan.anc === "t" ? " fixed" : ""}">${ANC_NAME[pan.anc]}</span><span class="tm">${pan.anc === "t" ? timesLabel(p, m.we.phases[p.id]) : anchorLabel(pan, p)}</span>${open ? "" : `<span class="cnt">${p.items.length} ${p.items.length === 1 ? "Aufgabe" : "Aufgaben"} ›</span>`}</button>
+        <div class="edhead"><button class="edtoggle" data-edopen="${esc(p.id)}" aria-expanded="${open}"><span class="ttl">${esc(p.title)}</span><span class="ancb${pan.anc === "t" ? " fixed" : pan.anc === "u" ? " sun" : ""}">${ANC_NAME[pan.anc]}</span><span class="tm">${pan.anc === "t" ? timesLabel(p, m.we.phases[p.id]) : anchorLabel(pan, p)}</span>${open ? "" : `<span class="cnt">${p.items.length} ${p.items.length === 1 ? "Aufgabe" : "Aufgaben"} ›</span>`}</button>
           <button class="btn ghost sm" data-edphase="${esc(p.id)}">Abschnitt bearbeiten</button></div>
         ${open ? `<ul class="edlist" data-list="phase:${esc(p.id)}">${rows}</ul>${add}` : ""}
       </section>`;
@@ -3589,6 +3629,7 @@ export function mount(container, opts = {}) {
         ${fld("Hinweis (optional)", `<input class="in" id="ep-s" maxlength="80" value="${esc(d.hint || "")}" placeholder="z. B. direkt bei Schichtbeginn">`)}
         <label class="fld"><span>Richtet sich nach</span>${ancSel("ep-p", an.anc, false)}</label>
         <div class="ancrow" ${showIf("ep-p", "s,e", an.anc)}>von <input class="in num" type="number" id="ep-a" min="-600" max="900" step="5" value="${an.anc === "t" ? 0 : an.a}" aria-label="von Minuten"> bis <input class="in num" type="number" id="ep-b" min="-600" max="900" step="5" value="${an.anc === "t" ? 30 : an.b}" aria-label="bis Minuten"> Min. <span ${showIf("ep-p", "s", an.anc)}>nach Beginn</span><span ${showIf("ep-p", "e", an.anc)}>vor Schluss</span></div>
+        <div class="ancrow" ${showIf("ep-p", "u", an.anc)}>von <input class="in num" type="number" id="ep-ua" min="0" max="600" step="5" value="${an.anc === "u" ? Math.abs(an.a) : 15}" aria-label="von Minuten"> Min. ${sunDir("ep-uad", an.anc === "u" ? an.a : -15)} bis <input class="in num" type="number" id="ep-ub" min="0" max="600" step="5" value="${an.anc === "u" ? Math.abs(an.b) : 30}" aria-label="bis Minuten"> Min. ${sunDir("ep-ubd", an.anc === "u" ? an.b : 30)} Sonnenuntergang${sunsetMin(state.date) != null ? ` <small class="muted">(heute ${fmtMin(sunsetMin(state.date))})</small>` : ""}</div>
         <div class="tgrid" ${showIf("ep-p", "t", an.anc)}><span></span><b>von</b><b>bis</b>
           <b>Mo–Fr</b>${timeIn("ep-wkf", d.wk.from, "Mo–Fr von")}${timeIn("ep-wkt", d.wk.to, "Mo–Fr bis")}
           <b>Sa + So</b>${timeIn("ep-wef", d.we.from, "Sa+So von")}${timeIn("ep-wet", d.we.to, "Sa+So bis")}</div>
@@ -3627,8 +3668,9 @@ export function mount(container, opts = {}) {
   }
   // Bezug aus dem Fenster lesen: { anc: "s"|"e"|"t"|"p", m, rel }
   function readPoint(pfx) {
-    const sel = $(pfx + "-anc"), anc = sel ? sel.value : "t", m = parseInt((($(pfx + "-m") || {}).value || ""), 10);
-    return { anc, m, rel: anc === "s" || anc === "e" };
+    const sel = $(pfx + "-anc"), anc = sel ? sel.value : "t";
+    const m = anc === "u" ? readSun(pfx + "-um", pfx + "-ud") : parseInt((($(pfx + "-m") || {}).value || ""), 10);
+    return { anc, m, rel: relAnc(anc) };
   }
   function closeEdPop() { blurActive(); state.edPop = null; state.edConfirmDel = false; render(); }
   // Fenster „Speichern“: Felder lesen, prüfen, übernehmen.
@@ -3662,12 +3704,12 @@ export function mount(container, opts = {}) {
     } else if (pop.type === "phase") {
       if (!t) return err("Bitte einen Namen eingeben.");
       const wk = { from: tv("ep-wkf"), to: tv("ep-wkt") }, we = { from: tv("ep-wef"), to: tv("ep-wet") };
-      const anc = ["s", "e", "t"].includes(v("ep-p-anc")) ? v("ep-p-anc") : "t";
-      let a = parseInt(v("ep-a"), 10), b = parseInt(v("ep-b"), 10);
+      const anc = ANC.includes(v("ep-p-anc")) ? v("ep-p-anc") : "t";
+      let a = anc === "u" ? readSun("ep-ua", "ep-uad") : parseInt(v("ep-a"), 10), b = anc === "u" ? readSun("ep-ub", "ep-ubd") : parseInt(v("ep-b"), 10);
       if (anc === "t" && (!range(wk.from, wk.to) || !range(we.from, we.to))) return err("Bitte Uhrzeiten als HH:MM eingeben – „bis“ muss nach „von“ liegen.");
       if (anc !== "t") {
         if (!offOk(a) || !offOk(b) || a === b) return err("Bitte zwei verschiedene Minutenwerte angeben (z. B. 30 bis 0).");
-        if ((anc === "s" && a > b) || (anc === "e" && a < b)) [a, b] = [b, a];
+        if (((anc === "s" || anc === "u") && a > b) || (anc === "e" && a < b)) [a, b] = [b, a];
       }
       ok = editMaster(m => {
         let p = pop.id ? findPhase(m, key, pop.id) : null;
@@ -4087,6 +4129,13 @@ export function mount(container, opts = {}) {
       if (a === "cleanup-run") { if (isUnlocked()) runCleanup(); return; }
       if (a === "enc-off-ask") { state.confirm = "enc-off"; render(); return; }
       if (a === "enc-off") { if (!isUnlocked()) return; state.confirm = null; state.cfg = { ...state.cfg, backupKey: null }; persistCfg({ backupKey: null }); setStatus("Verschlüsselung der Sicherungen ausgeschaltet"); render(); return; }
+      if (a === "update-remove-ask") { state.confirm = "upd-remove"; render(); return; }
+      if (a === "update-remove") {
+        if (!isUnlocked() || !canUpdate()) return;
+        state.confirm = null;
+        NATIVE.removeUpdate().then(r => { toast(`Zurück auf Version ${r.version} – die App lädt neu`); }).catch(() => setStatus("Update konnte nicht entfernt werden", true));
+        return;
+      }
       if (a === "feat-sound") {
         if (!isUnlocked()) return;
         const features = { ...(state.cfg.features || {}), sound: state.cfg.features.sound === false };

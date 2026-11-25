@@ -768,3 +768,8 @@ button.jchip { cursor: pointer }
 .remfs .ancrow, .remfs .anct { flex-basis: 100% }
 .adminpop .aph { margin: 14px 0 4px; font-size: 15px }
 .adminpop .trow .fld { flex: 1 1 120px }
+.dialog .row.left { justify-content: flex-start; align-items: center }
+/* 1.21 Sonnenuntergang als Bezug */
+.ancb.sun { color: #b9770e }
+.ancrow .sdir { width: auto }
+.ancrow .muted { color: var(--muted); font-weight: 500 }

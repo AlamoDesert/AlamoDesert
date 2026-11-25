@@ -84,6 +84,20 @@ srv.listen(0, async () => {
   const ph = await p.evaluate(() => JSON.parse(localStorage.getItem("rz2cfg")).master.plan.frueh.phases.find(x => x.anc === "e" && x.a === 45));
   check(ph && ph.b === 15 && ph.from === "14:45" && ph.to === "15:15", "Editor: vor Schluss 45–15 Min. gespeichert");
 
+  // Sonnenuntergang als Bezug: Abschnitt (30 Min. vorher bis 15 Min. danach) und Aufgaben-Erinnerung (zum Sonnenuntergang)
+  await q(p, "[data-edphase]").nth(1).click(); await step();
+  await q(p, "#ep-p-anc").selectOption("u"); await step();
+  await q(p, "#ep-ua").fill("30"); await q(p, "#ep-uad").selectOption("vor"); await q(p, "#ep-ub").fill("15"); await q(p, "#ep-ubd").selectOption("nach");
+  await q(p, "#edpop button[type=submit]").click(); await step(300);
+  const su = await p.evaluate(() => JSON.parse(localStorage.getItem("rz2cfg")).master.plan.frueh.phases.find(x => x.anc === "u"));
+  check(su && su.a === -30 && su.b === 15 && await q(p, ".edtoggle").filter({ hasText: "30 Min. vor Sonnenuntergang" }).count() === 1, "Editor: Abschnitt am Sonnenuntergang");
+  await q(p, "[data-edopen]").first().click(); await step();
+  await q(p, "[data-editem]").first().click(); await step();
+  await q(p, "#ep-rem").check(); await q(p, "#ep-r-anc").selectOption("u"); await q(p, "#ep-r-um").fill("0");
+  await q(p, "#edpop button[type=submit]").click(); await step(300);
+  const ri = await p.evaluate(() => JSON.parse(localStorage.getItem("rz2cfg")).master.plan.frueh.phases.flatMap(x => x.items).find(i => i.ra === "u"));
+  check(ri && ri.rm === 0 && await q(p, ".badge.rem").filter({ hasText: "zum Sonnenuntergang" }).count() >= 1, "Editor: Erinnerung zum Sonnenuntergang");
+
   // Team: Enter legt an, Feld wird leer
   await q(p, '[data-view="admin"]').click(); await step();
   await q(p, '[data-adminpop="team"]').click(); await q(p, "#newperson").fill("Test Ben"); await q(p, "#newperson").press("Enter"); await step(300);

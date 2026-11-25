@@ -6,9 +6,27 @@ const { app, BrowserWindow, ipcMain, protocol, net, shell, Menu, dialog } = requ
 const path = require("node:path");
 const fs = require("node:fs");
 const { pathToFileURL } = require("node:url");
+const upd = require("./update-format.js");
 
 const APP_DIR = path.join(__dirname, "app");
 const KEEP_DAILY_BACKUPS = 120;
+// Öffentlicher Schlüssel für Update-Dateien (.rzupdate). Der private Schlüssel liegt nur beim Entwickler (nie im Repo).
+const UPDATE_PUBKEY = "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEApj7kzS8I9J86wvMfwQf6IARgepB5O/0Xk+nPKdKC8y4=\n-----END PUBLIC KEY-----\n";
+const updateFile = () => path.join(app.getPath("userData"), "update", "aktuell.rzupdate");
+// Eingespieltes Update im Speicher: { version, created, files: { name: Buffer } } – nur wenn neuer als die installierte App.
+let active = null;
+function loadUpdate() {
+  active = null;
+  try {
+    const f = updateFile();
+    if (!fs.existsSync(f)) return;
+    const r = upd.verify(fs.readFileSync(f, "utf8"), UPDATE_PUBKEY);
+    if (r.ok && upd.cmpVersion(r.version, app.getVersion()) > 0) active = r;
+    // Ungültig oder durch eine neuere Installation überholt: Datei entfernen, die installierte App gilt.
+    else fs.rmSync(f, { force: true });
+  } catch { active = null; }
+}
+const appVersion = () => (active ? active.version : app.getVersion());
 
 protocol.registerSchemesAsPrivileged([
   { scheme: "rezeption", privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
@@ -45,7 +63,17 @@ function buildMenu() {
       { role: "cut", label: "Ausschneiden" }, { role: "copy", label: "Kopieren" }, { role: "paste", label: "Einsetzen" }, { role: "selectAll", label: "Alles auswählen" },
     ] },
     { label: "Ansicht", submenu: [
-      { role: "reload", label: "Neu laden" }, { type: "separator" },
+      { role: "reload", label: "Neu laden" },
+      // Notausgang, falls ein eingespieltes Update nicht startet.
+      { label: "Eingespieltes Update entfernen", click: async () => {
+        if (!active) { dialog.showMessageBox(win, { message: "Kein Update eingespielt.", detail: `Es läuft die installierte Version ${app.getVersion()}.` }); return; }
+        const r = await dialog.showMessageBox(win, { type: "question", buttons: ["Entfernen", "Abbrechen"], defaultId: 1, message: `Update ${active.version} entfernen?`, detail: `Danach läuft wieder die installierte Version ${app.getVersion()}. Deine Daten bleiben erhalten.` });
+        if (r.response !== 0) return;
+        try { fs.rmSync(updateFile(), { force: true }); } catch { /* egal */ }
+        active = null;
+        if (win) win.webContents.reloadIgnoringCache();
+      } },
+      { type: "separator" },
       { role: "resetZoom", label: "Originalgröße" }, { role: "zoomIn", label: "Vergrößern" }, { role: "zoomOut", label: "Verkleinern" }, { type: "separator" },
       { role: "togglefullscreen", label: "Vollbild" },
     ] },
@@ -77,7 +105,28 @@ function registerIpc() {
     return true;
   });
   ipcMain.handle("rz:attentionEnd", () => { if (win) win.setAlwaysOnTop(false); return true; });
-  ipcMain.handle("rz:info", () => ({ backupDir: backupDir(), autoStart: app.getLoginItemSettings().openAtLogin, version: app.getVersion() }));
+  ipcMain.handle("rz:info", () => ({ backupDir: backupDir(), autoStart: app.getLoginItemSettings().openAtLogin, version: appVersion(), baseVersion: app.getVersion(), updateVersion: active ? active.version : null, updateCreated: active ? active.created : null, shell: upd.SHELL }));
+
+  // Update-Datei einspielen: Unterschrift prüfen, nur neuere Versionen, atomar speichern, danach neu laden.
+  ipcMain.handle("rz:installUpdate", (_e, text) => {
+    const r = upd.verify(text, UPDATE_PUBKEY);
+    if (!r.ok) return { ok: false, error: r.error };
+    if (upd.cmpVersion(r.version, appVersion()) <= 0) return { ok: false, error: `Version ${r.version} ist nicht neuer als die laufende Version ${appVersion()}.` };
+    try {
+      fs.mkdirSync(path.dirname(updateFile()), { recursive: true });
+      writeAtomic(updateFile(), text);
+    } catch (err) { return { ok: false, error: "Speichern fehlgeschlagen: " + String((err && err.message) || err) }; }
+    active = r;
+    setTimeout(() => { if (win) win.webContents.reloadIgnoringCache(); }, 1200);
+    return { ok: true, version: r.version };
+  });
+  // Eingespieltes Update entfernen → zurück zur installierten Version.
+  ipcMain.handle("rz:removeUpdate", () => {
+    try { fs.rmSync(updateFile(), { force: true }); } catch { /* egal */ }
+    active = null;
+    setTimeout(() => { if (win) win.webContents.reloadIgnoringCache(); }, 800);
+    return { ok: true, version: app.getVersion() };
+  });
 
   ipcMain.handle("rz:saveBackup", (_e, text, date) => {
     try {
@@ -130,8 +179,12 @@ app.on("window-all-closed", () => app.quit());
 
 app.whenReady().then(() => {
   // App-Dateien ausliefern, nur innerhalb von APP_DIR.
+  loadUpdate();
   protocol.handle("rezeption", (req) => {
     const { pathname } = new URL(req.url);
+    // Dateien aus einem eingespielten Update haben Vorrang (nur die erlaubten Namen, geprüft beim Laden).
+    const name = decodeURIComponent(pathname).replace(/^\/+/, "");
+    if (active && active.files[name]) return new Response(active.files[name], { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
     const file = path.normalize(path.join(APP_DIR, decodeURIComponent(pathname)));
     if (!file.startsWith(APP_DIR + path.sep) || !fs.existsSync(file)) return new Response("Nicht gefunden", { status: 404 });
     return net.fetch(pathToFileURL(file).toString());
