@@ -2,6 +2,9 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.27.11 – 25.11.2026
+- Winkende Hand auf dem Feierabend-Bildschirm in der Logo-Farbe (Graublau).
+
 ## 1.27.10 – 25.11.2026
 - Feierabend-Bildschirm: winkende Hand statt Mond (winkt beim Erscheinen kurz).
 
