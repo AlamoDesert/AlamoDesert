@@ -2,6 +2,10 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.22.6 – 25.11.2026
+- Keine Uhrzeit mehr beim Abhaken: Aufgaben, Pflichtpunkte und eigene Erinnerungen zeigen nur noch „erledigt · Name“ bzw. „bestätigt · Name“. Die Zeit wird weiter intern gespeichert (z. B. für den Rundgang-Takt), aber nicht angezeigt.
+- Rundgänge zeigen „zuletzt HH:MM“ und „nächster um HH:MM“, ohne Namen – als Orientierung für die Person an der Rezeption.
+
 ## 1.22.5 – 25.11.2026
 - Monatsstatistik: Wer einen Tag öffnet, sieht oben „‹ Zurück zur Monatsstatistik“ und kommt mit einem Klick zurück (statt über die Verwaltung).
 - Der Hinweis „Stand vom Tag“ neben dem Datum vergangener Tage entfällt. Die Funktion bleibt: Vergangene Tage zeigen weiter den Plan, der an dem Tag galt.

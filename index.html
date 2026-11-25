@@ -1203,7 +1203,7 @@ function mount(container, opts = {}) {
     return `<li class="ownrem${r.done ? " done" : ""}">
       <button class="check" data-remcheck="${esc(id)}" aria-pressed="${!!r.done}" ${canEdit ? "" : "disabled"}>
         <span class="box">${CHECK_SVG}</span>
-        <span class="txt"><span class="label">${esc(r.t)}</span><span class="sub">eigene Erinnerung${by ? " · von " + esc(by) : ""}</span>${r.done ? `<span class="who">erledigt ${fmtTime(r.done.at)}${dn ? " · " + esc(dn) : ""}</span>` : ""}</span>
+        <span class="txt"><span class="label">${esc(r.t)}</span><span class="sub">eigene Erinnerung${by ? " · von " + esc(by) : ""}</span>${r.done ? `<span class="who">erledigt${dn ? " · " + esc(dn) : ""}</span>` : ""}</span>
       </button>
       <span class="remtag" title="Erinnerung als Popup">${BELL_SVG}${esc(r.at)}</span>
       ${canEdit ? `<button class="skip" data-remdel="${esc(id)}" aria-label="Erinnerung löschen">×</button>` : ""}
@@ -1418,11 +1418,11 @@ function mount(container, opts = {}) {
   const PILL_SOON = '<span class="pill now">knapp</span>';
   const PILL = { now: '<span class="pill ok">jetzt</span>', late: '<span class="pill late">überfällig</span>', done: '<span class="pill done">erledigt</span>', later: '<span class="pill later">später</span>' };
 
+  // Abgehakt: wer, aber keine Uhrzeit (keine Zeitkontrolle). Die Uhrzeit bleibt nur intern gespeichert.
   function whoLine(c) {
     if (!c) return "";
     const name = personName(c.by);
-    const time = fmtTime(c.at);
-    return `${c.s === "na" ? "entfällt" : "erledigt"}${time ? " " + time : ""}${name ? " · " + esc(name) : ""}`;
+    return `${c.s === "na" ? "entfällt" : "erledigt"}${name ? " · " + esc(name) : ""}`;
   }
 
   function itemHtml(item, opts = {}) {
@@ -1459,7 +1459,9 @@ function mount(container, opts = {}) {
     const list = plan.always[key];
     if (!list.length) return `<div class="empty">Keine Daueraufgaben.</div>`;
     const canLog = typeof ctx === "number";
-    const lastLine = (last) => { if (!last) return ""; const n = personName(last.by); return `${fmtTime(last.at)}${n ? " · " + esc(n) : ""}`; };
+    // Rundgänge: nur „zuletzt HH:MM“ (wann wieder steht daneben), ohne Namen. Pflicht: nur der Name, keine Uhrzeit.
+    const lastTime = (last) => last ? fmtTime(last.at) : "";
+    const lastWho = (last) => { const n = last ? personName(last.by) : ""; return n ? " · " + esc(n) : ""; };
     // Übersicht: sichtbar ist nur, was jetzt zählt (fällige Rundgänge, offene Pflicht); der Rest steckt in einer aufklappbaren Zeile.
     const open = state.sideOpen;
     const rhythmL = list.filter(a => a.kind === "rhythm").map(a => {
@@ -1470,13 +1472,13 @@ function mount(container, opts = {}) {
       return { show: !!(info && info.state !== "ok"), rank: info && info.state === "over" ? 0 : info && info.state === "due" ? 1 : 2, at: info && info.due !== null ? info.due : 9999, html: `<li class="${[a.important ? "important" : "", info ? info.state : ""].join(" ")}">
         <button class="tap" data-log="${esc(a.id)}" data-shift="${key}" ${canLog ? "" : 'disabled title="Nur am heutigen Tag"'} aria-label="${esc(a.t)} erledigt – eintragen">
           <span class="ic" aria-hidden="true">${LOOP_SVG}</span>
-          <span><span class="label">${esc(a.t)}</span><span class="sub">${sub}</span>${last ? `<span class="last">zuletzt ${lastLine(last)}</span>` : ""}</span>
+          <span><span class="label">${esc(a.t)}</span><span class="sub">${sub}</span>${last ? `<span class="last">zuletzt ${lastTime(last)}</span>` : ""}</span>
           <span class="cnt${entries.length ? "" : " zero"}" title="heute in dieser Schicht">${entries.length}×</span>
         </button>
         ${last && canLog ? `<button class="undo" data-unlog="${esc(a.id)}" data-shift="${key}" aria-label="Letzten Eintrag zurücknehmen">↶</button>` : ""}
       </li>` };
     });
-    // Pflicht: bleibt immer sichtbar – bestätigte grau mit Uhrzeit und Name, noch nicht fällige gestrichelt.
+    // Pflicht: bleibt immer sichtbar – bestätigte grau mit Name (ohne Uhrzeit), noch nicht fällige gestrichelt.
     const confirmL = list.filter(a => a.kind === "confirm").map(a => {
       const st = confirmState(key, a, ctx), last = st.last;
       const flag = !st.ok && !st.later && state.coFlag === key && state.date === isoDate(new Date());
@@ -1484,9 +1486,9 @@ function mount(container, opts = {}) {
       const cls = st.ok ? "ok" : st.later ? "later" : soon ? "open soon" : "open";
       const bell = a.remind && (!st.ok || a.remindAlways) ? `<span class="remtag">${BELL_SVG}${esc(a.remind)}</span>` : "";
       const sub = st.ok
-        ? `<span class="last">bestätigt ${lastLine(last)}${st.early ? ` · eigentlich ab ${esc(a.from)}` : ""}</span>`
+        ? `<span class="last">bestätigt${lastWho(last)}${st.early ? ` · eigentlich ab ${esc(a.from)}` : ""}</span>`
         : st.later ? `<span class="sub">ab ${esc(a.from)} · noch nicht fällig${a.s ? " · " + esc(a.s) : ""}</span>`
-        : st.again ? `<span class="sub">bestätigt ${lastLine(last)} – ab ${esc(a.from)} bitte erneut bestätigen</span>`
+        : st.again ? `<span class="sub">bestätigt${lastWho(last)} – ab ${esc(a.from)} bitte erneut bestätigen</span>`
         : `<span class="sub">${a.s ? esc(a.s) + " · " : ""}vor Schichtende bestätigen</span>`;
       return { show: true, ok: st.ok, html: `<li class="confirm ${cls}${a.important ? " important" : ""}${flag ? " flag" : ""}">
         <button class="tap" data-log="${esc(a.id)}" data-shift="${key}" ${canLog && !st.ok ? "" : "disabled"} aria-label="${esc(a.t)} bestätigen">
