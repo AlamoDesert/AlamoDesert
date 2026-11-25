@@ -62,7 +62,7 @@ srv.listen(0, async () => {
   const adj = await p.evaluate(() => (JSON.parse(localStorage.getItem("rz2:2026-11-24")).adj || {}).spaet);
   check(await q(p, "#adjpop").count() === 0 && adj && adj.end.t === "22:30" && adj.end.reason === "letzte Buchung" && adj.end.by === "pa", "Flexibel: Schluss −30 mit Grund gespeichert");
   const rows = (await q(p, ".tlrow").allInnerTexts()).map(t => t.replace(/\s+/g, " ").trim());
-  check(rows.some(t => /^22:00 Abschließen/.test(t)) && rows.some(t => /^22:30 Schluss geändert/.test(t)), "Flexibel: Abschließen zieht mit – " + rows.join(" | "));
+  check(rows.some(t => /^22:00 Abschließen/.test(t)) && rows.some(t => /^22:30 Schluss geändert von Test Anna: letzte Buchung/.test(t)), "Flexibel: Abschließen zieht mit – " + rows.join(" | "));
 
   // Leitung: Aufgabe mit Enter, kein Doppel
   await q(p, '[data-view="admin"]').click(); await q(p, "#pin-in").fill("1234"); await q(p, "#pinform button[type=submit]").click(); await step(800);

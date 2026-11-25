@@ -1232,7 +1232,7 @@ function mount(container, opts = {}) {
     const base = isS && lv.sSrc === "in" ? null : nom[pop.which];
     return `<div class="overlay inmain" role="dialog" aria-modal="true" aria-labelledby="ad-title"><form class="dialog adjpop" id="adjpop">
       <h2 id="ad-title">${label} heute ändern · ${SHIFT_META[key].label}</h2>
-      <p class="hint">Laut ${src}: <b>${esc(base || plan[key].start)}</b>${cur ? ` · zuletzt geändert von ${esc(personName(cur.by) || "?")}${cur.at ? " um " + fmtTime(cur.at) : ""}` : ""}</p>
+      <p class="hint">Laut ${src}: <b>${esc(base || plan[key].start)}</b>${cur ? ` · zuletzt geändert von ${esc(personName(cur.by) || "?")}` : ""}</p>
       <div class="rpwhen"><label class="fld"><span>${label} ca.</span>${timeIn("ad-t", pop.t, label)}</label>
         <span class="quick">${[-30, -15, 15, 30].map(n => `<button type="button" class="chip off" data-adjq="${n}">${n > 0 ? "+" : "−"}${Math.abs(n)}</button>`).join("")}</span></div>
       <label class="fld"><span>Grund (optional)</span><input class="in" id="ad-r" maxlength="120" autocomplete="off" placeholder="${isS ? "z. B. später angefangen" : "z. B. letzte Buchung 21:00"}" value="${esc(pop.reason || "")}"></label>
@@ -1605,7 +1605,7 @@ function mount(container, opts = {}) {
     const canAdj = !state.readOnly;
     const boundRow = (w, label, t, src) => {
       const e = adj[w], who = e ? personName(e.by) : "";
-      const info = src === "adj" ? `geändert${who ? " von " + who : ""}${e && e.at ? " um " + fmtTime(e.at) : ""}${e && e.reason ? ": " + e.reason : ""}` : src === "in" ? "eingecheckt" : (state.cfg.roster[state.date] && state.cfg.roster[state.date].times && state.cfg.roster[state.date].times[key] ? "laut Dienstplan" : "laut Plan");
+      const info = src === "adj" ? `geändert${who ? " von " + who : ""}${e && e.reason ? ": " + e.reason : ""}` : src === "in" ? "eingecheckt" : (state.cfg.roster[state.date] && state.cfg.roster[state.date].times && state.cfg.roster[state.date].times[key] ? "laut Dienstplan" : "laut Plan");
       return tlRow(`${esc(t)}`, "bound", `<b>${label}</b><span class="tlsrc${src === "adj" ? " adj" : ""}">${esc(info)}</span>${canAdj ? `<button class="tladj" data-adj="${key}:${w}" aria-label="${label} ca. ${esc(t)} ändern">ändern</button>` : ""}`);
     };
     const flagged = (p) => state.coFlag === key && p.items.some(i => !state.checks[i.id]);

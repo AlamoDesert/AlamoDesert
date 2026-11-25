@@ -2,6 +2,9 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.22.9 – 25.11.2026
+- Beginn/Schluss geändert: Es steht nur noch „geändert von Name“ (mit Grund), ohne Uhrzeit – im Tagesablauf und im Fenster „… heute ändern“.
+
 ## 1.22.8 – 25.11.2026
 - Übergabe: Der Name steht als Unterschrift („– Name“) direkt unter der Nachricht – in der Karte, im Fenster nach dem Einchecken und in der Leiste über dem Fahrplan. Keine Uhrzeit mehr, auch nicht bei „Gelesen“.
 - Feierabend-Bildschirm ohne „Ausgecheckt um … – du kannst den Laptop jetzt zuklappen.“
