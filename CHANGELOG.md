@@ -2,6 +2,9 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.27.6 – 25.11.2026
+- Leiste „Den ganzen Tag“: Der Zähler hat gleich breite Ziffern – beim Abhaken verrutschen die Felder nicht mehr.
+
 ## 1.27.5 – 25.11.2026
 - Mitlaufende Uhrzeit dezenter: Vergangenes im Tagesablauf leicht getönt, gestrichelte graublaue Linie hinter den Karten, Uhrzeit in einer graublauen Marke, Punkt mit hellem Ring auf der Zeitlinie (statt schwarzem Strich).
 

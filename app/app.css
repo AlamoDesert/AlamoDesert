@@ -938,3 +938,5 @@ header.top.otherday .datelink { color: var(--other); font-weight: 700 }
 .tlnowline { border-top: 1.5px dashed var(--logo); opacity: .7 }
 .tlnow b { background: var(--logo); color: #fff; border-radius: 6px; padding: 1px 6px }
 .tlnow::after { left: 67px; top: -5px; width: 10px; height: 10px; background: var(--logo); box-shadow: 0 0 0 3px color-mix(in srgb, var(--logo) 22%, var(--surface)) }
+/* 1.27.6 Zähler „Den ganzen Tag · x/y“ mit gleich breiten Ziffern – nichts verrutscht beim Abhaken */
+.pinlbl { font-variant-numeric: tabular-nums; white-space: nowrap }
