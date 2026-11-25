@@ -797,3 +797,7 @@ button.othchip { cursor: pointer }
 /* 1.22.5 Rückweg aus einem Tag zur Monatsstatistik */
 .backbar { display: flex; align-items: center; gap: 12px; margin-top: 12px; flex: none; color: var(--muted); font-weight: 600 }
 .backbar .btn { font-weight: 700 }
+
+/* 1.22.8 Übergabe: Name als Unterschrift unter der Nachricht */
+.nsig { display: block; margin-top: 6px; text-align: right; font-size: 13px; font-weight: 600; color: var(--muted); white-space: normal }
+.handbar .nsig { display: inline; margin: 0 0 0 8px }

@@ -1531,14 +1531,11 @@ export function mount(container, opts = {}) {
     persistDay(state.date, { logs: { [shift]: { [id]: { [k]: null } } } });
   }
 
-  function noteAuthor(n) {
-    if (!n || !n.at) return "";
-    const name = personName(n.by);
-    return ` · ${fmtTime(n.at)}${name ? " · " + esc(name) : ""}`;
-  }
+  // Übergabe: Name als Unterschrift unter der Nachricht, ohne Uhrzeit.
+  const noteSig = (n) => { const name = n ? personName(n.by) : ""; return name ? `<span class="nsig">– ${esc(name)}</span>` : ""; };
   function readLine(r) {
     const name = personName(r.by);
-    return `Gelesen ${fmtTime(r.at)}${name ? " · " + esc(name) : ""}`;
+    return `Gelesen${name ? " · " + esc(name) : ""}`;
   }
   // Eigene Übergabe: kompakt als Vorschau, geschrieben wird im Fenster (state.notePop).
   function noteEditor(shift, label) {
@@ -1547,16 +1544,16 @@ export function mount(container, opts = {}) {
     const r = shift === "frueh" ? handRead("spaet") : null;
     const canEdit = !state.readOnly && !(state.viewOnly && !currentPerson());
     return `<div class="note"><div class="nhead"><label>${n && n.important ? '<span class="imptag">Wichtig</span> ' : ""}${esc(label)}</label>${canEdit && has ? `<button class="btn sm" data-noteedit="${shift}">Bearbeiten</button>` : ""}</div>
-      ${has ? `<div class="read mine${n.important ? " imp" : ""}">${esc(n.text)}</div>` : `<button class="notebtn" data-noteedit="${shift}" ${canEdit ? "" : "disabled"}>+ Übergabe schreiben</button>`}
-      <span class="saved">${has && n.at ? "Gespeichert" + noteAuthor(n) : ""}${r ? ` · <b class="okread">✓ ${readLine(r)}</b>` : ""}</span>${r && r.reply ? `<div class="reply">Rückmeldung: ${esc(r.reply)}</div>` : ""}</div>`;
+      ${has ? `<div class="read mine${n.important ? " imp" : ""}">${esc(n.text)}${noteSig(n)}</div>` : `<button class="notebtn" data-noteedit="${shift}" ${canEdit ? "" : "disabled"}>+ Übergabe schreiben</button>`}
+      ${r ? `<span class="saved"><b class="okread">✓ ${readLine(r)}</b></span>` : ""}${r && r.reply ? `<div class="reply">Rückmeldung: ${esc(r.reply)}</div>` : ""}</div>`;
   }
   function noteReader(key, label) {
     const n = handIn(key), r = n && handRead(key, n), wasRead = n && state.read && state.read[key];
     const canMark = n && !r && state.date === isoDate(new Date()) && !state.readOnly;
     const foot = !n ? "" : r ? `<div class="rfoot"><b class="okread">✓ ${readLine(r)}</b></div>${r.reply ? `<div class="reply">Rückmeldung: ${esc(r.reply)}</div>` : ""}`
       : `<div class="rfoot"><span>${wasRead ? "Nach dem Lesen geändert" : "Noch nicht gelesen"}</span>${canMark ? `<button class="btn primary sm" data-hread="${key}">Gelesen</button>` : ""}</div>`;
-    return `<div class="note"><label>${n && n.important ? '<span class="imptag">Wichtig</span> ' : ""}${esc(label)}${n ? noteAuthor(n) : ""}</label>
-      <div class="read${n ? (n.important && !r ? " imp" : "") : " none"}">${n ? esc(n.text) : "Keine Notiz hinterlassen."}</div>${foot}</div>`;
+    return `<div class="note"><label>${n && n.important ? '<span class="imptag">Wichtig</span> ' : ""}${esc(label)}</label>
+      <div class="read${n ? (n.important && !r ? " imp" : "") : " none"}">${n ? esc(n.text) + noteSig(n) : "Keine Notiz hinterlassen."}</div>${foot}</div>`;
   }
   function handoverHtml(key) {
     return key === "frueh"
@@ -1721,7 +1718,7 @@ export function mount(container, opts = {}) {
     const title = ctx === "past" ? "Rückblick" : ctx === "future" ? "Vorschau" : "Fahrplan";
     // Ungelesene Übergabe: Leiste über dem Fahrplan, bis die eingecheckte Person sie als gelesen markiert.
     const hb = state.date === isoDate(new Date()) && cp && !state.readOnly ? handIn(key) : null;
-    const banner = hb && !handRead(key, hb) ? `<div class="handbar${hb.important ? " imp" : ""}"><span class="imptag">Übergabe</span><span class="htxt"><b>${key === "frueh" ? "Von der Spätschicht" : "Von der Frühschicht"}:</b> ${esc(hb.text)}</span><button class="btn" data-hopen="${key}">Öffnen</button><button class="btn primary" data-hread="${key}">Gelesen</button></div>` : "";
+    const banner = hb && !handRead(key, hb) ? `<div class="handbar${hb.important ? " imp" : ""}"><span class="imptag">Übergabe</span><span class="htxt"><b>${key === "frueh" ? "Von der Spätschicht" : "Von der Frühschicht"}:</b> ${esc(hb.text)}${noteSig(hb)}</span><button class="btn" data-hopen="${key}">Öffnen</button><button class="btn primary" data-hread="${key}">Gelesen</button></div>` : "";
     if (state.coFlag === key && !shiftOpenList(key).items.length && !shiftOpenList(key).confirms.length) state.coFlag = null;
     const leader = !!state.cfg.adminPin && !pinOff() && isUnlocked();
     const back = state.backTo === "monat" ? `<div class="backbar"><button class="btn" data-backto="1">‹ Zurück zur Monatsstatistik</button><span>${WD[parseIso(state.date).getDay()]}, ${state.date.split("-").reverse().join(".")} · ${meta.label}</span></div>` : "";
@@ -2775,7 +2772,6 @@ export function mount(container, opts = {}) {
       el.innerHTML = `<div class="overlay" role="dialog" aria-modal="true" aria-labelledby="bye-title">${brand}<div class="dialog bye">
         <div class="byeic" aria-hidden="true">☾</div>
         <h2 id="bye-title">Schönen Feierabend${bye.name ? ", " + esc(bye.name) : ""}!</h2>
-        <p>Ausgecheckt um ${esc(bye.out || "")}${bye.hours ? ` · ${esc(bye.hours)} Std.` : ""} – du kannst den Laptop jetzt zuklappen.</p>
         <div class="row center"><button class="btn ghost" data-pick-close="1">Nur ansehen</button><button class="btn primary" data-bye-next="1">Jemand anderes einchecken</button></div>
       </div></div>`;
       return;
@@ -2926,12 +2922,12 @@ export function mount(container, opts = {}) {
     persistTime(c.date, c.id, { ...c.entry, out: c.out, pause: c.pause, note: (c.note || "").trim().slice(0, 200), ...open });
     if (state.who && state.who.id === c.entry.pid) { state.who = null; LS.set("rz2who", null); }
     state.checkout = null;
-    const name = personName(c.entry.pid), hours = fmtHours(workedMin({ in: c.entry.in, out: c.out, pause: c.pause }));
+    const name = personName(c.entry.pid);
     renderCheckout();
     // Noch jemand da: der/die Nächste wird aktiv, kurzer Gruß. Sonst Feierabend-Bildschirm (bleibt bis zur nächsten Anmeldung).
     ensureActive();
     if (presentPeople().length) toast(`Schönen Feierabend, ${name}!`);
-    else { LS.set("rz2bye", { date: isoDate(new Date()), name, out: c.out, hours }); state.byeSeen = false; state.viewOnly = false; openPicker("login"); }
+    else { LS.set("rz2bye", { date: isoDate(new Date()), name }); state.byeSeen = false; state.viewOnly = false; openPicker("login"); }
     render();
     setStatus(`${name} ausgecheckt um ${c.out} · ${hours} Std.`);
     autoBackup("shift");
@@ -3061,7 +3057,7 @@ export function mount(container, opts = {}) {
       el.hidden = false;
       el.innerHTML = `<div class="overlay" role="dialog" aria-modal="true" aria-labelledby="hand-title"><div class="dialog">
         <h2 id="hand-title">${hn && hn.important ? '<span class="imptag">Wichtig</span> ' : ""}Übergabe ${from}</h2>
-        ${hn ? `<div class="handpop${hn.important ? "" : " plain"}">${esc(hn.text)}</div><p class="hint">${noteAuthor(hn).replace(/^ · /, "")}</p>` : `<div class="handpop none">Keine Übergabe hinterlassen – es gibt nichts Besonderes zu beachten.</div>`}
+        ${hn ? `<div class="handpop${hn.important ? "" : " plain"}">${esc(hn.text)}${noteSig(hn)}</div>` : `<div class="handpop none">Keine Übergabe hinterlassen – es gibt nichts Besonderes zu beachten.</div>`}
         ${extra}
         ${hn && !hr ? `<label class="tnote">Rückmeldung oder Ergänzung (optional, steht danach unter der Übergabe) <textarea class="in" id="hand-reply" maxlength="300" rows="2" placeholder="optional"></textarea></label>` : ""}
         <div class="row">${hn && !hr ? `<button class="btn ghost" data-hlater="1">Später</button><button class="btn primary" data-hread="${hk}">Gelesen</button>` : `<button class="btn primary" data-hlater="1">OK</button>`}</div>

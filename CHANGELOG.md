@@ -2,6 +2,10 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.22.8 – 25.11.2026
+- Übergabe: Der Name steht als Unterschrift („– Name“) direkt unter der Nachricht – in der Karte, im Fenster nach dem Einchecken und in der Leiste über dem Fahrplan. Keine Uhrzeit mehr, auch nicht bei „Gelesen“.
+- Feierabend-Bildschirm ohne „Ausgecheckt um … – du kannst den Laptop jetzt zuklappen.“
+
 ## 1.22.7 – 25.11.2026
 - Zusammengeklappte Zeile „✓ n Abschnitte erledigt“ ohne Aufzählung der Abschnittsnamen.
 
