@@ -184,8 +184,13 @@ srv.listen(0, async () => {
   await q(p, ".tlrdone").click(); await step(200);
   check(nd >= 1 && await q(p, ".tllane .tlrchip.own.done").count() === 0, "Erinnerung: erledigte nur nach Klick auf „erledigte“ sichtbar");
 
+  // Dicht beieinander liegende Erinnerungen: nur eine sichtbare Glocke/Linie mit Anzahl (ab 1.27.1)
+  { const vis = await p.evaluate(() => { const tl = document.querySelector("#rz-host").shadowRoot.querySelector(".tl"); const b = [...tl.querySelectorAll(".tlbell")].filter(x => !x.hidden).map(x => parseFloat(x.style.top)).sort((a, c) => a - c); return b.every((y, i) => !i || y - b[i - 1] >= 18) && [...tl.querySelectorAll(".tlconn")].filter(x => !x.hidden).length === b.length; });
+    check(vis, "Erinnerungen: dicht beieinander nur eine Glocke und eine Linie"); }
   // Heute ohne rechte Spalte (ab 1.27): Rundgänge im Erinnerungs-Bereich, Pflicht vor Schluss, Übergabe unten rechts
-  check(await q(p, "#side-next").count() === 0 && await q(p, ".hdock [data-noteedit]").count() === 1 && await q(p, "#tl-confirm").count() === 1, "Heute: keine rechte Spalte, Pflicht-Kasten und Übergabe unten rechts");
+  check(await q(p, "#side-next").count() === 0 && await q(p, ".hdock [data-noteedit]").count() === 1 && await q(p, "#pinbar .pin").count() >= 1 && await q(p, "#tl-confirm").count() === 0, "Heute: keine rechte Spalte, Pflicht als Leiste oben, Übergabe unten rechts");
+  const pin0 = q(p, "#pinbar .pin.open .pintap, #pinbar .pin.soon .pintap").first();
+  if (await pin0.count()) { await pin0.click(); await step(200); check(await q(p, "#pinbar .pin.ok").count() >= 1 && await q(p, "#pinbar .pinundo").count() >= 1, "Heute: Pflicht in der Leiste bestätigen"); await q(p, "#pinbar .pinundo").first().click(); await step(200); }
   const rh0 = q(p, ".tlrchip.rh").first();
   if (await rh0.count()) {
     const name = (await rh0.innerText()).replace(/^\S+\s*/, "").slice(0, 12), at0 = +(await rh0.getAttribute("data-at"));

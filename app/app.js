@@ -1654,12 +1654,6 @@ export function mount(container, opts = {}) {
       ${lane.map(x => `<span class="tlbell${x.done ? " done" : ""}${x.rh ? " rh" : ""}" data-at="${x.m}" aria-hidden="true">${x.rh ? LOOP_SVG : BELL_SVG}</span><span class="tlconn${x.done ? " done" : ""}${x.rh ? " rh" : ""}" data-at="${x.m}" aria-hidden="true"></span>`).join("")}`;
     const sun = sunsetMin(state.date);
     if (sun != null && sun >= S - 60 && sun <= E) ev.push({ m: sun, ord: 5, html: tlRow(fmtMin(sun), "sun", `<span class="tlsun" title="Sonnenuntergang in ${esc(locOf().name)}">${SUN_SVG}Sonnenuntergang</span>`, " small") });
-    // Pflicht vor Schichtende (ab 1.27): ein Kasten 30 Min. vor Schluss statt eigener Liste rechts.
-    const cl = confirmLis(plan, key, ctx);
-    if (cl.length) {
-      const T = Math.max(S, E - 30), okN = cl.filter(x => x.ok).length, all = okN === cl.length;
-      ev.push({ m: T, ord: 8, html: tlRow(fmtMin(T), all ? "done" : ctx >= T ? "soon" : "later", `<div class="tlconfirm${all ? " ok" : ""}" id="tl-confirm"><div class="tlch">Vor Schichtende bestätigen · ${okN}/${cl.length}</div><ul class="always">${[...cl.filter(x => !x.ok), ...cl.filter(x => x.ok)].map(x => x.html).join("")}</ul></div>`) });
-    }
     ev.push({ m: E, ord: 9, html: boundRow("end", "Schluss", s.end, lv.eSrc) });
     ev.sort((x, y) => (x.m - y.m) || (x.ord - y.ord));
     // Zeitspanne jeder Zeile als data-m/data-e (Ende = e, sonst m) – placeNow setzt daraus die mitlaufende Uhrzeit.
@@ -1690,6 +1684,20 @@ export function mount(container, opts = {}) {
     mk.style.top = ln.style.top = Math.round(y) + "px";
     // Erinnerungen: Glocke + Verbindung genau auf der Uhrzeit; die Karten rechts so nah wie möglich daran, ohne sich zu überdecken.
     for (const el of tl.querySelectorAll(".tlbell, .tlconn")) el.style.top = Math.round(yAt(+el.dataset.at)) + "px";
+    // Liegen Erinnerungen dicht beieinander, nur eine Glocke + eine Linie (mit Anzahl) – sonst stapeln sich die Linien (ab 1.27.1).
+    const bells = [...tl.querySelectorAll(".tlbell")], conns = [...tl.querySelectorAll(".tlconn")];
+    let lead = null, leadC = null, leadY = -1e9, n = 1;
+    bells.forEach((b, i) => {
+      const y = parseFloat(b.style.top) || 0, c = conns[i];
+      if (lead && y - leadY < 18) {
+        b.hidden = true; if (c) c.hidden = true; n++; lead.dataset.n = String(n);
+        if (!b.classList.contains("done")) { lead.classList.remove("done"); if (leadC) leadC.classList.remove("done"); }
+        // Gemischt (Rundgang + Erinnerung): Glocke statt Kreislauf-Zeichen.
+        if (lead.classList.contains("rh") && !b.classList.contains("rh")) { lead.classList.remove("rh"); lead.innerHTML = b.innerHTML; if (leadC) leadC.classList.remove("rh"); }
+        return;
+      }
+      b.hidden = false; if (c) c.hidden = false; delete b.dataset.n; lead = b; leadC = c; leadY = y; n = 1;
+    });
     let low = 0; const head = tl.querySelector(".tllane-h"); if (head) low = head.offsetHeight + 4;
     for (const c of tl.querySelectorAll(".tlrchip")) {
       const want = yAt(+c.dataset.at) - c.offsetHeight / 2, top = Math.max(want, low);
@@ -1775,6 +1783,18 @@ export function mount(container, opts = {}) {
     const hints = plan.always[key].filter(a => a.kind === "hint");
     const hintOpen = state.sideOpen.has("hint");
     const hintBtn = isLive && hints.length ? `<button class="btn sm hintbtn" data-sideopen="hint" aria-expanded="${hintOpen}" title="Hinweise für diese Schicht">ⓘ ${hints.length} ${hints.length === 1 ? "Hinweis" : "Hinweise"}</button>` : "";
+    // Pflicht (ab 1.27.1): den ganzen Tag sichtbar als Leiste oben im Fahrplan – kleine Felder zum Bestätigen.
+    // Offen neutral, in den letzten 30 Min. orange, nach „Zurück zur Schicht“ rot; bestätigt grün mit Haken (↶ nimmt zurück); „ab …“ gestrichelt.
+    const pins = !isLive ? [] : plan.always[key].filter(a => a.kind === "confirm").map(a => {
+      const st = confirmState(key, a, ctx), canLog = !state.readOnly;
+      const soon = !st.ok && !st.later && toMin(s.end) - ctx <= 30, flag = !st.ok && !st.later && state.coFlag === key;
+      const cls = st.ok ? "ok" : st.later ? "later" : flag ? "flag" : soon ? "soon" : "open";
+      const who = st.ok && st.last ? personName(st.last.by) : "";
+      const tip = st.ok ? `bestätigt${who ? " von " + who : ""}` : st.later ? `ab ${a.from} fällig` : st.again ? `ab ${a.from} bitte erneut bestätigen` : "vor Schichtende bestätigen";
+      return `<span class="pin ${cls}${a.important ? " important" : ""}"><button class="pintap" data-log="${esc(a.id)}" data-shift="${key}" ${canLog && !st.ok ? "" : "disabled"} title="${esc(tip)}${a.s ? " · " + esc(a.s) : ""}"><span class="box" aria-hidden="true">${CHECK_SVG}</span>${esc(a.t)}${st.later ? ` <small>ab ${esc(a.from)}</small>` : ""}</button>${st.ok && canLog ? `<button class="pinundo" data-unlog="${esc(a.id)}" data-shift="${key}" aria-label="Bestätigung zurücknehmen" title="Bestätigung zurücknehmen">↶</button>` : ""}</span>`;
+    });
+    const pinOk = pins.filter(x => x.includes('class="pin ok')).length;
+    const pinBar = pins.length ? `<div class="pinbar" id="pinbar"><span class="pinlbl">Den ganzen Tag · ${pinOk}/${pins.length}</span>${pins.join("")}</div>` : "";
     const hintBox = isLive && hints.length && hintOpen ? `<ul class="hints tlhints">${hints.map(a => `<li class="${a.important ? "important" : ""}"><span class="label">${esc(a.t)}</span>${a.s ? ` <span class="sub">${esc(a.s)}</span>` : ""}</li>`).join("")}</ul>` : "";
     const hin = handIn(key), hinRead = hin && handRead(key, hin), mine = state.notes[key], mineHas = !!(mine && mine.text && mine.text.trim());
     const canNote = !state.readOnly && !(state.viewOnly && !cp);
@@ -1786,7 +1806,7 @@ export function mount(container, opts = {}) {
         <div class="chead"><h2>${title} ${meta.label}</h2>${isLive ? `<span class="tlprog" role="img" aria-label="${pr.done} von ${pr.total} erledigt"><i><b style="width:${pr.pct}%"></b></i>${pr.done}/${pr.total}</span>${otherOpen ? (role ? `<span class="othchip">${SHIFT_META[other].short}: ${otherOpen} offen</span>` : `<button class="othchip" data-shiftsel="${other}">${SHIFT_META[other].short}: ${otherOpen} offen</button>`) : ""}` : `<span class="hint">${s.start}–${s.end} · ${pr.done}/${pr.total} erledigt</span>`}${role ? "" : `<div class="seg" role="group" aria-label="Schicht wählen">${seg}</div>`}${canRem ? `<button class="btn sm remadd" data-remadd="${key}">${BELL_SVG}+ Erinnerung</button>` : ""}${hintBtn}</div>
         ${isLive ? "" : `<div class="bar flat"><i style="width:${pr.pct}%"></i></div>`}
         ${otherOpen && (!isLive || leader) ? (role ? `<div class="othersum">${SHIFT_META[other].label}: <b>${otherOpen} offen geblieben</b></div>` : `<button class="othersum" data-shiftsel="${other}">${SHIFT_META[other].label}: <b>${otherOpen} offen geblieben</b> – ansehen</button>`) : ""}
-        <div class="cbody board"><div class="board-in">${hintBox}${stops}</div></div>${dock}
+        ${pinBar}<div class="cbody board"><div class="board-in">${hintBox}${stops}</div></div>${dock}
         ${ownSec ? `<div class="hsplit" data-split="rem" role="separator" aria-orientation="horizontal" aria-label="Höhe der eigenen Erinnerungen – ziehen oder Pfeiltasten, Doppelklick passt sich wieder dem Inhalt an" tabindex="0" title="Ziehen zum Anpassen · Doppelklick = automatisch"></div>${ownSec}` : ""}
       </section>
       ${isLive ? "" : `<div class="splitter" data-split="side" role="separator" aria-orientation="vertical" aria-label="Spaltenbreite – ziehen oder Pfeiltasten, Doppelklick setzt zurück" tabindex="0" title="Ziehen zum Anpassen · Doppelklick = Standard"></div>

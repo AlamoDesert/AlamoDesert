@@ -910,3 +910,24 @@ header.top.otherday .datelink { color: var(--other); font-weight: 700 }
 .hdock .btn.imp { border-color: var(--warn); color: var(--warn) }
 .hdock .newdot { display: inline-block; margin-left: 4px; background: var(--accent); color: #fff; border-radius: 99px; padding: 0 6px; font-size: 11px; font-weight: 700 }
 .tlbell.rh { color: var(--done); border-color: var(--done) } .tlconn.rh { border-top-color: var(--done) }
+
+/* 1.27.1 Dichte Erinnerungen: eine Glocke mit Anzahl; Pflicht als Leiste oben im Fahrplan */
+.tlbell[data-n]::after { content: attr(data-n); position: absolute; top: -7px; right: -9px; min-width: 14px; height: 14px; border-radius: 99px; background: var(--now); color: #fff; font-size: 10px; font-weight: 700; line-height: 14px; text-align: center; padding: 0 3px; box-sizing: border-box }
+.tlbell.rh[data-n]::after { background: var(--done) }
+.tlbell[hidden], .tlconn[hidden] { display: none }
+.pinbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 8px 14px; border-bottom: 1px solid var(--line); background: var(--surface-2); flex: none }
+.pinlbl { font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); margin-right: 4px }
+.pin { display: inline-flex; align-items: center; border: 1px solid var(--line); background: var(--surface); border-radius: 99px; overflow: hidden }
+.pintap { display: inline-flex; align-items: center; gap: 7px; border: 0; background: none; padding: 4px 12px 4px 6px; font: inherit; font-size: 14px; font-weight: 600; color: var(--ink); cursor: pointer }
+.pintap .box { width: 18px; height: 18px; border-radius: 5px; border: 2px solid var(--muted); display: grid; place-items: center; box-sizing: border-box }
+.pintap .box svg { width: 11px; opacity: 0 }
+.pintap small { font-size: 11.5px; color: var(--muted); font-weight: 600 }
+.pin.ok { border-color: var(--done); background: var(--done-soft) }
+.pin.ok .pintap { color: var(--done); cursor: default }
+.pin.ok .box { background: var(--done); border-color: var(--done); color: #fff } .pin.ok .box svg { opacity: 1 }
+.pin.later { border-style: dashed } .pin.later .pintap { color: var(--muted); cursor: default }
+.pin.soon { border-color: var(--now); background: var(--now-soft) } .pin.soon .box { border-color: var(--now) }
+.pin.flag { border-color: var(--warn); background: var(--warn-soft) } .pin.flag .box { border-color: var(--warn) }
+.pin.important .pintap { font-weight: 700 }
+.pinundo { border: 0; border-left: 1px solid var(--done); background: none; color: var(--done); padding: 4px 9px; cursor: pointer; font-size: 13px }
+.pintap:not(:disabled):hover .box { border-color: var(--accent) }
