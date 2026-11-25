@@ -886,3 +886,27 @@ header.top.otherday .datelink { color: var(--other); font-weight: 700 }
 /* 1.26.1 Erinnerung antippen = ändern */
 .tlrchip .redit { border: 0; background: none; padding: 0; font: inherit; text-align: left; color: inherit; cursor: pointer; border-radius: 4px }
 .tlrchip .redit:hover { color: var(--accent) }
+
+/* 1.27.0 Heute ohne rechte Spalte: Rundgänge im Erinnerungs-Bereich, Pflicht vor Schluss, Übergabe unten rechts */
+.schicht.noside { grid-template-columns: minmax(0, 1fr) }
+.tlrchip.rh { border-color: var(--done) }
+.tlrchip.rh .rtxt b { color: var(--done); display: inline-flex; align-items: center; gap: 3px }
+.tlrchip.rh .rtxt b svg { width: 12px; height: 12px }
+.tlrchip.rh .rcheck .box { border-color: var(--done) }
+.tlrchip.rh.due { border-color: var(--now); background: var(--now-soft) } .tlrchip.rh.due .rtxt b { color: var(--now) }
+.tlrchip.rh.over { border-color: var(--warn); background: var(--warn-soft) } .tlrchip.rh.over .rtxt b, .tlrchip.rh em { color: var(--warn) }
+.tlrchip.rh em { font-style: normal; font-weight: 700; font-size: 12px }
+.tlconfirm { border: 1px dashed var(--line); border-radius: 10px; background: var(--surface); padding: 6px 10px 4px }
+.tlconfirm.ok { opacity: .75 }
+.tlch { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); padding: 2px 0 4px }
+.is-soon .tlconfirm { border-color: var(--now); border-style: solid }
+.tlconfirm ul.always { margin: 0 }
+.tlhints { margin: 0 0 10px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2) }
+.hintbtn { margin-left: 2px }
+.hdock { display: flex; justify-content: flex-end; align-items: center; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--line); flex: none }
+.hdock .hnone { font-size: 13px; color: var(--muted) }
+.hdock .hwrite { border-style: dashed; border-color: var(--accent); color: var(--accent); font-weight: 700 }
+.hdock .hwrite.has { border-style: solid }
+.hdock .btn.imp { border-color: var(--warn); color: var(--warn) }
+.hdock .newdot { display: inline-block; margin-left: 4px; background: var(--accent); color: #fff; border-radius: 99px; padding: 0 6px; font-size: 11px; font-weight: 700 }
+.tlbell.rh { color: var(--done); border-color: var(--done) } .tlconn.rh { border-top-color: var(--done) }

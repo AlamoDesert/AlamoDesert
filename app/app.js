@@ -1439,6 +1439,30 @@ export function mount(container, opts = {}) {
     return { ok: false, last, again: !!last };
   }
   const pendingConfirms = (plan, key) => plan.always[key].filter(a => a.kind === "confirm" && !confirmState(key, a).ok);
+  // Pflicht: bleibt immer sichtbar – bestätigte grau mit Name (ohne Uhrzeit), noch nicht fällige gestrichelt.
+  function confirmLis(plan, key, ctx) {
+    const canLog = typeof ctx === "number";
+    const lastWho = (last) => { const n = last ? personName(last.by) : ""; return n ? " · " + esc(n) : ""; };
+    return plan.always[key].filter(a => a.kind === "confirm").map(a => {
+      const st = confirmState(key, a, ctx), last = st.last;
+      const flag = !st.ok && !st.later && state.coFlag === key && state.date === isoDate(new Date());
+      const soon = !st.ok && !st.later && typeof ctx === "number" && toMin(plan[key].end) - ctx <= 30;
+      const cls = st.ok ? "ok" : st.later ? "later" : soon ? "open soon" : "open";
+      const bell = a.remind && (!st.ok || a.remindAlways) ? `<span class="remtag">${BELL_SVG}${esc(a.remind)}</span>` : "";
+      const sub = st.ok
+        ? `<span class="last">bestätigt${lastWho(last)}${st.early ? ` · eigentlich ab ${esc(a.from)}` : ""}</span>`
+        : st.later ? `<span class="sub">ab ${esc(a.from)} · noch nicht fällig${a.s ? " · " + esc(a.s) : ""}</span>`
+        : st.again ? `<span class="sub">bestätigt${lastWho(last)} – ab ${esc(a.from)} bitte erneut bestätigen</span>`
+        : a.s ? `<span class="sub">${esc(a.s)}</span>` : "";
+      return { show: true, ok: st.ok, html: `<li class="confirm ${cls}${a.important ? " important" : ""}${flag ? " flag" : ""}">
+        <button class="tap" data-log="${esc(a.id)}" data-shift="${key}" ${canLog && !st.ok ? "" : "disabled"} aria-label="${esc(a.t)} bestätigen">
+          <span class="box" aria-hidden="true">${CHECK_SVG}</span>
+          <span><span class="label">${esc(a.t)}</span>${sub}</span>${bell}${st.early ? `<span class="again">ab ${esc(a.from)} erneut</span>` : ""}
+        </button>
+        ${last && st.ok && canLog ? `<button class="undo" data-unlog="${esc(a.id)}" data-shift="${key}" aria-label="Bestätigung zurücknehmen">↶</button>` : ""}
+      </li>` };
+    });
+  }
   function alwaysHtml(plan, key, ctx) {
     const list = plan.always[key];
     if (!list.length) return `<div class="empty">Keine Daueraufgaben.</div>`;
@@ -1462,26 +1486,7 @@ export function mount(container, opts = {}) {
         ${last && canLog ? `<button class="undo" data-unlog="${esc(a.id)}" data-shift="${key}" aria-label="Letzten Eintrag zurücknehmen">↶</button>` : ""}
       </li>` };
     });
-    // Pflicht: bleibt immer sichtbar – bestätigte grau mit Name (ohne Uhrzeit), noch nicht fällige gestrichelt.
-    const confirmL = list.filter(a => a.kind === "confirm").map(a => {
-      const st = confirmState(key, a, ctx), last = st.last;
-      const flag = !st.ok && !st.later && state.coFlag === key && state.date === isoDate(new Date());
-      const soon = !st.ok && !st.later && typeof ctx === "number" && toMin(plan[key].end) - ctx <= 30;
-      const cls = st.ok ? "ok" : st.later ? "later" : soon ? "open soon" : "open";
-      const bell = a.remind && (!st.ok || a.remindAlways) ? `<span class="remtag">${BELL_SVG}${esc(a.remind)}</span>` : "";
-      const sub = st.ok
-        ? `<span class="last">bestätigt${lastWho(last)}${st.early ? ` · eigentlich ab ${esc(a.from)}` : ""}</span>`
-        : st.later ? `<span class="sub">ab ${esc(a.from)} · noch nicht fällig${a.s ? " · " + esc(a.s) : ""}</span>`
-        : st.again ? `<span class="sub">bestätigt${lastWho(last)} – ab ${esc(a.from)} bitte erneut bestätigen</span>`
-        : `<span class="sub">${a.s ? esc(a.s) + " · " : ""}vor Schichtende bestätigen</span>`;
-      return { show: true, ok: st.ok, html: `<li class="confirm ${cls}${a.important ? " important" : ""}${flag ? " flag" : ""}">
-        <button class="tap" data-log="${esc(a.id)}" data-shift="${key}" ${canLog && !st.ok ? "" : "disabled"} aria-label="${esc(a.t)} bestätigen">
-          <span class="box" aria-hidden="true">${CHECK_SVG}</span>
-          <span><span class="label">${esc(a.t)}</span>${sub}</span>${bell}${st.early ? `<span class="again">ab ${esc(a.from)} erneut</span>` : ""}
-        </button>
-        ${last && st.ok && canLog ? `<button class="undo" data-unlog="${esc(a.id)}" data-shift="${key}" aria-label="Bestätigung zurücknehmen">↶</button>` : ""}
-      </li>` };
-    });
+    const confirmL = confirmLis(plan, key, ctx);
     const hint = list.filter(a => a.kind === "hint").map(a => `<li class="${a.important ? "important" : ""}"><span class="label">${esc(a.t)}</span>${a.s ? ` <span class="sub">${esc(a.s)}</span>` : ""}</li>`).join("");
     const more = (kind, n, text) => n ? `<li class="more"><button class="morebtn" data-sideopen="${kind}" aria-expanded="${open.has(kind)}">${open.has(kind) ? "weniger anzeigen" : text} <span aria-hidden="true">${open.has(kind) ? "‹" : "›"}</span></button></li>` : "";
     const part = (items, kind, text) => {
@@ -1633,12 +1638,28 @@ export function mount(container, opts = {}) {
         ${canRem && !r.done ? `<button class="rtxt redit" data-remedit="${esc(id)}" title="Antippen zum Ändern"><b>${esc(r.at)}</b> ${short(r.t)}</button>` : `<span class="rtxt"><b>${esc(r.at)}</b> ${short(r.t)}</span>`}${canRem ? `<button class="rdel" data-remdel="${esc(id)}" aria-label="Erinnerung löschen">×</button>` : ""}</div>` });
     for (const { p } of sts) for (const i of p.items) if (i.remind && !state.checks[i.id]) lane.push({ m: toMin(i.remind), html: `<div class="tlrchip item${toMin(i.remind) <= ctx ? " due" : ""}" data-at="${toMin(i.remind)}">
         <button class="rjump" data-jump="phase-${esc(p.id)}" title="Aufgabe im Abschnitt ${esc(p.title)}">${BELL_SVG}<span class="rtxt"><b>${esc(i.remind)}</b> ${short(i.t)}</span></button></div>` });
+    // Regelmäßiges (ab 1.27): der nächste Termin steht als Karte im Erinnerungs-Bereich; Haken = erledigt, die Karte springt zur nächsten Zeit.
+    for (const a of plan.always[key]) {
+      if (a.kind !== "rhythm") continue;
+      const info = dueInfo(plan, key, a, ctx);
+      if (a.every && (!info || info.due == null)) continue;
+      const m = info && info.due != null ? info.due : ctx, n = logEntries(key, a.id).length, stc = info && info.state !== "ok" ? " " + info.state : "";
+      lane.push({ m, rh: true, html: `<div class="tlrchip rh${stc}" data-at="${m}">
+        <button class="rcheck" data-log="${esc(a.id)}" data-shift="${key}" aria-label="${esc(a.t)} erledigt – eintragen" title="Erledigt – nächster Termin rückt nach" ${canRem ? "" : "disabled"}><span class="box">${CHECK_SVG}</span></button>
+        <span class="rtxt"><b>${LOOP_SVG}${a.every ? fmtMin(m) : "jederzeit"}</b> ${short(a.t)}${stc === " over" ? ` <em>überfällig</em>` : ""}</span>${n && canRem ? `<button class="rdel" data-unlog="${esc(a.id)}" data-shift="${key}" aria-label="Letzten Eintrag zurücknehmen" title="Letzten Eintrag zurücknehmen (heute ${n}×)">↶</button>` : ""}</div>` });
+    }
     lane.sort((x, y) => x.m - y.m);
     laneHtml = !lane.length && !nDone ? "" : `<div class="tlsplit" data-split="remw" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Breite der Erinnerungen – ziehen oder Pfeiltasten, Doppelklick = Standard" title="Ziehen zum Verschieben · Doppelklick = Standard"></div>
       <div class="tllane"><span class="tllane-h">Erinnerungen${nDone ? `<button class="tlrdone" data-toggle="_remdone" aria-expanded="${showDone}">${showDone ? "erledigte ausblenden" : `✓ ${nDone} erledigte`}</button>` : ""}</span>${lane.map(x => x.html).join("")}</div>
-      ${lane.map(x => `<span class="tlbell${x.done ? " done" : ""}" data-at="${x.m}" aria-hidden="true">${BELL_SVG}</span><span class="tlconn${x.done ? " done" : ""}" data-at="${x.m}" aria-hidden="true"></span>`).join("")}`;
+      ${lane.map(x => `<span class="tlbell${x.done ? " done" : ""}${x.rh ? " rh" : ""}" data-at="${x.m}" aria-hidden="true">${x.rh ? LOOP_SVG : BELL_SVG}</span><span class="tlconn${x.done ? " done" : ""}${x.rh ? " rh" : ""}" data-at="${x.m}" aria-hidden="true"></span>`).join("")}`;
     const sun = sunsetMin(state.date);
     if (sun != null && sun >= S - 60 && sun <= E) ev.push({ m: sun, ord: 5, html: tlRow(fmtMin(sun), "sun", `<span class="tlsun" title="Sonnenuntergang in ${esc(locOf().name)}">${SUN_SVG}Sonnenuntergang</span>`, " small") });
+    // Pflicht vor Schichtende (ab 1.27): ein Kasten 30 Min. vor Schluss statt eigener Liste rechts.
+    const cl = confirmLis(plan, key, ctx);
+    if (cl.length) {
+      const T = Math.max(S, E - 30), okN = cl.filter(x => x.ok).length, all = okN === cl.length;
+      ev.push({ m: T, ord: 8, html: tlRow(fmtMin(T), all ? "done" : ctx >= T ? "soon" : "later", `<div class="tlconfirm${all ? " ok" : ""}" id="tl-confirm"><div class="tlch">Vor Schichtende bestätigen · ${okN}/${cl.length}</div><ul class="always">${[...cl.filter(x => !x.ok), ...cl.filter(x => x.ok)].map(x => x.html).join("")}</ul></div>`) });
+    }
     ev.push({ m: E, ord: 9, html: boundRow("end", "Schluss", s.end, lv.eSrc) });
     ev.sort((x, y) => (x.m - y.m) || (x.ord - y.ord));
     // Zeitspanne jeder Zeile als data-m/data-e (Ende = e, sonst m) – placeNow setzt daraus die mitlaufende Uhrzeit.
@@ -1750,20 +1771,30 @@ export function mount(container, opts = {}) {
     if (state.coFlag === key && !shiftOpenList(key).items.length && !shiftOpenList(key).confirms.length) state.coFlag = null;
     const leader = !!state.cfg.adminPin && !pinOff() && isUnlocked();
     const back = state.backTo === "monat" ? `<div class="backbar"><button class="btn" data-backto="1">‹ Zurück zur Monatsstatistik</button><span>${WD[parseIso(state.date).getDay()]}, ${state.date.split("-").reverse().join(".")} · ${meta.label}</span></div>` : "";
-    return `${back}${banner}<div class="schicht cols-1" style="--side:${lay.side}px">
+    // Heute (ab 1.27): keine rechte Spalte. Rundgänge und Pflicht stehen im Tagesablauf, Hinweise hinter „ⓘ“, Übergabe unten rechts.
+    const hints = plan.always[key].filter(a => a.kind === "hint");
+    const hintOpen = state.sideOpen.has("hint");
+    const hintBtn = isLive && hints.length ? `<button class="btn sm hintbtn" data-sideopen="hint" aria-expanded="${hintOpen}" title="Hinweise für diese Schicht">ⓘ ${hints.length} ${hints.length === 1 ? "Hinweis" : "Hinweise"}</button>` : "";
+    const hintBox = isLive && hints.length && hintOpen ? `<ul class="hints tlhints">${hints.map(a => `<li class="${a.important ? "important" : ""}"><span class="label">${esc(a.t)}</span>${a.s ? ` <span class="sub">${esc(a.s)}</span>` : ""}</li>`).join("")}</ul>` : "";
+    const hin = handIn(key), hinRead = hin && handRead(key, hin), mine = state.notes[key], mineHas = !!(mine && mine.text && mine.text.trim());
+    const canNote = !state.readOnly && !(state.viewOnly && !cp);
+    const dock = !isLive ? "" : `<div class="hdock">
+        ${hin ? `<button class="btn sm${hin.important && !hinRead ? " imp" : ""}" data-hopen="${key}">${key === "frueh" ? "Übergabe von Spät" : "Übergabe von Früh"}${hinRead ? "" : ' <span class="newdot">neu</span>'}</button>` : `<span class="hnone">${key === "frueh" ? "Von Spät" : "Von Früh"}: keine Übergabe</span>`}
+        <button class="btn sm hwrite${mineHas ? " has" : ""}" data-noteedit="${key}" ${canNote ? "" : "disabled"} title="${mineHas ? esc(mine.text) : ""}">✎ ${mineHas ? "Übergabe bearbeiten" : "Übergabe schreiben"}</button></div>`;
+    return `${back}${banner}<div class="schicht cols-1${isLive ? " noside" : ""}" style="--side:${lay.side}px">
       <section class="card boardcard">
-        <div class="chead"><h2>${title} ${meta.label}</h2>${isLive ? `<span class="tlprog" role="img" aria-label="${pr.done} von ${pr.total} erledigt"><i><b style="width:${pr.pct}%"></b></i>${pr.done}/${pr.total}</span>${otherOpen ? (role ? `<span class="othchip">${SHIFT_META[other].short}: ${otherOpen} offen</span>` : `<button class="othchip" data-shiftsel="${other}">${SHIFT_META[other].short}: ${otherOpen} offen</button>`) : ""}` : `<span class="hint">${s.start}–${s.end} · ${pr.done}/${pr.total} erledigt</span>`}${role ? "" : `<div class="seg" role="group" aria-label="Schicht wählen">${seg}</div>`}${canRem ? `<button class="btn sm remadd" data-remadd="${key}">${BELL_SVG}+ Erinnerung</button>` : ""}</div>
+        <div class="chead"><h2>${title} ${meta.label}</h2>${isLive ? `<span class="tlprog" role="img" aria-label="${pr.done} von ${pr.total} erledigt"><i><b style="width:${pr.pct}%"></b></i>${pr.done}/${pr.total}</span>${otherOpen ? (role ? `<span class="othchip">${SHIFT_META[other].short}: ${otherOpen} offen</span>` : `<button class="othchip" data-shiftsel="${other}">${SHIFT_META[other].short}: ${otherOpen} offen</button>`) : ""}` : `<span class="hint">${s.start}–${s.end} · ${pr.done}/${pr.total} erledigt</span>`}${role ? "" : `<div class="seg" role="group" aria-label="Schicht wählen">${seg}</div>`}${canRem ? `<button class="btn sm remadd" data-remadd="${key}">${BELL_SVG}+ Erinnerung</button>` : ""}${hintBtn}</div>
         ${isLive ? "" : `<div class="bar flat"><i style="width:${pr.pct}%"></i></div>`}
         ${otherOpen && (!isLive || leader) ? (role ? `<div class="othersum">${SHIFT_META[other].label}: <b>${otherOpen} offen geblieben</b></div>` : `<button class="othersum" data-shiftsel="${other}">${SHIFT_META[other].label}: <b>${otherOpen} offen geblieben</b> – ansehen</button>`) : ""}
-        <div class="cbody board"><div class="board-in">${stops}</div></div>
+        <div class="cbody board"><div class="board-in">${hintBox}${stops}</div></div>${dock}
         ${ownSec ? `<div class="hsplit" data-split="rem" role="separator" aria-orientation="horizontal" aria-label="Höhe der eigenen Erinnerungen – ziehen oder Pfeiltasten, Doppelklick passt sich wieder dem Inhalt an" tabindex="0" title="Ziehen zum Anpassen · Doppelklick = automatisch"></div>${ownSec}` : ""}
       </section>
-      <div class="splitter" data-split="side" role="separator" aria-orientation="vertical" aria-label="Spaltenbreite – ziehen oder Pfeiltasten, Doppelklick setzt zurück" tabindex="0" title="Ziehen zum Anpassen · Doppelklick = Standard"></div>
+      ${isLive ? "" : `<div class="splitter" data-split="side" role="separator" aria-orientation="vertical" aria-label="Spaltenbreite – ziehen oder Pfeiltasten, Doppelklick setzt zurück" tabindex="0" title="Ziehen zum Anpassen · Doppelklick = Standard"></div>
       <div class="side${lay.hand ? " has-hand" : ""}"${lay.hand ? ` style="--hand:${lay.hand}px"` : ""}>
         <section class="card grow" id="side-next"><div class="chead"><h2>${isLive ? "Als Nächstes" : "Immer im Blick"}</h2><span class="hint">${meta.label}</span></div><div class="cbody">${alwaysHtml(plan, key, ctx)}</div></section>
         <div class="hsplit" data-split="hand" role="separator" aria-orientation="horizontal" aria-label="Höhe von Dienst und Übergabe – ziehen oder Pfeiltasten, Doppelklick setzt zurück" tabindex="0" title="Ziehen zum Anpassen · Doppelklick = Standard"></div>
         <section class="card hand"><div class="chead"><h2>Dienst &amp; Übergabe</h2></div><div class="cbody">${dutyLine(state.date)}${handoverHtml(key)}</div></section>
-      </div>
+      </div>`}
     </div>${state.remPop ? remPopHtml() : ""}${state.adjPop ? adjPopHtml() : ""}`;
   }
 

@@ -184,6 +184,16 @@ srv.listen(0, async () => {
   await q(p, ".tlrdone").click(); await step(200);
   check(nd >= 1 && await q(p, ".tllane .tlrchip.own.done").count() === 0, "Erinnerung: erledigte nur nach Klick auf „erledigte“ sichtbar");
 
+  // Heute ohne rechte Spalte (ab 1.27): Rundgänge im Erinnerungs-Bereich, Pflicht vor Schluss, Übergabe unten rechts
+  check(await q(p, "#side-next").count() === 0 && await q(p, ".hdock [data-noteedit]").count() === 1 && await q(p, "#tl-confirm").count() === 1, "Heute: keine rechte Spalte, Pflicht-Kasten und Übergabe unten rechts");
+  const rh0 = q(p, ".tlrchip.rh").first();
+  if (await rh0.count()) {
+    const name = (await rh0.innerText()).replace(/^\S+\s*/, "").slice(0, 12), at0 = +(await rh0.getAttribute("data-at"));
+    await rh0.locator("[data-log]").click(); await step(200);
+    const rh1 = q(p, ".tlrchip.rh").filter({ hasText: name });
+    check(await rh1.count() === 0 || +(await rh1.first().getAttribute("data-at")) > at0, "Heute: Rundgang abhaken rückt den nächsten Termin nach");
+  } else check(false, "Heute: Rundgang-Karte im Erinnerungs-Bereich fehlt");
+
   // Kopfzeile ab 1.26: Datum unter der Uhr öffnet den eigenen Kalender direkt darunter, anderer Tag = orange mit ↩ Heute
   check(/^\w+, \d\d\.\d\d\.$/.test(await q(p, "#datelabel").innerText()) && await q(p, "#dnmore").isHidden(), "Kopf: Datum mit Wochentag, heute ohne Pfeile");
   await q(p, "#datebtn").click(); await step(100);

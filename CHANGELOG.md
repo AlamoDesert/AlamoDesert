@@ -2,6 +2,14 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.27.0 – 25.11.2026
+- Schicht heute ohne rechte Spalte: Der Fahrplan nutzt die volle Breite, alles steht nach Uhrzeit im Tagesablauf.
+- Rundgänge im Takt stehen grün im Erinnerungs-Bereich mit ihrer nächsten Uhrzeit (Kreislauf-Zeichen auf der Zeitlinie). Abhaken trägt ein und rückt die Karte zur nächsten Zeit, ↶ nimmt den letzten Eintrag zurück; fällig orange, überfällig rot.
+- Pflicht vor Schichtende steht als Kasten 30 Min. vor Schluss im Tagesablauf.
+- Hinweise („Im Blick behalten“) hinter dem Knopf „ⓘ n Hinweise“ im Kopf des Fahrplans.
+- Übergabe unten rechts im Fahrplan: „Übergabe von Früh/Spät“ öffnet die Nachricht jederzeit wieder (mit „neu“, solange ungelesen), daneben „Übergabe schreiben“ bzw. „bearbeiten“. Die Leiste oben verschwindet nach „Gelesen“. Die Zeile „Dienst Früh/Spät“ entfällt.
+- Andere Tage behalten die bisherige Ansicht mit rechter Spalte.
+
 ## 1.26.2 – 25.11.2026
 - Oben links steht das ganze padel-amigos-Logo mit Schriftzug (Graublau). In schmalen Fenstern unter 1100 px nur das Zeichen, damit die Kopfzeile in eine Zeile passt.
 
