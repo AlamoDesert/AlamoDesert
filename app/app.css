@@ -832,3 +832,10 @@ ul.items.tlown li.ownrem { border-top: 0 }
 .edphase.off { opacity: .6 }
 .edphase.off .ttl { text-decoration: line-through }
 .ancb.offb { color: var(--muted) }
+
+/* 1.24.2 Erledigte eigene Erinnerungen im Bereich rechts: grau, abgehakt */
+.tlrchip.own.done { border-color: var(--line); background: var(--surface-2); color: var(--muted) }
+.tlrchip.own.done .rtxt { text-decoration: line-through } .tlrchip.own.done .rtxt b { color: var(--muted) }
+.tlrchip.own.done .rcheck .box { background: var(--done); border-color: var(--done) }
+.tlrchip.own.done .rcheck .box svg { opacity: 1 }
+.tlbell.done { background: var(--surface-2); border-color: var(--line); color: var(--muted) } .tlconn.done { border-top-color: var(--line) }

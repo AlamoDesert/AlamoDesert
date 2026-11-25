@@ -2,6 +2,9 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.24.2 – 25.11.2026
+- Erledigte eigene Erinnerungen bleiben im Erinnerungs-Bereich rechts an ihrer Uhrzeit stehen – abgehakt, grau und durchgestrichen, Glocke grau. Haken antippen öffnet sie wieder. Die Zeile „✓ … erledigt“ links zählt nur noch Abschnitte.
+
 ## 1.24.1 – 25.11.2026
 - Fehler behoben: „Neue Erinnerung“ zeigte beim zweiten Öffnen den Text der vorigen Erinnerung. Das Feld ist jetzt immer leer.
 - Aufgaben-Plan: Im Fenster „Abschnitt bearbeiten“ lässt sich die Schicht wählen – der Abschnitt wandert samt Aufgaben von Früh nach Spät oder umgekehrt.

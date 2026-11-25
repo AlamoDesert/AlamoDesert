@@ -1595,15 +1595,13 @@ export function mount(container, opts = {}) {
     ev.push({ m: S, ord: 0, html: boundRow("start", "Beginn", s.start, lv.sSrc) });
     // Erledigtes: eine Zeile „✓ n Abschnitte erledigt“, aufgeklappt je Abschnitt eine kleine Zeile.
     const doneL = sts.filter(x => x.st === "done" && !flagged(x.p));
-    // Eigene Erinnerungen stehen als eigene Zeilen an ihrer Uhrzeit; erledigte kommen mit in die Erledigt-Zeile.
+    // Eigene Erinnerungen (offen und erledigt) stehen im Bereich rechts; die Erledigt-Zeile zählt nur Abschnitte.
     const canRem = !state.readOnly;
     const own = Object.entries(state.rem).filter(([, r]) => r.shift === key);
-    const ownDone = own.filter(([, r]) => r.done);
-    const ownRow = ([id, r], tone, cls = "") => tlRow(r.at, tone, `<ul class="items tlown">${remHtml(id, r, canRem)}</ul>`, cls);
-    if (doneL.length || ownDone.length) {
-      const open = state.expanded.has("_done"), n = doneL.length, k = ownDone.length;
-      const parts = [n ? `${n} ${n === 1 ? "Abschnitt" : "Abschnitte"}` : "", k ? `${k} ${k === 1 ? "Erinnerung" : "Erinnerungen"}` : ""].filter(Boolean).join(" · ");
-      const m0 = Math.min(...doneL.map(x => toMin(x.p.from)), ...ownDone.map(([, r]) => toMin(r.at)));
+    if (doneL.length) {
+      const open = state.expanded.has("_done"), n = doneL.length;
+      const parts = `${n} ${n === 1 ? "Abschnitt" : "Abschnitte"}`;
+      const m0 = Math.min(...doneL.map(x => toMin(x.p.from)));
       // Die Erledigt-Zeile ist nur ein Punkt (e = m): sonst „fängt“ sie die mitlaufende Uhrzeit über ihren ganzen Zeitraum.
       ev.push({ m: m0, e: m0, ord: 1, html: tlRow(fmtMin(m0), "done",
         `<button class="tldone" data-toggle="_done" aria-expanded="${open}">✓ ${parts} erledigt <span aria-hidden="true">${open ? "‹" : "›"}</span></button>`, " small") });
@@ -1611,7 +1609,6 @@ export function mount(container, opts = {}) {
         ev.push({ m: toMin(p.from), e: toMin(p.to), ord: 2, html: state.expanded.has(p.id) ? tlRow(p.from, "done", stopHtml(p, true)) :
           tlRow(p.from, "done", `<button class="tlsmall" data-toggle="${esc(p.id)}" aria-expanded="false">✓ ${esc(p.title)} <span>· ${p.items.length}/${p.items.length}</span></button>`, " small") });
       }
-      if (open) for (const x of ownDone) ev.push({ m: toMin(x[1].at), ord: 2, html: ownRow(x, "done", " small") });
     }
     for (const { p, st } of sts) {
       if (st === "done" && !flagged(p)) continue;
@@ -1625,15 +1622,15 @@ export function mount(container, opts = {}) {
     // dazu eine Glocke auf der Zeitlinie und eine gepunktete Verbindung. Offene eigene Erinnerungen und offene Aufgaben mit Uhrzeit.
     const short = (t) => esc(t.length > 80 ? t.slice(0, 79) + "…" : t);
     const lane = [];
-    for (const [id, r] of own) if (!r.done) lane.push({ m: toMin(r.at), html: `<div class="tlrchip own${toMin(r.at) <= ctx ? " due" : ""}" data-at="${toMin(r.at)}">
-        <button class="rcheck" data-remcheck="${esc(id)}" aria-pressed="false" aria-label="${esc(r.t)} erledigt" ${canRem ? "" : "disabled"}><span class="box">${CHECK_SVG}</span></button>
+    for (const [id, r] of own) lane.push({ m: toMin(r.at), done: !!r.done, html: `<div class="tlrchip own${r.done ? " done" : toMin(r.at) <= ctx ? " due" : ""}" data-at="${toMin(r.at)}">
+        <button class="rcheck" data-remcheck="${esc(id)}" aria-pressed="${!!r.done}" aria-label="${esc(r.t)} ${r.done ? "wieder öffnen" : "erledigt"}" ${canRem ? "" : "disabled"}><span class="box">${CHECK_SVG}</span></button>
         <span class="rtxt"><b>${esc(r.at)}</b> ${short(r.t)}</span>${canRem ? `<button class="rdel" data-remdel="${esc(id)}" aria-label="Erinnerung löschen">×</button>` : ""}</div>` });
     for (const { p } of sts) for (const i of p.items) if (i.remind && !state.checks[i.id]) lane.push({ m: toMin(i.remind), html: `<div class="tlrchip item${toMin(i.remind) <= ctx ? " due" : ""}" data-at="${toMin(i.remind)}">
         <button class="rjump" data-jump="phase-${esc(p.id)}" title="Aufgabe im Abschnitt ${esc(p.title)}">${BELL_SVG}<span class="rtxt"><b>${esc(i.remind)}</b> ${short(i.t)}</span></button></div>` });
     lane.sort((x, y) => x.m - y.m);
     laneHtml = !lane.length ? "" : `<div class="tlsplit" data-split="remw" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Breite der Erinnerungen – ziehen oder Pfeiltasten, Doppelklick = Standard" title="Ziehen zum Verschieben · Doppelklick = Standard"></div>
       <div class="tllane"><span class="tllane-h">Erinnerungen</span>${lane.map(x => x.html).join("")}</div>
-      ${lane.map(x => `<span class="tlbell" data-at="${x.m}" aria-hidden="true">${BELL_SVG}</span><span class="tlconn" data-at="${x.m}" aria-hidden="true"></span>`).join("")}`;
+      ${lane.map(x => `<span class="tlbell${x.done ? " done" : ""}" data-at="${x.m}" aria-hidden="true">${BELL_SVG}</span><span class="tlconn${x.done ? " done" : ""}" data-at="${x.m}" aria-hidden="true"></span>`).join("")}`;
     const sun = sunsetMin(state.date);
     if (sun != null && sun >= S - 60 && sun <= E) ev.push({ m: sun, ord: 5, html: tlRow(fmtMin(sun), "sun", `<span class="tlsun" title="Sonnenuntergang in ${esc(locOf().name)}">${SUN_SVG}Sonnenuntergang</span>`, " small") });
     ev.push({ m: E, ord: 9, html: boundRow("end", "Schluss", s.end, lv.eSrc) });
