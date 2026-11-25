@@ -2,6 +2,9 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.27.9 – 25.11.2026
+- Feierabend- und Anmeldebildschirm zeigen oben links das padel-amigos-Logo groß (statt „Rezeption“), rechts Uhrzeit mit Datum darunter.
+
 ## 1.27.8 – 25.11.2026
 - Das Zeichen ↶ („letzten Eintrag zurücknehmen“) ist überall entfernt – bei Rundgängen im Erinnerungs-Bereich und in der Liste an anderen Tagen. Pflicht-Punkte nimmt man über den Haken zurück.
 

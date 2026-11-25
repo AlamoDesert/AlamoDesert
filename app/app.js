@@ -2861,7 +2861,7 @@ export function mount(container, opts = {}) {
     const checked = people.filter(p => openEntry(today, p.id));
     const inSched = people.filter(p => sched.includes(p.id) && !checked.includes(p)), others = people.filter(p => !sched.includes(p.id) && !checked.includes(p));
     const login = state.pickerMode === "login", bye = login && !state.byeSeen ? byeInfo() : null;
-    const d = new Date(), brand = login ? `<div class="mhead"><div class="brand">Rezeption<small>${WD[d.getDay()]}, ${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}</small></div><div class="clock" id="mk-clock">${fmtMin(nowMin())}</div></div>` : "";
+    const d = new Date(), brand = login ? `<div class="mhead"><span class="logo lg" role="img" aria-label="padel amigos"></span><div class="mclock"><div class="clock" id="mk-clock">${fmtMin(nowMin())}</div><span class="mdate">${WD[d.getDay()]}, ${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}</span></div></div>` : "";
     el.hidden = false;
     if (bye) {
       el.innerHTML = `<div class="overlay" role="dialog" aria-modal="true" aria-labelledby="bye-title">${brand}<div class="dialog bye">
