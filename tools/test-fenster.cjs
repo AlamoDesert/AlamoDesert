@@ -190,7 +190,8 @@ srv.listen(0, async () => {
   // Heute ohne rechte Spalte (ab 1.27): Rundgänge im Erinnerungs-Bereich, Pflicht vor Schluss, Übergabe unten rechts
   check(await q(p, "#side-next").count() === 0 && await q(p, ".hdock [data-noteedit]").count() === 1 && await q(p, "#pinbar .pin").count() >= 1 && await q(p, "#tl-confirm").count() === 0, "Heute: keine rechte Spalte, Pflicht als Leiste oben, Übergabe unten rechts");
   const pin0 = q(p, "#pinbar .pin.open .pintap, #pinbar .pin.soon .pintap").first();
-  if (await pin0.count()) { await pin0.click(); await step(200); check(await q(p, "#pinbar .pin.ok").count() >= 1 && await q(p, "#pinbar .pinundo").count() >= 1, "Heute: Pflicht in der Leiste bestätigen"); await q(p, "#pinbar .pinundo").first().click(); await step(200); }
+  if (await pin0.count()) { await pin0.click(); await step(200); const okN = await q(p, "#pinbar .pin.ok").count(); await q(p, "#pinbar .pin.ok .pintap").first().click(); await step(200);
+    check(okN >= 1 && await q(p, "#pinbar .pin.ok").count() === okN - 1 && await q(p, "#pinbar .pinundo").count() === 0, "Heute: Pflicht in der Leiste bestätigen und per Haken zurücknehmen"); }
   const rh0 = q(p, ".tlrchip.rh").first();
   if (await rh0.count()) {
     const name = (await rh0.innerText()).replace(/^\S+\s*/, "").slice(0, 12), at0 = +(await rh0.getAttribute("data-at"));

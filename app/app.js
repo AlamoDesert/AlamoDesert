@@ -1783,14 +1783,14 @@ export function mount(container, opts = {}) {
     const hintOpen = state.sideOpen.has("hint");
     const hintBtn = isLive && hints.length ? `<button class="btn sm hintbtn" data-sideopen="hint" aria-expanded="${hintOpen}" title="Hinweise für diese Schicht">ⓘ ${hints.length} ${hints.length === 1 ? "Hinweis" : "Hinweise"}</button>` : "";
     // Pflicht (ab 1.27.1): den ganzen Tag sichtbar als Leiste oben im Fahrplan – kleine Felder zum Bestätigen.
-    // Offen neutral, in den letzten 30 Min. orange, nach „Zurück zur Schicht“ rot; bestätigt grün mit Haken (↶ nimmt zurück); „ab …“ gestrichelt.
+    // Offen neutral, in den letzten 30 Min. orange, nach „Zurück zur Schicht“ rot; bestätigt grün mit Haken (Haken erneut antippen nimmt zurück); „ab …“ gestrichelt.
     const pins = !isLive ? [] : plan.always[key].filter(a => a.kind === "confirm").map(a => {
       const st = confirmState(key, a, ctx), canLog = !state.readOnly;
       const soon = !st.ok && !st.later && toMin(s.end) - ctx <= 30, flag = !st.ok && !st.later && state.coFlag === key;
       const cls = st.ok ? "ok" : st.later ? "later" : flag ? "flag" : soon ? "soon" : "open";
       const who = st.ok && st.last ? personName(st.last.by) : "";
       const tip = st.ok ? `bestätigt${who ? " von " + who : ""}` : st.later ? `ab ${a.from} fällig` : st.again ? `ab ${a.from} bitte erneut bestätigen` : "vor Schichtende bestätigen";
-      return `<span class="pin ${cls}${a.important ? " important" : ""}"><button class="pintap" data-log="${esc(a.id)}" data-shift="${key}" ${canLog && !st.ok ? "" : "disabled"} title="${esc(tip)}${a.s ? " · " + esc(a.s) : ""}"><span class="box" aria-hidden="true">${CHECK_SVG}</span>${esc(a.t)}${st.later ? ` <small>ab ${esc(a.from)}</small>` : ""}</button>${st.ok && canLog ? `<button class="pinundo" data-unlog="${esc(a.id)}" data-shift="${key}" aria-label="Bestätigung zurücknehmen" title="Bestätigung zurücknehmen">↶</button>` : ""}</span>`;
+      return `<span class="pin ${cls}${a.important ? " important" : ""}"><button class="pintap" ${st.ok ? "data-unlog" : "data-log"}="${esc(a.id)}" data-shift="${key}" aria-pressed="${!!st.ok}" ${canLog ? "" : "disabled"} title="${esc(tip)}${a.s ? " · " + esc(a.s) : ""}${st.ok ? " – Haken antippen nimmt zurück" : ""}"><span class="box" aria-hidden="true">${CHECK_SVG}</span>${esc(a.t)}${st.later ? ` <small>ab ${esc(a.from)}</small>` : ""}</button></span>`;
     });
     const pinOk = pins.filter(x => x.includes('class="pin ok')).length;
     const pinBar = pins.length ? `<div class="pinbar" id="pinbar"><span class="pinlbl">Den ganzen Tag · ${pinOk}/${pins.length}</span>${pins.join("")}</div>` : "";

@@ -2,6 +2,9 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.27.3 – 25.11.2026
+- Leiste „Den ganzen Tag“: Bestätigen und Zurücknehmen über denselben Haken. Das Zeichen ↶ rechts entfällt.
+
 ## 1.27.2 – 25.11.2026
 - Heute zeigt der Fahrplan nicht mehr an, wie viele Aufgaben die andere Schicht offen gelassen hat (Feld „Früh: n offen“ und rote Leiste für die Leitung entfallen). Im Rückblick auf vergangene Tage bleibt der Hinweis.
 
