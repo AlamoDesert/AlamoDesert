@@ -41,12 +41,21 @@ srv.listen(0, async () => {
   await q(p, "[data-remadd]").click(); await q(p, "#rp-t").fill("Erste"); await step(31000);
   const bb = await q(p, "#rempop button[type=submit]").boundingBox();
   await p.mouse.move(bb.x + 20, bb.y + 10); await p.mouse.down(); await step(); await p.mouse.up(); await step(300);
-  check(await q(p, "#rempop").count() === 0 && await q(p, "li.ownrem").count() === 1, "Erinnerung: Speichern trotz Neuzeichnen");
+  check(await q(p, "#rempop").count() === 0 && await q(p, ".tlrchip.own").count() === 1, "Erinnerung: Speichern trotz Neuzeichnen");
   await q(p, "[data-remadd]").click(); await q(p, "#rp-t").fill("Zweite"); await q(p, "#rp-t").press("Enter"); await step(300);
-  check(await q(p, "#rempop").count() === 0 && await q(p, "li.ownrem").count() === 2, "Erinnerung: Enter speichert und schließt");
-  check(await q(p, ".tl .tlrow ul.tlown li.ownrem").count() === 2 && await q(p, "#phase-own").count() === 0, "Erinnerung: steht im Tagesablauf an ihrer Uhrzeit");
+  check(await q(p, "#rempop").count() === 0 && await q(p, ".tlrchip.own").count() === 2, "Erinnerung: Enter speichert und schließt");
+  check(await q(p, ".tllane .tlrchip.own").count() === 2 && await q(p, "#phase-own").count() === 0, "Erinnerung: eigener Bereich rechts im Tagesablauf");
   await q(p, "[data-remadd]").click(); await q(p, "#rp-t").fill("Dritte"); await q(p, "#rp-at").fill("16:20"); await q(p, "#rp-t").press("Enter"); await step(300);
-  check(await q(p, "#phase-start li.ownrem").filter({ hasText: "Dritte" }).count() === 1, "Erinnerung: fällt in einen Abschnitt und steht darin");
+  // Zeitgenau: 16:20 liegt im Abschnitt 16:00–16:30 → Glocke bei ca. zwei Dritteln seiner Höhe, Karte rechts daneben
+  const sec = await p.locator("#rz-host .tlrow").filter({ has: p.locator("#phase-start") }).boundingBox();
+  const bell = await q(p, '.tlbell[data-at="980"]').boundingBox(), chip = await q(p, ".tlrchip").filter({ hasText: "Dritte" }).boundingBox();
+  const rel = bell && sec ? (bell.y + bell.height / 2 - sec.y) / sec.height : -1;
+  check(rel > 0.55 && rel < 0.8 && chip && Math.abs((chip.y + chip.height / 2) - (bell.y + bell.height / 2)) < 30 && chip.x > sec.x + sec.width - 300, "Erinnerung: Glocke und Karte stehen auf der Höhe ihrer Uhrzeit (" + rel.toFixed(2) + ")");
+  // Trennlinie verschieben: 80 px nach links → Bereich breiter, gespeichert
+  const sp = await q(p, ".tlsplit").boundingBox();
+  await p.mouse.move(sp.x + 6, sp.y + 40); await p.mouse.down(); await p.mouse.move(sp.x - 74, sp.y + 40, { steps: 4 }); await p.mouse.up(); await step(300);
+  const lw = await p.evaluate(() => { const l = JSON.parse(localStorage.getItem("rz2layout") || "{}"); return (l.pa || l._ || {}).remw; });
+  check(lw >= 310 && lw <= 350, "Erinnerung: Trennlinie verschiebbar, Breite gespeichert (" + lw + ")");
 
   // Flexible Zeiten: Beginn aus dem Einchecken, Schluss heute ändern, Sonnenuntergang
   const bTxt = await q(p, ".tlrow.is-bound").first().innerText();

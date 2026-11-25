@@ -1588,6 +1588,7 @@ export function mount(container, opts = {}) {
       return tlRow(`${esc(t)}`, "bound", `<b>${label}</b><span class="tlsrc${src === "adj" ? " adj" : ""}">${esc(info)}</span>${canAdj ? `<button class="tladj" data-adj="${key}:${w}" aria-label="${label} ca. ${esc(t)} ändern">ändern</button>` : ""}`);
     };
     const flagged = (p) => state.coFlag === key && p.items.some(i => !state.checks[i.id]);
+    let laneHtml = "";
     const ev = [];   // { m, ord, html } – sortiert nach Uhrzeit, ord entscheidet bei Gleichstand
     const S = toMin(s.start), E = toMin(s.end);
     ev.push({ m: S, ord: 0, html: boundRow("start", "Beginn", s.start, lv.sSrc) });
@@ -1611,60 +1612,65 @@ export function mount(container, opts = {}) {
       }
       if (open) for (const x of ownDone) ev.push({ m: toMin(x[1].at), ord: 2, html: ownRow(x, "done", " small") });
     }
-    // Offene eigene Erinnerungen, die in die Zeit eines noch offenen Abschnitts fallen, kommen in diesen Abschnitt
-    // (bei Überschneidung der zuletzt begonnene). Ist der Abschnitt erledigt, stehen sie wieder als eigene Zeile.
-    const inPhase = new Map(), placed = new Set();
-    for (const x of own) {
-      if (x[1].done) continue;
-      const at = toMin(x[1].at);
-      const host = sts.filter(({ p, st }) => (st !== "done" || flagged(p)) && toMin(p.from) <= at && at < toMin(p.to)).pop();
-      if (host) { (inPhase.get(host.p.id) || inPhase.set(host.p.id, []).get(host.p.id)).push(x); placed.add(x[0]); }
-    }
     for (const { p, st } of sts) {
       if (st === "done" && !flagged(p)) continue;
-      const rems = (inPhase.get(p.id) || []).sort((a, b) => a[1].at.localeCompare(b[1].at)), nr = rems.length;
       const soon = st === "now" && isSoon(p, ctx);
       const ahead = st === "later" && toMin(p.from) - ctx <= OPEN_AHEAD;
       const tone = st === "now" ? (soon ? "soon" : "now") : st;
-      if (st === "now" || st === "late" || flagged(p) || ahead || state.expanded.has(p.id)) ev.push({ m: toMin(p.from), e: toMin(p.to), ord: 3, html: tlRow(p.from, tone, stopHtml(p, ahead, rems)) });
-      else ev.push({ m: toMin(p.from), e: toMin(p.to), ord: 3, html: tlRow(p.from, "later", `<button class="tllater" data-toggle="${esc(p.id)}" aria-expanded="false"><b>${esc(p.title)}</b> <span>· ${p.items.length} ${p.items.length === 1 ? "Aufgabe" : "Aufgaben"}${nr ? ` · ${nr} ${nr === 1 ? "Erinnerung" : "Erinnerungen"}` : ""} ›</span></button>`) });
+      if (st === "now" || st === "late" || flagged(p) || ahead || state.expanded.has(p.id)) ev.push({ m: toMin(p.from), e: toMin(p.to), ord: 3, html: tlRow(p.from, tone, stopHtml(p, ahead)) });
+      else ev.push({ m: toMin(p.from), e: toMin(p.to), ord: 3, html: tlRow(p.from, "later", `<button class="tllater" data-toggle="${esc(p.id)}" aria-expanded="false"><b>${esc(p.title)}</b> <span>· ${p.items.length} ${p.items.length === 1 ? "Aufgabe" : "Aufgaben"} ›</span></button>`) });
     }
-    // Erinnerungen ab jetzt (Aufgaben mit Uhrzeit und eigene) an ihrer Uhrzeit
-    const short = (t) => esc(t.length > 48 ? t.slice(0, 47) + "…" : t);
-    for (const { p } of sts) for (const i of p.items) if (i.remind && !state.checks[i.id] && toMin(i.remind) >= ctx)
-      ev.push({ m: toMin(i.remind), ord: 4, html: tlRow(i.remind, "rem", `<button class="tlrem" data-jump="phase-${esc(p.id)}">${BELL_SVG}${short(i.t)}</button>`) });
-    for (const x of own) if (!x[1].done && !placed.has(x[0])) ev.push({ m: toMin(x[1].at), ord: 4, html: ownRow(x, toMin(x[1].at) <= ctx ? "soon" : "rem") });
+    // Erinnerungen (ab 1.24): eigener Bereich rechts neben den Blöcken. Jede steht auf der Höhe ihrer Uhrzeit (placeNow),
+    // dazu eine Glocke auf der Zeitlinie und eine gepunktete Verbindung. Offene eigene Erinnerungen und offene Aufgaben mit Uhrzeit.
+    const short = (t) => esc(t.length > 80 ? t.slice(0, 79) + "…" : t);
+    const lane = [];
+    for (const [id, r] of own) if (!r.done) lane.push({ m: toMin(r.at), html: `<div class="tlrchip own${toMin(r.at) <= ctx ? " due" : ""}" data-at="${toMin(r.at)}">
+        <button class="rcheck" data-remcheck="${esc(id)}" aria-pressed="false" aria-label="${esc(r.t)} erledigt" ${canRem ? "" : "disabled"}><span class="box">${CHECK_SVG}</span></button>
+        <span class="rtxt"><b>${esc(r.at)}</b> ${short(r.t)}</span>${canRem ? `<button class="rdel" data-remdel="${esc(id)}" aria-label="Erinnerung löschen">×</button>` : ""}</div>` });
+    for (const { p } of sts) for (const i of p.items) if (i.remind && !state.checks[i.id]) lane.push({ m: toMin(i.remind), html: `<div class="tlrchip item${toMin(i.remind) <= ctx ? " due" : ""}" data-at="${toMin(i.remind)}">
+        <button class="rjump" data-jump="phase-${esc(p.id)}" title="Aufgabe im Abschnitt ${esc(p.title)}">${BELL_SVG}<span class="rtxt"><b>${esc(i.remind)}</b> ${short(i.t)}</span></button></div>` });
+    lane.sort((x, y) => x.m - y.m);
+    laneHtml = !lane.length ? "" : `<div class="tlsplit" data-split="remw" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Breite der Erinnerungen – ziehen oder Pfeiltasten, Doppelklick = Standard" title="Ziehen zum Verschieben · Doppelklick = Standard"></div>
+      <div class="tllane"><span class="tllane-h">Erinnerungen</span>${lane.map(x => x.html).join("")}</div>
+      ${lane.map(x => `<span class="tlbell" data-at="${x.m}" aria-hidden="true">${BELL_SVG}</span><span class="tlconn" data-at="${x.m}" aria-hidden="true"></span>`).join("")}`;
     const sun = sunsetMin(state.date);
     if (sun != null && sun >= S - 60 && sun <= E) ev.push({ m: sun, ord: 5, html: tlRow(fmtMin(sun), "sun", `<span class="tlsun" title="Sonnenuntergang in ${esc(locOf().name)}">${SUN_SVG}Sonnenuntergang</span>`, " small") });
     ev.push({ m: E, ord: 9, html: boundRow("end", "Schluss", s.end, lv.eSrc) });
     ev.sort((x, y) => (x.m - y.m) || (x.ord - y.ord));
     // Zeitspanne jeder Zeile als data-m/data-e (Ende = e, sonst m) – placeNow setzt daraus die mitlaufende Uhrzeit.
     const withSpan = (x) => x.html.replace('<div class="tlrow', `<div data-m="${x.m}" data-e="${x.e != null ? x.e : x.m}" class="tlrow`);
-    return `<div class="tl">${ev.map(withSpan).join("")}<div class="tlnowline" id="tl-nowline" aria-hidden="true"></div><div class="tlnow" id="tl-now" role="img" aria-label="Jetzt ${fmtMin(ctx)}"><b>${fmtMin(ctx)}</b></div></div>`;
+    return `<div class="tl${laneHtml ? " has-lane" : ""}" style="--remw:${getLayout().remw}px">${ev.map(withSpan).join("")}${laneHtml}<div class="tlnowline" id="tl-nowline" aria-hidden="true"></div><div class="tlnow" id="tl-now" role="img" aria-label="Jetzt ${fmtMin(ctx)}"><b>${fmtMin(ctx)}</b></div></div>`;
   }
   // Sprung aus dem Tagesablauf oder „Als Nächstes“: Abschnitt öffnen (falls eingeklappt), hinscrollen, kurz hervorheben.
   // Mitlaufende Uhrzeit links am Tagesablauf: liegt „jetzt“ in einer Zeile (Abschnitt von–bis), steht die Marke anteilig darin,
   // sonst anteilig in der Lücke zwischen der letzten vergangenen und der nächsten Zeile. Läuft auch, während render() wartet.
+  // Höhe einer Uhrzeit (Minuten) im Tagesablauf: im Abschnitt anteilig, sonst anteilig in der Lücke zwischen den Zeilen.
+  // Danach richten sich die mitlaufende Uhrzeit und die Erinnerungen (Glocke, Verbindung, Karte rechts) – alles nach derselben Rechnung.
   function placeNow() {
     const tl = root.querySelector(".tl"), mk = tl && tl.querySelector("#tl-now"), ln = tl && tl.querySelector("#tl-nowline");
     if (!mk) return;
-    const ctx = nowMin(), rows = [...tl.querySelectorAll(":scope > .tlrow[data-m]")].map(el => ({ el, m: +el.dataset.m, e: +el.dataset.e, top: el.offsetTop, h: el.offsetHeight }));
+    const rows = [...tl.querySelectorAll(":scope > .tlrow[data-m]")].map(el => ({ el, m: +el.dataset.m, e: +el.dataset.e, top: el.offsetTop, h: el.offsetHeight }));
     if (!rows.length) return;
-    let y;
-    const inside = rows.filter(r => r.e > r.m && r.m <= ctx && ctx < r.e).pop();
-    if (inside) y = inside.top + inside.h * (ctx - inside.m) / (inside.e - inside.m);
-    else {
+    const yAt = (ctx) => {
+      const inside = rows.filter(r => r.e > r.m && r.m <= ctx && ctx < r.e).pop();
+      if (inside) return inside.top + inside.h * (ctx - inside.m) / (inside.e - inside.m);
       const prev = rows.filter(r => r.m <= ctx).pop(), next = rows.find(r => r.m > ctx);
-      if (!prev) y = next.top;
-      else if (!next) y = prev.top + prev.h;
-      else {
-        const from = Math.max(prev.e, prev.m), a = prev.top + prev.h, span = next.m - from;
-        y = a + (next.top - a) * (span > 0 ? Math.min(1, Math.max(0, (ctx - from) / span)) : 0.5);
-      }
-    }
-    const t = fmtMin(ctx), b = mk.querySelector("b");
+      if (!prev) return next.top;
+      if (!next) return prev.top + prev.h;
+      const from = Math.max(prev.e, prev.m), a = prev.top + prev.h, span = next.m - from;
+      return a + (next.top - a) * (span > 0 ? Math.min(1, Math.max(0, (ctx - from) / span)) : 0.5);
+    };
+    const ctx = nowMin(), y = yAt(ctx), t = fmtMin(ctx), b = mk.querySelector("b");
     if (b && b.textContent !== t) { b.textContent = t; mk.setAttribute("aria-label", "Jetzt " + t); }
     mk.style.top = ln.style.top = Math.round(y) + "px";
+    // Erinnerungen: Glocke + Verbindung genau auf der Uhrzeit; die Karten rechts so nah wie möglich daran, ohne sich zu überdecken.
+    for (const el of tl.querySelectorAll(".tlbell, .tlconn")) el.style.top = Math.round(yAt(+el.dataset.at)) + "px";
+    let low = 0; const head = tl.querySelector(".tllane-h"); if (head) low = head.offsetHeight + 4;
+    for (const c of tl.querySelectorAll(".tlrchip")) {
+      const want = yAt(+c.dataset.at) - c.offsetHeight / 2, top = Math.max(want, low);
+      c.style.top = Math.round(top) + "px"; low = top + c.offsetHeight + 6;
+    }
+    tl.style.minHeight = low > 0 ? Math.round(low + 8) + "px" : "";
   }
   function jumpTo(id) {
     if (id.startsWith("phase-") && id !== "phase-own") {
@@ -1682,7 +1688,7 @@ export function mount(container, opts = {}) {
     const auto = role || focusShift(plan, ctx), key = role || state.shiftSel || auto, s = plan[key], meta = SHIFT_META[key];
     const MARK = { done: "✓", now: "▶", late: "!", later: "" };
     const isToday = state.date === isoDate(new Date()), canRem = isToday && !state.readOnly;
-    const stopHtml = (p, forceOpen = false, rems = []) => {
+    const stopHtml = (p, forceOpen = false) => {
       const st = phaseState(p, ctx), soon = st === "now" && isSoon(p, ctx);
       const done = p.items.filter(i => state.checks[i.id]).length;
       // Übersicht: offen sind nur der laufende und überfällige Abschnitte (und nach „Zurück zur Schicht“ alle mit offenen Punkten);
@@ -1697,10 +1703,7 @@ export function mount(container, opts = {}) {
         ? `<button class="stop-head" data-toggle="${esc(p.id)}" aria-expanded="${!collapsed}" aria-label="${esc(p.title)}, ${label}, ${collapsed ? "aufklappen" : "zuklappen"}">${head}</button>`
         : `<div class="stop-head">${head}</div>`;
       const hint = p.hint && (st === "now" || st === "late") ? `<div class="phint">${esc(p.hint)}</div>` : "";
-      // Eigene Erinnerungen in der Zeit des Abschnitts stehen nach den offenen Aufgaben, vor den erledigten.
-      const sorted = [...p.items].sort((x, y) => (state.checks[x.id] ? 1 : 0) - (state.checks[y.id] ? 1 : 0)), nOpen = sorted.filter(i => !state.checks[i.id]).length;
-      const remLis = rems.map(([id, r]) => remHtml(id, r, !state.readOnly)).join("");
-      const items = collapsed ? "" : `<ul class="items">${sorted.slice(0, nOpen).map(i => itemHtml(d.item[i.id])).join("")}${remLis}${sorted.slice(nOpen).map(i => itemHtml(d.item[i.id])).join("")}${!p.items.length && !rems.length ? '<li class="empty">Keine Aufgaben.</li>' : ""}</ul>`;
+      const items = collapsed ? "" : `<ul class="items">${[...p.items].sort((x, y) => (state.checks[x.id] ? 1 : 0) - (state.checks[y.id] ? 1 : 0)).map(i => itemHtml(d.item[i.id])).join("") || '<li class="empty">Keine Aufgaben.</li>'}</ul>`;
       return `<section class="stop is-${st}${soon ? " soon" : ""}" id="phase-${esc(p.id)}">${headEl}${hint}${items}</section>`;
     };
     const noPhases = `<div class="empty">Für diese Schicht sind keine Abschnitte geplant (Verwaltung › Aufgaben-Plan).</div>`;
@@ -1762,7 +1765,8 @@ export function mount(container, opts = {}) {
 
   // Breite der rechten Spalte und Höhe von „Dienst & Übergabe“, gespeichert pro Person (sonst „Standard“) im Browser-Speicher des Geräts.
   // hand = Höhe der Karte „Dienst & Übergabe“ in px, null = so hoch wie der Inhalt.
-  const LAYOUT_DEFAULT = { side: 420, hand: null, rem: null };
+  const LAYOUT_DEFAULT = { side: 420, hand: null, rem: null, remw: 250 };
+  const clampRemw = (v) => Math.min(600, Math.max(160, Math.round(v)));
   const clampSide = (v) => Math.min(900, Math.max(280, Math.round(v)));
   const clampHand = (v) => Math.min(1200, Math.max(120, Math.round(v)));
   const clampRem = (v) => Math.min(1200, Math.max(70, Math.round(v)));
@@ -1773,6 +1777,7 @@ export function mount(container, opts = {}) {
       side: Number.isFinite(l.side) ? clampSide(l.side) : LAYOUT_DEFAULT.side,
       hand: Number.isFinite(l.hand) ? clampHand(l.hand) : LAYOUT_DEFAULT.hand,
       rem: Number.isFinite(l.rem) ? clampRem(l.rem) : LAYOUT_DEFAULT.rem,
+      remw: Number.isFinite(l.remw) ? clampRemw(l.remw) : LAYOUT_DEFAULT.remw,
       font: l.font === "big" ? "big" : "normal",
     };
   }
@@ -1784,13 +1789,17 @@ export function mount(container, opts = {}) {
   let drag = null;
   // Trennlinien ziehen: data-split="side" (Breite rechte Spalte) oder "hand" (Höhe Dienst & Übergabe).
   function startDrag(e, el) {
-    const kind = el.dataset.split, wrap = el.closest(kind === "hand" ? ".side" : kind === "rem" ? ".boardcard" : ".schicht"); if (!wrap) return;
+    const kind = el.dataset.split, wrap = el.closest(kind === "hand" ? ".side" : kind === "rem" ? ".boardcard" : kind === "remw" ? ".tl" : ".schicht"); if (!wrap) return;
     e.preventDefault();
     const rect = wrap.getBoundingClientRect();
     drag = { kind, value: null };
     el.setPointerCapture && el.setPointerCapture(e.pointerId);
     const move = (ev) => {
-      if (kind === "rem") {
+      if (kind === "remw") {
+        // Trennlinie Blöcke | Erinnerungen: Breite des Erinnerungs-Bereichs rechts
+        drag.value = Math.round(Math.min(600, rect.width - 340, Math.max(160, rect.right - ev.clientX - 8)));
+        wrap.style.setProperty("--remw", drag.value + "px"); placeNow();
+      } else if (kind === "rem") {
         drag.value = Math.round(Math.min(rect.height - 180, Math.max(70, rect.bottom - ev.clientY - 6)));
         const pn = wrap.querySelector(".ownpanel"); if (pn) { pn.classList.add("fixed"); pn.style.setProperty("--remh", drag.value + "px"); }
       } else if (kind === "hand") {
@@ -4280,10 +4289,11 @@ export function mount(container, opts = {}) {
   });
   main.addEventListener("keydown", (e) => {
     const kind = e.target.dataset && e.target.dataset.split; if (!kind) return;
-    const step = kind === "side" ? { ArrowLeft: 20, ArrowRight: -20 }[e.key] : { ArrowUp: 20, ArrowDown: -20 }[e.key];
+    const step = kind === "side" || kind === "remw" ? { ArrowLeft: 20, ArrowRight: -20 }[e.key] : { ArrowUp: 20, ArrowDown: -20 }[e.key];
     if (!step) return;
     e.preventDefault();
     if (kind === "side") saveLayout({ side: clampSide(getLayout().side + step) });
+    else if (kind === "remw") saveLayout({ remw: clampRemw(getLayout().remw + step) });
     else if (kind === "rem") { const pn = root.querySelector(".ownpanel"); saveLayout({ rem: clampRem((getLayout().rem || (pn ? pn.getBoundingClientRect().height : 160)) + step) }); }
     else {
       const card = root.querySelector(".side > .card.hand");

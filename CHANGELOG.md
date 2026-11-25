@@ -2,6 +2,12 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.24.0 – 25.11.2026
+- Erinnerungen haben im Tagesablauf einen eigenen Bereich rechts neben den Abschnitten. Jede steht genau auf der Höhe ihrer Uhrzeit – nach derselben Rechnung wie die mitlaufende Uhrzeit. Links auf der Zeitlinie sitzt eine Glocke, eine gepunktete Linie verbindet beides. Erreicht die Uhrzeit-Marke die Glocke, ist die Erinnerung fällig.
+- Gilt für eigene Erinnerungen (mit Haken und ×) und für Aufgaben mit Uhrzeit aus dem Plan (gestrichelter Rahmen, antippen springt zur Aufgabe).
+- Die gestrichelte Trennlinie zwischen Abschnitten und Erinnerungen lässt sich nach links und rechts ziehen (auch Pfeiltasten); die Breite gilt pro Person, Doppelklick stellt den Standard wieder her.
+- Erinnerungen stehen nicht mehr in den Abschnitten.
+
 ## 1.23.1 – 25.11.2026
 - Eigene Erinnerungen, die in die Zeit eines offenen Abschnitts fallen, stehen in diesem Abschnitt (nach den offenen Aufgaben). Bei einem zugeklappten späteren Abschnitt zählt die Zeile mit („· 1 Erinnerung“).
 - Ist der Abschnitt erledigt und zugeklappt, bleibt eine offene Erinnerung als eigene Zeile an ihrer Uhrzeit stehen.

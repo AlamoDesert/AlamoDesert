@@ -774,7 +774,7 @@ header.top > .datenav { order: 4; margin-left: auto } header.top > .presence { o
 .tlnowline { position: absolute; left: 60px; right: 0; height: 0; border-top: 2px solid var(--ink); z-index: 1; pointer-events: none }
 .tlnow { position: absolute; left: 0; width: 82px; height: 0; z-index: 3; pointer-events: none }
 .tlnow b { position: absolute; right: 30px; top: -10px; background: var(--ink); color: var(--bg); border-radius: 4px; padding: 1px 5px; font-size: 12px; font-variant-numeric: tabular-nums; line-height: 18px }
-.tlnow::after { content: ""; position: absolute; left: 60px; top: -6px; width: 12px; height: 12px; border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 3px var(--surface) }
+.tlnow::after { content: ""; position: absolute; left: 66px; top: -6px; width: 12px; height: 12px; border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 3px var(--surface) }
 .tlprog { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-weight: 700; font-size: 13px; margin-left: 4px }
 .tlprog i { width: 90px; height: 8px; border-radius: 99px; background: var(--line); overflow: hidden; display: block }
 .tlprog i b { display: block; height: 100%; background: var(--done) }
@@ -806,3 +806,24 @@ button.othchip { cursor: pointer }
 ul.items.tlown { list-style: none; margin: 2px 0 4px; padding: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; position: relative; z-index: 2 }
 ul.items.tlown li.ownrem { border-top: 0 }
 .tlrow.small ul.items.tlown { opacity: .85 }
+
+/* 1.24 Erinnerungen: eigener Bereich rechts neben den Blöcken, zeitgenau (placeNow), Trennlinie verschiebbar (--remw) */
+.tl.has-lane > .tlrow > .tlc { margin-right: calc(var(--remw) + 22px) }
+.tllane { position: absolute; top: 0; right: 0; bottom: 0; width: var(--remw) }
+.tllane-h { display: block; font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); padding-top: 4px }
+.tlsplit { position: absolute; top: 0; bottom: 0; right: calc(var(--remw) + 5px); width: 12px; cursor: col-resize; z-index: 4; touch-action: none }
+.tlsplit::before { content: ""; position: absolute; left: 5px; top: 0; bottom: 0; border-left: 1.5px dashed var(--line) }
+.tlsplit:hover::before, .tlsplit:focus-visible::before { border-left-color: var(--accent); border-left-width: 2px }
+.tlrchip { position: absolute; left: 0; right: 0; display: flex; align-items: flex-start; gap: 8px; box-sizing: border-box; background: var(--surface); border: 1px solid var(--now); border-radius: 8px; padding: 6px 8px; font-size: 13.5px; line-height: 1.25; z-index: 3 }
+.tlrchip.due { background: var(--now-soft) }
+.tlrchip .rtxt { flex: 1; min-width: 0; overflow-wrap: anywhere } .tlrchip .rtxt b { color: var(--now); font-variant-numeric: tabular-nums }
+.tlrchip .rcheck { border: 0; background: none; padding: 0; cursor: pointer; flex: none }
+.tlrchip .rcheck .box { width: 20px; height: 20px; border-radius: 6px; border: 2px solid var(--now); display: grid; place-items: center; box-sizing: border-box }
+.tlrchip .rcheck .box svg { width: 12px; opacity: 0 }
+.tlrchip .rdel { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; padding: 0 2px }
+.tlrchip.item { border-style: dashed }
+.tlrchip .rjump { display: flex; gap: 6px; align-items: flex-start; border: 0; background: none; padding: 0; font: inherit; text-align: left; color: inherit; cursor: pointer; width: 100% }
+.tlrchip .rjump svg { width: 14px; height: 14px; flex: none; color: var(--now); margin-top: 1px }
+.tlbell { position: absolute; left: 72px; width: 20px; height: 20px; transform: translate(-50%, -50%); border-radius: 50%; background: var(--now-soft); border: 2px solid var(--now); color: var(--now); display: grid; place-items: center; z-index: 3; box-sizing: border-box; pointer-events: none }
+.tlbell svg { width: 11px; height: 11px }
+.tlconn { position: absolute; left: 84px; right: calc(var(--remw) + 4px); height: 0; border-top: 1.5px dotted var(--now); opacity: .6; z-index: 1; pointer-events: none }
