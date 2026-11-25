@@ -173,7 +173,11 @@ srv.listen(0, async () => {
   await q(p, "#phase-start .items button").first().click(); await step(300);
   const dn = await q(p, ".tldone").innerText().catch(() => "");
   await q(p, ".tldone").click().catch(() => {}); await step(200);
-  check(/^✓ 1 Abschnitt erledigt/.test(dn) && !/Erinnerung/.test(dn) && await q(p, ".tllane .tlrchip.own.done").count() >= 1 && await q(p, "#phase-start").count() === 0 && await q(p, ".tlsmall").filter({ hasText: "Schichtstart" }).count() === 1, "Tagesablauf: Erledigtes zusammengeklappt – " + dn);
+  check(/^✓ 1 Abschnitt erledigt/.test(dn) && !/Erinnerung/.test(dn) && await q(p, ".tllane .tlrchip.own.done").count() === 0 && await q(p, "#phase-start").count() === 0 && await q(p, ".tlsmall").filter({ hasText: "Schichtstart" }).count() === 1, "Tagesablauf: Erledigtes zusammengeklappt – " + dn);
+  await q(p, ".tlrdone").click(); await step(200);
+  const nd = await q(p, ".tllane .tlrchip.own.done").count();
+  await q(p, ".tlrdone").click(); await step(200);
+  check(nd >= 1 && await q(p, ".tllane .tlrchip.own.done").count() === 0, "Erinnerung: erledigte nur nach Klick auf „erledigte“ sichtbar");
 
   check(!errs.length, "keine Skriptfehler" + (errs.length ? ": " + errs.join(" | ") : ""));
   await b.close(); srv.close();

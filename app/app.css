@@ -839,3 +839,7 @@ ul.items.tlown li.ownrem { border-top: 0 }
 .tlrchip.own.done .rcheck .box { background: var(--done); border-color: var(--done) }
 .tlrchip.own.done .rcheck .box svg { opacity: 1 }
 .tlbell.done { background: var(--surface-2); border-color: var(--line); color: var(--muted) } .tlconn.done { border-top-color: var(--line) }
+/* 1.24.3 Erledigte Erinnerungen nur auf Knopfdruck */
+.tllane-h { display: flex; align-items: center; justify-content: space-between; gap: 8px }
+.tlrdone { border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 99px; padding: 1px 9px; font: inherit; font-size: 11.5px; font-weight: 700; letter-spacing: 0; text-transform: none; cursor: pointer }
+.tlrdone:hover { border-color: var(--accent); color: var(--accent) }

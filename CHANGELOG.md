@@ -2,6 +2,9 @@
 
 Version = `version` in `mac/package.json`. Neueste zuerst. Neue Einträge oben anfügen.
 
+## 1.24.3 – 25.11.2026
+- Erledigte eigene Erinnerungen sind im Erinnerungs-Bereich rechts zunächst ausgeblendet. Der Knopf „✓ n erledigte“ im Kopf des Bereichs zeigt sie, „erledigte ausblenden“ versteckt sie wieder.
+
 ## 1.24.2 – 25.11.2026
 - Erledigte eigene Erinnerungen bleiben im Erinnerungs-Bereich rechts an ihrer Uhrzeit stehen – abgehakt, grau und durchgestrichen, Glocke grau. Haken antippen öffnet sie wieder. Die Zeile „✓ … erledigt“ links zählt nur noch Abschnitte.
 
